@@ -1,0 +1,86 @@
+name: 检查与 macOS 发布
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          cache: pnpm
+      - name: 安装依赖与工具链
+        run: |
+          pnpm install --frozen-lockfile
+          rustup show
+      - name: 检查版本与标签
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          if [ -n "$RELEASE_TAG" ]; then
+            pnpm release:check --tag "$RELEASE_TAG"
+          else
+            pnpm release:check
+          fi
+      - name: 前端检查与测试
+        run: |
+          pnpm typecheck
+          pnpm lint
+          pnpm test
+          pnpm build
+      - name: Rust 检查与测试
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          cargo test --locked --manifest-path src-tauri/Cargo.toml
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: check
+    runs-on: macos-15
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          cache: pnpm
+      - name: 安装依赖与 arm64 工具链
+        run: |
+          pnpm install --frozen-lockfile
+          rustup target add aarch64-apple-darwin
+      - name: 构建安装包及校验文件
+        run: pnpm desktop:package
+      - name: 上传至草稿预发布版本
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if gh release view "$RELEASE_TAG" --json isDraft >/dev/null 2>&1; then
+            is_draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft')
+            if [ "$is_draft" != true ]; then
+              echo "拒绝覆盖已发布的 Release"
+              exit 1
+            fi
+            gh release edit "$RELEASE_TAG" --notes-file release-artifacts/release-notes.md --prerelease
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --prerelease --title "Git Workbench $version" --notes-file release-artifacts/release-notes.md
+          fi
+          gh release upload "$RELEASE_TAG" "release-artifacts/GitWorkbench_${version}_macos_arm64.dmg" release-artifacts/SHA256SUMS.txt release-artifacts/release-notes.md --clobber

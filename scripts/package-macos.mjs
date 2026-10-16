@@ -1,0 +1,23 @@
+import { createHash } from 'node:crypto';
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { checkRelease, releaseNotes } from './release.mjs';
+
+const root = fileURLToPath(new URL('../', import.meta.url));
+if (process.platform !== 'darwin') throw new Error('DMG 需要在 macOS 上构建');
+const version = checkRelease(root);
+execFileSync('pnpm', ['tauri', 'build', '--target', 'aarch64-apple-darwin', '--bundles', 'dmg'], { cwd: root, stdio: 'inherit' });
+const bundleDirectory = resolve(root, 'src-tauri/target/aarch64-apple-darwin/release/bundle/dmg');
+const dmgs = readdirSync(bundleDirectory).filter(name => name.endsWith(`_${version}_aarch64.dmg`));
+if (dmgs.length !== 1) throw new Error('未找到当前版本唯一的 arm64 DMG');
+const output = resolve(root, 'release-artifacts');
+mkdirSync(output, { recursive: true });
+const name = `GitWorkbench_${version}_macos_arm64.dmg`;
+const destination = resolve(output, name);
+copyFileSync(resolve(bundleDirectory, dmgs[0]), destination);
+const hash = createHash('sha256').update(readFileSync(destination)).digest('hex');
+writeFileSync(resolve(output, 'SHA256SUMS.txt'), `${hash}  ${name}\n`);
+writeFileSync(resolve(output, 'release-notes.md'), releaseNotes(root));
+console.log(`\n已生成 ${destination}\nSHA-256: ${hash}`);

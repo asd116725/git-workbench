@@ -1,0 +1,30 @@
+[package]
+name = "git-workbench"
+version = "0.1.0"
+description = "本地 Git 仓库管理桌面工具"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/asd116725/git-workbench"
+
+[lib]
+# Windows 平台需要区分库与可执行文件的名称。
+name = "git_workbench_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
