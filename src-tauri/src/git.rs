@@ -19,6 +19,9 @@ static REPOSITORY_LOCKS: OnceLock<RepositoryLocks> = OnceLock::new();
 mod navigation;
 use navigation::{GitBranch, GitWorktreeInfo, branches, checkout, common_directory, worktrees};
 
+#[cfg(target_os = "macos")]
+mod environment;
+
 /// 仓库状态只传递元数据；文件正文在用户选择文件后按需读取。
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,6 +70,8 @@ pub struct CommitResult {
 
 fn command(repo: &Path) -> Command {
     let mut command = Command::new("git");
+    #[cfg(target_os = "macos")]
+    environment::apply_path(&mut command);
     command
         .arg("--literal-pathspecs")
         .arg("-C")

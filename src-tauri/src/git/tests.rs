@@ -269,6 +269,100 @@ fn failed_commit_hook_keeps_index_and_head_intact() {
     assert_eq!(changes(fixture.path()).unwrap()[0].status_index, "M");
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn gui_launch_loads_login_path_once_and_runs_commit_hooks() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // 在独立进程中模拟 Finder 的系统 PATH，避免修改并行测试共用的环境。
+    if let Some(home) = std::env::var_os("GIT_WORKBENCH_TEST_HOME") {
+        let home = PathBuf::from(home);
+        let fixture = Fixture::new();
+        fixture.write("file.txt", "first");
+        fixture.initial_commit();
+        fixture.write("file.txt", "second");
+        stage(fixture.path(), "file.txt").unwrap();
+        let hook = fixture.path().join(".git/test-hooks/pre-commit");
+        fs::write(
+            &hook,
+            "#!/bin/sh\ntest -z \"$WORKBENCH_SHELL_PRIVATE\" || exit 1\nnpx > hook-result.txt\n",
+        )
+        .unwrap();
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+
+        commit(fixture.path(), "运行提交检查", "").unwrap();
+        assert_eq!(
+            fs::read_to_string(fixture.path().join("hook-result.txt")).unwrap(),
+            "login and interactive tools found\n"
+        );
+        assert_eq!(fs::read_to_string(home.join("login-count")).unwrap(), "x");
+
+        let before = git_line(fixture.path(), &["rev-parse", "HEAD"]).unwrap();
+        fixture.write("file.txt", "third");
+        stage(fixture.path(), "file.txt").unwrap();
+        fs::write(
+            &hook,
+            "#!/bin/sh\nnpx >/dev/null || exit $?\necho 'hook rejected after finding npx' >&2\nexit 1\n",
+        )
+        .unwrap();
+        let error = commit(fixture.path(), "不应提交", "").unwrap_err();
+        assert!(error.contains("hook rejected after finding npx"), "{error}");
+        assert_eq!(
+            git_line(fixture.path(), &["rev-parse", "HEAD"]).unwrap(),
+            before
+        );
+        assert_eq!(changes(fixture.path()).unwrap()[0].status_index, "M");
+        return;
+    }
+
+    let home = tempfile::Builder::new()
+        .prefix("workbench shell ")
+        .tempdir()
+        .unwrap();
+    fs::write(
+        home.path().join(".zprofile"),
+        "printf 'startup noise\\n'\nprintf x >> \"$HOME/login-count\"\nexport WORKBENCH_SHELL_PRIVATE=private\nexport PATH=\"$HOME/login bin:$PATH\"\n",
+    )
+    .unwrap();
+    fs::write(
+        home.path().join(".zshrc"),
+        "export PATH=\"$HOME/interactive bin:$PATH\"\n",
+    )
+    .unwrap();
+    for (name, script) in [
+        (
+            "login bin/login-tool",
+            "#!/bin/sh\nprintf 'login and interactive tools found\\n'\n",
+        ),
+        ("interactive bin/npx", "#!/bin/sh\nexec login-tool\n"),
+    ] {
+        let executable = home.path().join(name);
+        fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        fs::write(&executable, script).unwrap();
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let output = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "git::tests::gui_launch_loads_login_path_once_and_runs_commit_hooks",
+            "--nocapture",
+        ])
+        .env("GIT_WORKBENCH_TEST_HOME", home.path())
+        .env("HOME", home.path())
+        .env("ZDOTDIR", home.path())
+        .env("SHELL", "/bin/zsh")
+        .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
+        .env_remove("WORKBENCH_SHELL_PRIVATE")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[test]
 fn conflicting_files_are_reported_and_commit_is_rejected() {
     let fixture = Fixture::new();

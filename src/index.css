@@ -6,7 +6,7 @@
 
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+    --font-sans: var(--workbench-font-family);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -47,7 +47,7 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/** Atom One Dark 的界面色板；组件统一引用这些变量，避免局部配色偏离。 */
+/** 对齐 akamud/vscode-theme-onedark 的 OneDark.json；区分控件语义，避免用输入框边框或白色叠加代替主题色。 */
 :root,
 .dark {
   color-scheme: dark;
@@ -71,9 +71,17 @@
   --selection: #3e4451;
   --destructive: #e06c75;
   --border: #181a1f;
-  --input: #3a3f4b;
+  --input: var(--border);
   --input-background: #1b1d23;
+  --widget-border: #3a3f4b;
+  --dropdown-background: #353b45;
+  --section-header-background: #333842;
+  --titlebar-foreground: #9da5b4;
+  --list-hover-background: #2c313a66;
+  --indent-guide: #abb2bf26;
   --ring: #528bff;
+  --badge-background: var(--ring);
+  --badge-foreground: var(--foreground-strong);
   --radius: 0.3rem;
   --blue: #61afef;
   --green: #98c379;
@@ -83,6 +91,8 @@
   --error-background: #e06c7514;
   --error-border: #e06c7566;
   --scrollbar: #4e566680;
+  --scrollbar-hover: #5a637580;
+  --scrollbar-active: #747d9180;
   --chart-1: var(--blue);
   --chart-2: var(--green);
   --chart-3: var(--purple);

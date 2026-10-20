@@ -265,7 +265,7 @@ function WelcomeView({ onOpen }: { onOpen: () => void }) {
 }
 
 export default function App() {
-  const { repositories, activeWorktreeId, view, busy, refreshing, error } = useWorkbench();
+  const { repositories, activeWorktreeId, view, busy, restoring, refreshing, error } = useWorkbench();
   const { layout, setLayout, layoutResetKey } = usePreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [repositoryOpen, setRepositoryOpen] = useState(false);
@@ -275,17 +275,20 @@ export default function App() {
   const changedCount = worktree ? new Set([...getChanges(worktree, 'unstaged'), ...getChanges(worktree, 'staged')].map(item => item.id)).size : 0;
   const real = worktree?.source === 'native';
 
+  useEffect(() => { void useWorkbench.getState().restoreSession(); }, []);
+
   return <TooltipProvider delayDuration={400}><div className={`workbench ${native ? 'native-window' : 'browser-window'}`}>
     <header className="titlebar" data-tauri-drag-region><div className="app-title" data-tauri-drag-region>{!native && <Icon name="source-control" />}代码管理</div><div className="window-context" data-tauri-drag-region>{repository?.name ?? '本地 Git 工作台'}{worktree && <><span>/</span>{worktree.branch}</>}</div><span className="titlebar-version">Git Workbench</span></header>
     <Group key={layoutResetKey} orientation="horizontal" className="app-body" defaultLayout={layout.repositories ? { repositories: layout.repositories, workspace: layout.workspace } : undefined} onLayoutChanged={setLayout}>
       <Panel id="repositories" defaultSize="15%" minSize="190px" maxSize="320px"><RepositorySidebar onOpen={() => setRepositoryOpen(true)} onSettings={() => setSettingsOpen(true)} /></Panel>
       <ResizeHandle className="resize-handle" aria-label="调整仓库列表宽度" />
-      <Panel id="workspace" minSize="850px"><main className="workspace">{repository && worktree ? <>
-        <WorkbenchToolbar repository={repository} worktree={worktree} onBranchOpen={() => setBranchOpen(true)} />
+      <Panel id="workspace" minSize="850px"><main className="workspace">
         {error && <div className="git-error" role="alert"><Icon name="warning" /><pre>{error}</pre></div>}
+        {repository && worktree ? <>
+        <WorkbenchToolbar repository={repository} worktree={worktree} onBranchOpen={() => setBranchOpen(true)} />
         {view === 'changes' || real ? <ChangesView key={activeWorktreeId} worktree={worktree} shortcutsEnabled={!settingsOpen && !repositoryOpen && !branchOpen} /> : <HistoryView key={activeWorktreeId} worktree={worktree} />}
         <footer className="statusbar"><span className="status-branch"><Icon name="git-branch" />{worktree.branch}</span><span className="status-divider" /><span>{busy ? 'Git 操作进行中…' : refreshing ? '正在刷新…' : changedCount ? `${changedCount} 个文件有更改` : '工作区干净'}</span><span className={`status-demo ${real ? 'status-native' : ''}`}><Icon name={real ? 'repo' : 'beaker'} />{real ? '本地 Git' : '演示模式'}</span><span className="status-spacer" /><span className="status-path" title={worktree.path}>{worktree.path}</span></footer>
-      </> : <WelcomeView onOpen={() => setRepositoryOpen(true)} />}</main></Panel>
+      </> : restoring ? <div className="diff-message" role="status"><Icon name="loading spin" />正在恢复上次打开的仓库…</div> : <WelcomeView onOpen={() => setRepositoryOpen(true)} />}</main></Panel>
     </Group>
     <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} /><OpenRepositoryDialog open={repositoryOpen} onOpenChange={setRepositoryOpen} /><Toaster theme="dark" position="bottom-right" closeButton richColors />
     {branchOpen && worktree && <BranchPickerDialog key={worktree.id} worktree={worktree} open onOpenChange={setBranchOpen} />}

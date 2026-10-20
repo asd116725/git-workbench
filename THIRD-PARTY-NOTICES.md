@@ -14,4 +14,6 @@ Git Workbench 自有代码采用 MIT 许可证。以下素材、字体和软件�
 
 macOS 安装包在 `代码管理.app/Contents/Resources/licenses/` 中附带项目 MIT、本文及第三方许可全文。系统 Git 不随应用分发，应用调用用户已安装的 Git。
 
+主题配色核对基准为 Atom One Dark 2.3.0 的 [OneDark.json（a8be970）](https://github.com/akamud/vscode-theme-onedark/blob/a8be970644982221f9b61fb1c4b3da74b4beab79/themes/OneDark.json)。本地 `src/themes/atom-one-dark.json` 保留原始主题；应用界面的背景、控件、列表、徽标及滚动条按原主题的对应颜色使用，Monaco 颜色覆盖仅适配键名与应用分栏边界。
+
 Codicons 采用知识共享署名许可。来源、修改内容及完整许可如上；项目与 Microsoft、字体/主题原作者不存在背书关系。

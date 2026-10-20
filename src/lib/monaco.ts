@@ -42,11 +42,12 @@ monaco.editor.defineTheme('workbench-dark', {
   ],
   colors: {
     ...theme.colors,
-    'editorIndentGuide.background1': '#ABB2BF26',
-    'editorIndentGuide.activeBackground1': '#626772',
-    'diffEditor.border': '#181A1F',
-    'diffEditor.unchangedRegionBackground': '#2C313A',
-    'diffEditor.unchangedRegionForeground': '#9DA5B4',
+    /** 新版 Monaco 的键名兼容映射也引用原主题，保留上游 Diff 透明色与默认行底色。 */
+    'editorIndentGuide.background1': theme.colors['editorIndentGuide.background'],
+    'editorIndentGuide.activeBackground1': theme.colors['editorIndentGuide.activeBackground'],
+    'diffEditor.border': theme.colors['editorGroup.border'],
+    'diffEditor.unchangedRegionBackground': theme.colors['sideBar.background'],
+    'diffEditor.unchangedRegionForeground': theme.colors['editor.foreground'],
   },
 });
 

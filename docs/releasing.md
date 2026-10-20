@@ -30,7 +30,7 @@ release-artifacts/
 
 5. 用 `shasum -a 256 -c SHA256SUMS.txt` 核对，挂载 DMG，检查应用与 Applications 拖入布局。
 6. 将应用复制到独立临时目录，核对 `Contents/Info.plist` 版本、`file`/`lipo` 架构及 `codesign --verify --deep --strict`。
-7. 启动包内应用，在临时测试仓库验证 Diff、目录暂存、取消暂存及提交。检查提交只包含暂存内容，工作区其他内容保持不变。
+7. 启动包内应用，在临时测试仓库验证 Diff、目录暂存、取消暂存及提交。检查提交只包含暂存内容，工作区其他内容保持不变。填写提交草稿后点击 macOS 红色关闭按钮，确认进程仍运行；点击 Dock 图标，确认工作区、Diff 和草稿保留；最后用 `⌘Q` 确认进程正常退出。
 
 ## 推送与草稿 Release
 

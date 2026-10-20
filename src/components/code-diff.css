@@ -29,14 +29,14 @@
 .code-diff-readonly { display: inline-flex; align-items: center; gap: 5px; align-self: center; margin-left: auto; margin-right: 17px; color: var(--subtle-foreground); font-size: 11px; }
 .code-diff-readonly .codicon { font-size: 12px; }
 .code-diff-icon-button { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 25px; height: 25px; padding: 0; border: 0; border-radius: 4px; color: var(--muted-foreground); background: transparent; }
-.code-diff-icon-button:hover:not(:disabled) { color: var(--foreground-strong); background: #ffffff0d; }
+.code-diff-icon-button:hover:not(:disabled) { color: var(--foreground-strong); background: var(--list-hover-background); }
 .code-diff-toolbar { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--background); }
 .code-diff-breadcrumb { display: flex; align-items: center; min-width: 0; overflow: hidden; color: var(--muted-foreground); font-size: 13px; white-space: nowrap; }
 .code-diff-breadcrumb-part { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
 .code-diff-breadcrumb-part .codicon { color: var(--subtle-foreground); font-size: 12px; }
 .code-diff-breadcrumb-name { overflow: hidden; text-overflow: ellipsis; }
 .code-diff-toolbar-actions { display: flex; flex-shrink: 0; align-items: center; gap: 22px; }
-.code-diff-mode { display: inline-flex; padding: 2px; border: 1px solid var(--input); border-radius: 5px; background: var(--muted); }
+.code-diff-mode { display: inline-flex; padding: 2px; border: 1px solid var(--widget-border); border-radius: 5px; background: var(--muted); }
 .code-diff-mode button { min-width: 49px; height: 23px; padding: 0 12px; border: 0; border-radius: 3px; color: var(--muted-foreground); font-size: 12px; background: transparent; }
 .code-diff-mode button.is-active { color: var(--primary-foreground); background: var(--primary); box-shadow: 0 1px 3px #0002; }
 .code-diff-stats { display: flex; gap: 7px; min-width: 54px; font: 12px "SFMono-Regular", Consolas, monospace; }
@@ -46,7 +46,7 @@
 .code-diff-comparison-label { display: flex; align-items: center; min-width: 0; overflow: hidden; padding: 0 14px; color: var(--foreground); font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
 .code-diff-modified-heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; border-left: 1px solid var(--border); }
 .code-diff-hunk-actions { display: flex; flex-shrink: 0; align-items: center; gap: 2px; margin-left: auto; padding-left: 4px; }
-.code-diff-stage-button { display: inline-flex; align-items: center; gap: 5px; height: 24px; margin-right: 6px; padding: 0 8px; border: 1px solid var(--input); border-radius: 4px; color: var(--foreground); font-size: 11px !important; white-space: nowrap; background: var(--muted); }
+.code-diff-stage-button { display: inline-flex; align-items: center; gap: 5px; height: 24px; margin-right: 6px; padding: 0 8px; border: 1px solid var(--widget-border); border-radius: 4px; color: var(--foreground); font-size: 11px !important; white-space: nowrap; background: var(--muted); }
 .code-diff-stage-button:hover:not(:disabled) { border-color: var(--ring); color: var(--primary-foreground); background: var(--selection); }
 .code-diff-stage-button .codicon { font-size: 13px; }
 .code-diff-hunk-count { min-width: 25px; color: var(--subtle-foreground); font: 10px "SFMono-Regular", Consolas, monospace; text-align: center; }
@@ -57,7 +57,7 @@
 .code-diff-loading { display: flex; align-items: center; gap: 8px; height: 100%; color: var(--muted-foreground); font-size: 13px; }
 .code-diff-loading .codicon { animation: code-diff-spin 1s linear infinite; }
 .code-diff-empty { align-items: center; justify-content: center; padding: 30px; text-align: center; }
-.code-diff-empty-icon { display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; margin-bottom: 14px; border: 1px solid var(--input); border-radius: 16px; color: var(--subtle-foreground); background: var(--muted); }
+.code-diff-empty-icon { display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; margin-bottom: 14px; border: 1px solid var(--widget-border); border-radius: 16px; color: var(--subtle-foreground); background: var(--muted); }
 .code-diff-empty-icon .codicon { font-size: 30px; }
 .code-diff-empty h2 { margin: 0 0 8px; color: var(--foreground); font-size: 16px; font-weight: 500; }
 .code-diff-empty p { margin: 0; color: var(--subtle-foreground); font-size: 13px; }
