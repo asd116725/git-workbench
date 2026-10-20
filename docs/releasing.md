@@ -21,7 +21,7 @@ pnpm release:check --tag v0.1.1
 
 ```text
 release-artifacts/
-  GitWorkbench_0.1.0_macos_arm64.dmg
+  GitWorkbench_0.1.1_macos_arm64.dmg
   SHA256SUMS.txt
   release-notes.md
 ```
@@ -38,10 +38,10 @@ release-artifacts/
 
 ```sh
 git add <本次发布文件>
-git commit -m "chore: 发布 0.1.0 预发布版本"
-git tag -a v0.1.0 -m "Git Workbench 0.1.0 预发布"
+git commit -m "chore: 发布 0.1.1 预发布版本"
+git tag -a v0.1.1 -m "Git Workbench 0.1.1 预发布"
 git push origin main
-git push origin v0.1.0
+git push origin v0.1.1
 ```
 
 基础 CI 检查 `main`、Pull Request 和 `v*` 标签。标签任务先检查版本/标签、类型、lint、前端构建和前后端测试，再在 `macos-15` 构建 arm64 DMG；只有发布任务拥有 `contents: write`。
@@ -56,11 +56,11 @@ git push origin v0.1.0
 4. 在 GitHub 编辑草稿发布为预发布，或执行：
 
 ```sh
-gh release edit v0.1.0 --repo asd116725/git-workbench --draft=false --prerelease
+gh release edit v0.1.1 --repo asd116725/git-workbench --draft=false --prerelease
 ```
 
 5. 从公开链接重新下载 DMG 和校验文件，检查 README 的下载链接与操作手册可访问。
 
-首版只采用 ad-hoc 签名，没有 Developer ID 和 Apple 公证。不得将其描述为已经公证的正式签名包。今后若增加签名、公证或更新服务，应另行配置凭据与验证流程。
+当前版本只采用 ad-hoc 签名，没有 Developer ID 和 Apple 公证。不得将其描述为已经公证的正式签名包。今后若增加签名、公证或更新服务，应另行配置凭据与验证流程。
 
 参考：[Tauri DMG](https://v2.tauri.app/distribute/dmg/)、[macOS 签名](https://v2.tauri.app/distribute/sign/macos/)、[Tauri GitHub 发布流程](https://github.com/tauri-apps/tauri-action)。

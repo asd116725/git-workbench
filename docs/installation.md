@@ -2,15 +2,15 @@
 
 ## 下载和校验
 
-首版为 Apple Silicon（M 系列芯片）构建，文件名为 `GitWorkbench_0.1.0_macos_arm64.dmg`。可在「关于本机」查看芯片类型；此安装包不支持 Intel Mac。
+当前版本为 Apple Silicon（M 系列芯片）构建，文件名为 `GitWorkbench_0.1.1_macos_arm64.dmg`。可在「关于本机」查看芯片类型；此安装包不支持 Intel Mac。
 
-在 [v0.1.0 Release](https://github.com/asd116725/git-workbench/releases/tag/v0.1.0) 下载 DMG 和同一版本的 `SHA256SUMS.txt`，将二者放在同一目录。在该目录打开终端：
+在 [v0.1.1 Release](https://github.com/asd116725/git-workbench/releases/tag/v0.1.1) 下载 DMG 和同一版本的 `SHA256SUMS.txt`，将二者放在同一目录。在该目录打开终端：
 
 ```sh
 shasum -a 256 -c SHA256SUMS.txt
 ```
 
-输出 `GitWorkbench_0.1.0_macos_arm64.dmg: OK` 后继续。如校验失败，重新从该 Release 下载，不要使用损坏的文件。
+输出 `GitWorkbench_0.1.1_macos_arm64.dmg: OK` 后继续。如校验失败，重新从该 Release 下载，不要使用损坏的文件。
 
 ## 安装
 
@@ -37,12 +37,12 @@ shasum -a 256 -c SHA256SUMS.txt
 
 ## 更新和卸载
 
-更新时退出应用，从 [Releases](https://github.com/asd116725/git-workbench/releases) 下载新版本，校验后拖入 Applications 并选择替换。首版没有应用内自动更新。
+升级前先保存未提交的草稿，再用 `⌘Q` 完全退出应用；关闭窗口只会隐藏，进程仍会运行。从 [Releases](https://github.com/asd116725/git-workbench/releases) 下载新版本，校验后拖入 Applications 并选择替换。当前版本没有应用内自动更新。
 
 卸载时退出应用，将 Applications 中的「代码管理」移入废纸篓。仓库文件由用户自行管理，应用卸载不会删除仓库。字号与布局等偏好可能留在 WebView 的本地数据中。
 
 ## 兼容范围
 
-最低系统构建配置为 macOS 12。首版提供 arm64 包，已在维护者当前 arm64 macOS 环境进行安装布局、版本及基础 Git 操作验收，不能据此保证所有旧系统均已验证。遇到兼容性问题请反馈系统版本与复现步骤。
+最低系统构建配置为 macOS 12。当前版本提供 arm64 包，已在维护者当前 arm64 macOS 环境进行安装布局、版本及基础 Git 操作验收，不能据此保证所有旧系统均已验证。遇到兼容性问题请反馈系统版本与复现步骤。
 
 更多操作见[中文操作手册](user-manual.md)。签名机制可参考 [Tauri 官方 macOS 签名文档](https://v2.tauri.app/distribute/sign/macos/)。
