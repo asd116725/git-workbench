@@ -5,6 +5,7 @@ import { getDiff, getHunks } from '../lib/demo-git';
 import type { ChangeArea, FileSnapshot } from '../lib/types';
 import { monaco } from '../lib/monaco';
 import { getEditorLanguage } from '../lib/syntax-highlighter';
+import { createDiffContentUpdater } from '../lib/diff-content';
 import './code-diff.css';
 
 /** 差异面板只负责展示与选择，暂存操作交给仓库业务层。 */
@@ -60,6 +61,7 @@ function ActiveCodeDiff({
   onClose,
 }: CodeDiffProps & { file: FileSnapshot }) {
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
+  const contentUpdaterRef = useRef<ReturnType<typeof createDiffContentUpdater> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedHunk, setSelectedHunk] = useState(0);
   const diff = useMemo(() => getDiff(file, area), [file, area]);
@@ -142,13 +144,19 @@ function ActiveCodeDiff({
       readOnly: true,
       theme: 'workbench-dark',
     });
-    instance.setModel({ original, modified });
+    const viewModel = instance.createViewModel({ original, modified });
+    instance.setModel(viewModel);
+    const contentUpdater = createDiffContentUpdater(instance, viewModel);
+    contentUpdaterRef.current = contentUpdater;
     editorRef.current = instance;
 
     return () => {
       editorRef.current = null;
+      contentUpdaterRef.current = null;
+      contentUpdater.dispose();
       instance.setModel(null);
       instance.dispose();
+      viewModel.dispose();
       original.dispose();
       modified.dispose();
     };
@@ -159,9 +167,7 @@ function ActiveCodeDiff({
   }, [options, language, originalModelPath, modifiedModelPath]);
 
   useLayoutEffect(() => {
-    const models = editorRef.current!.getModel()!;
-    if (models.original.getValue() !== diff.original) models.original.setValue(diff.original);
-    if (models.modified.getValue() !== diff.modified) models.modified.setValue(diff.modified);
+    contentUpdaterRef.current!.update(diff.original, diff.modified);
   }, [diff.original, diff.modified, language, originalModelPath, modifiedModelPath]);
 
   /** 使用业务层的补丁块索引导航，保证“暂存此块”操作与当前选择一致。 */
@@ -170,6 +176,7 @@ function ActiveCodeDiff({
     const index = (activeHunk + direction + hunks.length) % hunks.length;
     setSelectedHunk(index);
     const hunk = hunks[index];
+    contentUpdaterRef.current?.cancelPendingRestore();
     const instance = editorRef.current;
     instance?.getModifiedEditor().revealLineInCenter(Math.max(1, hunk.newStart));
     instance?.getOriginalEditor().revealLineInCenter(Math.max(1, hunk.oldStart));

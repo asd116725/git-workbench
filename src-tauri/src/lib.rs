@@ -7,6 +7,7 @@ use tauri::{Manager, RunEvent, WindowEvent};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
+        .manage(git::GitWatchState::default())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             git::git_open,
@@ -17,6 +18,7 @@ pub fn run() {
             git::git_commit,
             git::git_branches,
             git::git_checkout,
+            git::watch::git_watch,
         ]);
 
     #[cfg(target_os = "macos")]

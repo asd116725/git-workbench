@@ -18,6 +18,8 @@ static REPOSITORY_LOCKS: OnceLock<RepositoryLocks> = OnceLock::new();
 
 mod navigation;
 use navigation::{GitBranch, GitWorktreeInfo, branches, checkout, common_directory, worktrees};
+pub mod watch;
+pub use watch::GitWatchState;
 
 #[cfg(target_os = "macos")]
 mod environment;
@@ -189,7 +191,13 @@ fn parse_status(bytes: &[u8]) -> GitResult<Vec<GitChange>> {
 fn changes(repo: &Path) -> GitResult<Vec<GitChange>> {
     parse_status(&git(
         repo,
-        &["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        &[
+            "--no-optional-locks",
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+        ],
     )?)
 }
 

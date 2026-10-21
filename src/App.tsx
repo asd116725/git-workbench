@@ -20,6 +20,7 @@ import { BranchPickerDialog } from './components/BranchPickerDialog';
 import { ChangeFileTree } from './components/ChangeFileTree';
 import { buildChangeTree } from './lib/change-tree';
 import { findWorktree, usePreferences, useWorkbench } from './lib/store';
+import { startAutoRefresh } from './lib/auto-refresh';
 import { getChanges, getFileStatus } from './lib/demo-git';
 import type { ChangeArea, Commit, FileSnapshot, Repository, Worktree } from './lib/types';
 import '@vscode/codicons/dist/codicon.css';
@@ -131,13 +132,12 @@ function FileGroup({ worktree, area, disabled }: { worktree: Worktree; area: Cha
 
 function CommitComposer({ worktree, busy, onCommit }: { worktree: Worktree; busy: boolean; onCommit: () => Promise<void> }) {
   const { drafts, setDraft } = useWorkbench();
-  const draft = drafts[worktree.id] ?? { summary: '', description: '' };
+  const draft = drafts[worktree.id] ?? { message: '' };
   const stagedCount = getChanges(worktree, 'staged').length;
   const conflicted = worktree.files.some(file => file.git?.conflicted);
-  const ready = stagedCount > 0 && draft.summary.trim().length > 0 && !busy && !conflicted;
+  const ready = stagedCount > 0 && draft.message.trim().length > 0 && !busy && !conflicted;
   return <form className="commit-composer" onSubmit={event => { event.preventDefault(); if (ready) void onCommit(); }}>
-    <FieldGroup className="commit-fields"><Field><FieldLabel htmlFor="commit-summary">提交信息</FieldLabel><Input id="commit-summary" placeholder="简要说明这次更改" value={draft.summary} disabled={busy} autoComplete="off" onChange={event => setDraft({ ...draft, summary: event.target.value })} /></Field>
-      <Field><FieldLabel htmlFor="commit-description" className="sr-only">详细说明</FieldLabel><Textarea id="commit-description" placeholder="添加更详细的说明（可选）" value={draft.description} disabled={busy} onChange={event => setDraft({ ...draft, description: event.target.value })} /></Field>
+    <FieldGroup className="commit-fields"><Field><FieldLabel htmlFor="commit-message">提交信息</FieldLabel><Textarea id="commit-message" placeholder={'简要说明这次更改\n\n添加详细说明（可选）'} value={draft.message} disabled={busy} autoComplete="off" onChange={event => setDraft({ message: event.target.value })} /></Field>
     </FieldGroup>
     {conflicted && <p className="commit-warning">请先在编辑器中解决冲突，再暂存对应文件。</p>}
     <Button type="submit" className="commit-button" disabled={!ready}><Icon name={busy ? 'loading' : 'check'} className={busy ? 'spin' : ''} />{busy ? '正在处理…' : `提交 ${stagedCount} 个文件`}</Button>
@@ -165,7 +165,7 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
       if (!shortcutsEnabled || event.defaultPrevented) return;
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && !event.isComposing) {
         const draft = drafts[worktree.id];
-        if (!busy && !refreshing && !worktree.files.some(item => item.git?.conflicted) && draft?.summary.trim() && getChanges(worktree, 'staged').length) {
+        if (!busy && !refreshing && !worktree.files.some(item => item.git?.conflicted) && draft?.message.trim() && getChanges(worktree, 'staged').length) {
           event.preventDefault();
           void handleCommit();
         }
@@ -265,7 +265,7 @@ function WelcomeView({ onOpen }: { onOpen: () => void }) {
 }
 
 export default function App() {
-  const { repositories, activeWorktreeId, view, busy, restoring, refreshing, error } = useWorkbench();
+  const { repositories, activeWorktreeId, view, busy, restoring, refreshing, error, autoRefreshError } = useWorkbench();
   const { layout, setLayout, layoutResetKey } = usePreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [repositoryOpen, setRepositoryOpen] = useState(false);
@@ -276,6 +276,7 @@ export default function App() {
   const real = worktree?.source === 'native';
 
   useEffect(() => { void useWorkbench.getState().restoreSession(); }, []);
+  useEffect(() => startAutoRefresh(), []);
 
   return <TooltipProvider delayDuration={400}><div className={`workbench ${native ? 'native-window' : 'browser-window'}`}>
     <header className="titlebar" data-tauri-drag-region><div className="app-title" data-tauri-drag-region>{!native && <Icon name="source-control" />}代码管理</div><div className="window-context" data-tauri-drag-region>{repository?.name ?? '本地 Git 工作台'}{worktree && <><span>/</span>{worktree.branch}</>}</div><span className="titlebar-version">Git Workbench</span></header>
@@ -284,6 +285,7 @@ export default function App() {
       <ResizeHandle className="resize-handle" aria-label="调整仓库列表宽度" />
       <Panel id="workspace" minSize="850px"><main className="workspace">
         {error && <div className="git-error" role="alert"><Icon name="warning" /><pre>{error}</pre></div>}
+        {autoRefreshError && <div className="git-error" role="status"><Icon name="warning" /><pre>{autoRefreshError}</pre></div>}
         {repository && worktree ? <>
         <WorkbenchToolbar repository={repository} worktree={worktree} onBranchOpen={() => setBranchOpen(true)} />
         {view === 'changes' || real ? <ChangesView key={activeWorktreeId} worktree={worktree} shortcutsEnabled={!settingsOpen && !repositoryOpen && !branchOpen} /> : <HistoryView key={activeWorktreeId} worktree={worktree} />}

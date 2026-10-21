@@ -124,6 +124,28 @@ describe('真实仓库状态与正文', () => {
 });
 
 describe('真实仓库写入', () => {
+  it.each([
+    ['修复刷新\n', '修复刷新', ''],
+    ['修复刷新\n补充说明', '修复刷新', '补充说明'],
+    ['\n  修复刷新\n\n说明第一段\n\n说明第二段\n\n', '修复刷新', '说明第一段\n\n说明第二段'],
+  ])('完整草稿保留换行，提交时拆分标题与正文：%j', async (message, summary, description) => {
+    await useWorkbench.getState().openRepository('/test/repository');
+    useWorkbench.getState().setDraft({ message });
+    expect(useWorkbench.getState().drafts[currentWorktree().id].message).toBe(message);
+    await useWorkbench.getState().commit();
+    expect(mockedInvoke).toHaveBeenCalledWith('git_commit', { repoPath: '/test/repository', summary, description });
+    expect(useWorkbench.getState().drafts[currentWorktree().id]).toEqual({ message: '' });
+  });
+
+  it('只包含空白与换行的提交信息不能提交，且保留草稿', async () => {
+    await useWorkbench.getState().openRepository('/test/repository');
+    const message = '\n  \n';
+    useWorkbench.getState().setDraft({ message });
+    await expect(useWorkbench.getState().commit()).rejects.toThrow('请输入提交标题');
+    expect(mockedInvoke.mock.calls.some(([command]) => command === 'git_commit')).toBe(false);
+    expect(useWorkbench.getState().drafts[currentWorktree().id].message).toBe(message);
+  });
+
   it('批量暂存通过一次原生请求提交全部精确路径，完成后统一刷新一次', async () => {
     await useWorkbench.getState().openRepository('/test/repository');
     mockedInvoke.mockClear();
@@ -139,7 +161,7 @@ describe('真实仓库写入', () => {
     const repository = { ...baseRepository, files: [...baseRepository.files, { ...baseRepository.files[0], path: 'third.ts' }] };
     mockedInvoke.mockImplementation(async command => command === 'git_open' ? repository : textDiff);
     await useWorkbench.getState().openRepository('/test/repository');
-    const draft = { summary: '保留批量操作前的草稿', description: '' };
+    const draft = { message: '保留批量操作前的草稿' };
     useWorkbench.getState().setDraft(draft);
     mockedInvoke.mockClear();
     mockedInvoke.mockImplementation(async command => {
@@ -186,7 +208,7 @@ describe('真实仓库写入', () => {
 
   it('提交失败保留草稿和文件状态，错误可用于提示身份或 hook 问题', async () => {
     await useWorkbench.getState().openRepository('/test/repository');
-    const draft = { summary: '修复文件', description: '保留未暂存内容' };
+    const draft = { message: '修复文件\n\n保留未暂存内容' };
     useWorkbench.getState().setDraft(draft);
     mockedInvoke.mockImplementation(async command => {
       if (command === 'git_commit') throw 'Author identity unknown';
@@ -200,14 +222,14 @@ describe('真实仓库写入', () => {
 
   it('提交成功清空本仓库草稿，后续刷新失败仍返回成功 hash', async () => {
     await useWorkbench.getState().openRepository('/test/repository');
-    useWorkbench.getState().setDraft({ summary: '修复文件', description: '' });
+    useWorkbench.getState().setDraft({ message: '修复文件' });
     mockedInvoke.mockImplementation(async command => {
       if (command === 'git_commit') return { commitId: 'abc123' };
       if (command === 'git_status') throw '仓库暂时不可用';
       return textDiff;
     });
     await expect(useWorkbench.getState().commit()).resolves.toBe('abc123');
-    expect(useWorkbench.getState().drafts[currentWorktree().id]).toEqual({ summary: '', description: '' });
+    expect(useWorkbench.getState().drafts[currentWorktree().id]).toEqual({ message: '' });
     expect(useWorkbench.getState().error).toBe('操作已完成，但刷新失败：仓库暂时不可用');
     expect(useWorkbench.getState().busy).toBe(false);
   });
@@ -241,7 +263,7 @@ describe('真实仓库写入', () => {
 
   it('提交期间新输入的草稿不会被成功回调清除', async () => {
     await useWorkbench.getState().openRepository('/test/repository');
-    useWorkbench.getState().setDraft({ summary: '本次提交', description: '' });
+    useWorkbench.getState().setDraft({ message: '本次提交' });
     const committing = deferred<{ commitId: string }>();
     mockedInvoke.mockImplementation(async command => {
       if (command === 'git_commit') return committing.promise;
@@ -249,7 +271,7 @@ describe('真实仓库写入', () => {
       return textDiff;
     });
     const commit = useWorkbench.getState().commit();
-    const nextDraft = { summary: '下次提交', description: '' };
+    const nextDraft = { message: '下次提交' };
     useWorkbench.getState().setDraft(nextDraft);
     committing.resolve({ commitId: 'abc123' });
     await commit;
@@ -283,10 +305,10 @@ describe('worktree 发现与归组', () => {
     expect(useWorkbench.getState().repositories).toHaveLength(1);
     expect(useWorkbench.getState().repositories[0].worktrees.map(item => item.path)).toEqual([main.path, linked.path]);
     expect(currentWorktree().branch).toBe('feature');
-    const linkedDraft = { summary: '分支草稿', description: '保留' };
+    const linkedDraft = { message: '分支草稿\n\n保留' };
     useWorkbench.getState().setDraft(linkedDraft);
     await useWorkbench.getState().openRepository(main.path);
-    const mainDraft = { summary: '主目录草稿', description: '' };
+    const mainDraft = { message: '主目录草稿' };
     useWorkbench.getState().setDraft(mainDraft);
     await useWorkbench.getState().openRepository(linked.path);
     expect(useWorkbench.getState().repositories).toHaveLength(1);
@@ -370,7 +392,7 @@ describe('真实分支列表与切换', () => {
 
   it('切换失败保留原分支、选中文件和草稿', async () => {
     await useWorkbench.getState().openRepository(baseRepository.path);
-    const draft = { summary: '继续编辑', description: '未提交' };
+    const draft = { message: '继续编辑\n\n未提交' };
     useWorkbench.getState().setDraft(draft);
     const previousSelection = useWorkbench.getState().selection;
     mockedInvoke.mockImplementation(async command => {
@@ -387,7 +409,7 @@ describe('真实分支列表与切换', () => {
 
   it('切换成功刷新工作目录及分支列表，保留草稿并展示新分支状态', async () => {
     await useWorkbench.getState().openRepository(baseRepository.path);
-    const draft = { summary: '下一次提交', description: '' };
+    const draft = { message: '下一次提交' };
     useWorkbench.getState().setDraft(draft);
     const switched = { ...baseRepository, branch: 'feature', worktrees: [{ ...mainMetadata, branch: 'feature' }, linkedMetadata], files: [] };
     mockedInvoke.mockImplementation(async command => {
@@ -454,5 +476,91 @@ describe('真实分支列表与切换', () => {
     pending.resolve({ branch: 'feature' });
     await switching;
     expect(useWorkbench.getState().busy).toBe(false);
+  });
+});
+
+describe('自动刷新保留阅读与编辑状态', () => {
+  it('状态相同仍读取正文，读取期间保留 Diff 和草稿且不锁定界面', async () => {
+    await useWorkbench.getState().openRepository('/test/repository');
+    const previous = useWorkbench.getState().diff;
+    const draft = { message: '尚未提交\n\n保留说明' };
+    useWorkbench.getState().setDraft(draft);
+    useWorkbench.setState({ error: '之前的提交错误' });
+    const response = deferred<typeof textDiff>();
+    mockedInvoke.mockImplementation(async command => command === 'git_status' ? baseRepository : response.promise);
+    const refresh = useWorkbench.getState().refresh({ silent: true });
+    await vi.waitFor(() => expect(mockedInvoke).toHaveBeenCalledWith('git_diff', { repoPath: '/test/repository', path: 'first.ts', area: 'unstaged' }));
+    expect(useWorkbench.getState()).toMatchObject({ refreshing: false, busy: false, autoRefreshing: true, diff: previous });
+    response.resolve({ ...textDiff, modified: '外部编辑后的内容\n' });
+    await refresh;
+    expect(useWorkbench.getState().diff.file?.working).toBe('外部编辑后的内容\n');
+    expect(useWorkbench.getState().drafts[currentWorktree().id]).toEqual(draft);
+    expect(useWorkbench.getState().error).toBe('之前的提交错误');
+    expect(useWorkbench.getState().autoRefreshing).toBe(false);
+  });
+
+  it('正文与状态没有变化时复用当前 Diff 对象', async () => {
+    await useWorkbench.getState().openRepository('/test/repository');
+    const diff = useWorkbench.getState().diff;
+    await useWorkbench.getState().refresh({ silent: true });
+    expect(useWorkbench.getState().diff).toBe(diff);
+  });
+
+  it('静默读取失败保留上次正文，后续成功消除更新错误', async () => {
+    await useWorkbench.getState().openRepository('/test/repository');
+    const diff = useWorkbench.getState().diff;
+    mockedInvoke.mockImplementation(async command => {
+      if (command === 'git_status') return baseRepository;
+      throw new Error('文件正在被替换');
+    });
+    await useWorkbench.getState().refresh({ silent: true });
+    expect(useWorkbench.getState().diff).toBe(diff);
+    expect(useWorkbench.getState().autoRefreshError).toContain('当前显示上次结果');
+    mockedInvoke.mockImplementation(async command => command === 'git_status' ? baseRepository : textDiff);
+    await useWorkbench.getState().refresh({ silent: true });
+    expect(useWorkbench.getState().autoRefreshError).toBeNull();
+  });
+
+  it('静默状态读取失败不清空列表或正文', async () => {
+    await useWorkbench.getState().openRepository('/test/repository');
+    const previous = useWorkbench.getState();
+    mockedInvoke.mockRejectedValue('仓库不可访问');
+    await useWorkbench.getState().refresh({ silent: true });
+    expect(useWorkbench.getState().repositories).toBe(previous.repositories);
+    expect(useWorkbench.getState().diff).toBe(previous.diff);
+    expect(useWorkbench.getState().autoRefreshError).toContain('仓库不可访问');
+    expect(useWorkbench.getState().autoRefreshing).toBe(false);
+  });
+
+  it('静默状态请求期间关闭文件，响应不会重新打开标签', async () => {
+    await useWorkbench.getState().openRepository('/test/repository');
+    const status = deferred<NativeRepository>();
+    mockedInvoke.mockClear();
+    mockedInvoke.mockImplementation(async command => command === 'git_status' ? status.promise : textDiff);
+    const refresh = useWorkbench.getState().refresh({ silent: true });
+    useWorkbench.getState().closeFile();
+    status.resolve(baseRepository);
+    await refresh;
+    expect(useWorkbench.getState().selection).toBeNull();
+    expect(useWorkbench.getState().diff.file).toBeNull();
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === 'git_diff')).toHaveLength(0);
+  });
+
+  it('静默正文请求期间切换文件，旧正文不能覆盖当前选择', async () => {
+    await useWorkbench.getState().openRepository('/test/repository');
+    const response = deferred<typeof textDiff>();
+    mockedInvoke.mockClear();
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if (command === 'git_status') return baseRepository;
+      return (args as { path: string }).path === 'first.ts' ? response.promise : { ...textDiff, modified: 'second\n' };
+    });
+    const refresh = useWorkbench.getState().refresh({ silent: true });
+    await vi.waitFor(() => expect(mockedInvoke).toHaveBeenCalledWith('git_diff', { repoPath: '/test/repository', path: 'first.ts', area: 'unstaged' }));
+    useWorkbench.getState().selectFile('second.ts', 'staged');
+    await vi.waitFor(() => expect(useWorkbench.getState().diff.file?.index).toBe('second\n'));
+    response.resolve({ ...textDiff, modified: '过期正文' });
+    await refresh;
+    expect(useWorkbench.getState().selection).toEqual({ fileId: 'second.ts', area: 'staged' });
+    expect(useWorkbench.getState().diff.file?.index).toBe('second\n');
   });
 });

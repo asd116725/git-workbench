@@ -58,7 +58,7 @@ describe('本地仓库跨重启恢复', () => {
     await first.getState().openRepository(dashboard.path);
     first.getState().selectWorktree(`native:${linked.path}`);
     await vi.waitFor(() => expect(first.getState().refreshing).toBe(false));
-    first.getState().setDraft({ summary: '未保存的草稿', description: '不持久化正文' });
+    first.getState().setDraft({ message: '未保存的草稿\n\n不持久化正文' });
     repositories.set(linked.path, { ...preview, branch: 'feature/latest', files: [{ ...editor.files[0], path: 'latest.ts' }] });
 
     const reopened = await launch();

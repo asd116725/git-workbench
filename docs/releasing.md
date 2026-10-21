@@ -5,9 +5,9 @@
 `package.json` 是版本号来源，Tauri 的 `version` 直接引用它。Rust 包和锁文件的根包版本由脚本同步。Git 标签采用 `vX.Y.Z`，日志使用 `## [X.Y.Z] - YYYY-MM-DD`。
 
 ```sh
-pnpm release:version 0.1.2
-# 手动将本次变化写入 CHANGELOG.md 的 [0.1.2] 节
-pnpm release:check --tag v0.1.2
+pnpm release:version 1.0.0
+# 手动将本次变化写入 CHANGELOG.md 的 [1.0.0] 节，保留空的 [Unreleased]
+pnpm release:check --tag v1.0.0
 ```
 
 脚本拒绝无效格式和版本回退，保留第三方依赖版本，不创建提交或标签。预发布状态由 GitHub Release 标记控制，版本仍使用 `x.y.z`。
@@ -23,7 +23,7 @@ pnpm release:check --tag v0.1.2
 
 ```text
 release-artifacts/
-  GitWorkbench_0.1.2_macos_arm64.dmg
+  GitWorkbench_1.0.0_macos_arm64.dmg
   SHA256SUMS.txt
   release-notes.md
 ```
@@ -32,7 +32,9 @@ release-artifacts/
 
 5. 用 `shasum -a 256 -c SHA256SUMS.txt` 核对，挂载 DMG，检查应用与 Applications 拖入布局。
 6. 将应用复制到独立临时目录，核对 `Contents/Info.plist` 版本、`file`/`lipo` 架构及 `codesign --verify --deep --strict`。
-7. 启动包内应用，在临时测试仓库验证 Diff、目录暂存、取消暂存及提交。检查提交只包含暂存内容，工作区其他内容保持不变。填写提交草稿后点击 macOS 红色关闭按钮，确认进程仍运行；点击 Dock 图标，确认工作区、Diff 和草稿保留；最后用 `⌘Q` 确认进程正常退出。
+7. 启动包内应用，在临时测试仓库验证 Diff、目录暂存、取消暂存及多行提交信息。检查提交只包含暂存内容，工作区其他内容保持不变。
+8. 外部修改当前工作区，验证 1 秒防抖、刷新完成后 5 秒冷却，以及后台变化返回前台后再刷新。确认同一 Diff 的滚动位置和提交草稿保留，没有变化时切换窗口不会刷新。
+9. 填写提交草稿后点击 macOS 红色关闭按钮，确认进程仍运行；点击 Dock 图标，确认工作区、Diff 和草稿保留；最后用 `⌘Q` 确认进程正常退出。
 
 ## 推送与草稿 Release
 
@@ -40,10 +42,10 @@ release-artifacts/
 
 ```sh
 git add <本次发布文件>
-git commit -m "chore: 发布 0.1.2 预发布版本"
-git tag -a v0.1.2 -m "Git Workbench 0.1.2 预发布"
+git commit -m "chore: 发布 1.0.0 正式版本"
+git tag -a v1.0.0 -m "Git Workbench 1.0.0"
 git push origin main
-git push origin v0.1.2
+git push origin v1.0.0
 ```
 
 基础 CI 检查 `main`、Pull Request 和 `v*` 标签。标签任务先检查版本/标签、类型、lint、前端构建和前后端测试，再在 `macos-15` 构建 arm64 DMG；只有发布任务拥有 `contents: write`。
@@ -55,14 +57,14 @@ git push origin v0.1.2
 1. 确认标签工作流所有任务成功，Release 目标提交与标签一致。
 2. 下载草稿附件，核对其 SHA-256，再检查 DMG 版本、架构与启动。
 3. 复核更新说明、ad-hoc 签名提示、安装手册链接及附件命名。
-4. 在 GitHub 编辑草稿发布为预发布，或执行：
+4. `1.0.0` 在核对完成后发布为正式版本，并设为最新版本。执行：
 
 ```sh
-gh release edit v0.1.2 --repo asd116725/git-workbench --draft=false --prerelease
+gh release edit v1.0.0 --repo asd116725/git-workbench --draft=false --prerelease=false --latest
 ```
 
 5. 从公开链接重新下载 DMG 和校验文件，检查 README 的下载链接与操作手册可访问。
 
-当前版本只采用 ad-hoc 签名，没有 Developer ID 和 Apple 公证。不得将其描述为已经公证的正式签名包。今后若增加签名、公证或更新服务，应另行配置凭据与验证流程。
+正式版本与安装包签名是两回事：当前安装包只采用 ad-hoc 签名，没有 Developer ID 签名和 Apple 公证。不得将其描述为已经公证的安装包。今后若增加签名、公证或更新服务，应另行配置凭据与验证流程。
 
 参考：[Tauri DMG](https://v2.tauri.app/distribute/dmg/)、[macOS 签名](https://v2.tauri.app/distribute/sign/macos/)、[Tauri GitHub 发布流程](https://github.com/tauri-apps/tauri-action)。

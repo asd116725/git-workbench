@@ -88,6 +88,8 @@ export function toRepository(result: NativeRepository, previous?: Repository): R
 
 /** 只暴露指定 Git 命令，不提供前端拼接 shell 命令的入口。 */
 export const nativeGit = {
+  /** 当前工作区只保留一个原生监听，null 释放监听资源。 */
+  watch: (repoPath: string | null) => invoke<void>('git_watch', { repoPath }),
   open: (path: string) => invoke<NativeRepository>('git_open', { path }),
   status: (repoPath: string) => invoke<NativeRepository>('git_status', { repoPath }),
   branches: (repoPath: string) => invoke<GitBranch[]>('git_branches', { repoPath }),

@@ -9,8 +9,8 @@ import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, Repository
 
 /** 文件与比较区域共同标识一个差异视图。 */
 export interface Selection { fileId: string; area: ChangeArea }
-/** 每个工作区独立保存尚未提交的说明。 */
-export interface CommitDraft { summary: string; description: string }
+/** 每个工作区独立保存完整草稿，输入期间保留空行和首尾空白。 */
+export interface CommitDraft { message: string }
 /** 正文和状态分开加载，切换文件时不会显示上一个文件的差异。 */
 export interface DiffState { file: FileSnapshot | null; loading: boolean; notice: string | null; error: string | null }
 
@@ -19,7 +19,7 @@ export interface BranchState { items: GitBranch[]; loading: boolean; error: stri
 
 const emptyBranches: BranchState = { items: [], loading: false, error: null };
 const emptyDiff: DiffState = { file: null, loading: false, notice: null, error: null };
-const emptyDraft: CommitDraft = { summary: '', description: '' };
+const emptyDraft: CommitDraft = { message: '' };
 
 /** 只保存仓库入口与当前工作区，不缓存文件正文、Git 状态或提交草稿。 */
 interface RepositorySession {
@@ -57,6 +57,9 @@ interface WorkbenchState {
   busy: boolean;
   restoring: boolean;
   refreshing: boolean;
+  /** 静默读取不锁定界面；调度器仍需等待本次读取完成。 */
+  autoRefreshing: boolean;
+  autoRefreshError: string | null;
   error: string | null;
   diff: DiffState;
   branches: BranchState;
@@ -65,7 +68,8 @@ interface WorkbenchState {
   openRepository: (path: string) => Promise<void>;
   /** 启动时恢复本地路径，同一进程内的重复调用共用一次恢复。 */
   restoreSession: () => Promise<void>;
-  refresh: () => Promise<void>;
+  refresh: (options?: { silent?: boolean }) => Promise<void>;
+  setAutoRefreshError: (message: string | null) => void;
   selectWorktree: (id: string) => void;
   selectFile: (fileId: string, area: ChangeArea) => void;
   closeFile: () => void;
@@ -88,10 +92,12 @@ function initialState() {
     activeWorktreeId: worktree?.id ?? '',
     selection,
     view: 'changes' as const,
-    drafts: worktree ? { [worktree.id]: { summary: 'fix(editor): 修复 Markdown 滚动同步', description: '统一预览与源码滚动位置' } } : {},
+    drafts: worktree ? { [worktree.id]: { message: 'fix(editor): 修复 Markdown 滚动同步\n\n统一预览与源码滚动位置' } } : {},
     busy: false,
     restoring: false,
     refreshing: false,
+    autoRefreshing: false,
+    autoRefreshError: null,
     error: null,
     branches: emptyBranches,
     diff: { ...emptyDiff, file: worktree?.files.find(file => file.id === selection?.fileId) ?? null },
@@ -108,6 +114,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   let diffVersion = 0;
   let statusVersion = 0;
   let branchVersion = 0;
+  let autoRefreshVersion = 0;
   let restorePromise: Promise<void> | undefined;
 
   /** 以主工作区作为稳定入口；不可用路径保留在记录中，避免一次恢复失败就丢失。 */
@@ -138,21 +145,30 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     return worktree;
   }
 
-  async function loadDiff(worktree: Worktree, selection: Selection | null) {
+  async function loadDiff(worktree: Worktree, selection: Selection | null, preserve = false) {
     const version = ++diffVersion;
     const file = worktree.files.find(item => item.id === selection?.fileId);
     if (!file || !selection) { set({ diff: emptyDiff }); return; }
     if (worktree.source !== 'native') { set({ diff: { ...emptyDiff, file } }); return; }
-    set({ diff: { ...emptyDiff, loading: true } });
+    const previous = get().diff;
+    const keepVisible = preserve && previous.file?.id === file.id;
+    if (!keepVisible) set({ diff: { ...emptyDiff, loading: true } });
     try {
       const result = await nativeGit.diff(worktree.path, file.path, selection.area);
       if (version !== diffVersion) return;
       const snapshot = selection.area === 'staged'
         ? { ...file, head: result.original, index: result.modified }
         : { ...file, index: result.original, working: result.modified };
-      set({ diff: { file: snapshot, loading: false, notice: result.notice, error: null } });
+      const before = previous.file;
+      const unchanged = keepVisible && before && !previous.error && previous.notice === result.notice
+        && before.head === snapshot.head && before.index === snapshot.index && before.working === snapshot.working
+        && before.git?.statusIndex === snapshot.git?.statusIndex && before.git?.statusWorktree === snapshot.git?.statusWorktree
+        && before.git?.originalPath === snapshot.git?.originalPath && before.git?.conflicted === snapshot.git?.conflicted;
+      if (!unchanged) set({ diff: { file: snapshot, loading: false, notice: result.notice, error: null } });
     } catch (error) {
-      if (version === diffVersion) set({ diff: { ...emptyDiff, error: errorMessage(error) } });
+      if (version !== diffVersion) return;
+      if (keepVisible) set({ autoRefreshError: `文件差异更新失败，当前显示上次结果：${errorMessage(error)}` });
+      else set({ diff: { ...emptyDiff, error: errorMessage(error) } });
     }
   }
 
@@ -170,13 +186,16 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   }
 
   /** Git 公共目录决定仓库身份，打开兄弟目录时仍复用同一分组和草稿。 */
-  function applyNativeRepository(result: NativeRepository, previousSelection: Selection | null) {
+  function applyNativeRepository(result: NativeRepository, previousSelection: Selection | null, silent = false) {
     const state = get();
     const repositoryId = `native-repository:${result.commonDir}`;
     const previous = state.repositories.find(repository => repository.id === repositoryId);
     const repository = toRepository(result, previous);
     const worktree = toWorktree(result);
-    const selection = resolveSelection(worktree, previousSelection);
+    /** 静默刷新尊重用户关闭标签的操作，不自动重新打开首个文件。 */
+    const selection = silent && !previousSelection ? null : resolveSelection(worktree, previousSelection);
+    const preserveDiff = silent && state.activeWorktreeId === worktree.id
+      && previousSelection?.fileId === selection?.fileId && previousSelection?.area === selection?.area;
     set({
       repositories: previous
         ? state.repositories.map(item => item.id === repositoryId ? repository : item)
@@ -185,7 +204,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       selection,
     });
     rememberSession();
-    void loadDiff(worktree, selection);
+    return loadDiff(worktree, selection, preserveDiff);
   }
 
   async function loadBranches(worktree: Worktree) {
@@ -254,7 +273,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
 
   async function refreshAfterMutation(worktree: Worktree) {
     try {
-      applyNativeRepository(await nativeGit.status(worktree.path), get().selection);
+      void applyNativeRepository(await nativeGit.status(worktree.path), get().selection);
     } catch (error) {
       set({ error: `操作已完成，但刷新失败：${errorMessage(error)}`, diff: emptyDiff });
     }
@@ -296,7 +315,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       beginMutation();
       try {
         const result = await nativeGit.open(path);
-        applyNativeRepository(result, null);
+        void applyNativeRepository(result, null);
         set({ view: 'changes', branches: emptyBranches });
       } catch (error) {
         const message = errorMessage(error);
@@ -306,19 +325,27 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
         throw Object.assign(new Error(message), { cause: error });
       } finally { set({ busy: false }); }
     },
-    refresh: async () => {
+    setAutoRefreshError: autoRefreshError => set({ autoRefreshError }),
+    refresh: async ({ silent = false } = {}) => {
       const worktree = findWorktree(get().repositories, get().activeWorktreeId);
       if (!worktree || get().busy) return;
+      if (silent && (get().refreshing || get().autoRefreshing)) return;
       if (worktree.source !== 'native') { void loadDiff(worktree, get().selection); return; }
       const version = ++statusVersion;
-      set({ refreshing: true, error: null });
+      const autoVersion = silent ? ++autoRefreshVersion : autoRefreshVersion;
+      set(silent ? { autoRefreshing: true, autoRefreshError: null } : { refreshing: true, error: null, autoRefreshError: null });
       try {
         const result = await nativeGit.status(worktree.path);
-        if (version === statusVersion && get().activeWorktreeId === worktree.id) applyNativeRepository(result, get().selection);
+        if (version === statusVersion && get().activeWorktreeId === worktree.id) {
+          await applyNativeRepository(result, get().selection, silent);
+        }
       } catch (error) {
-        if (version === statusVersion) set({ error: errorMessage(error) });
+        if (version === statusVersion) set(silent
+          ? { autoRefreshError: `自动刷新失败，可点击「刷新」重试：${errorMessage(error)}` }
+          : { error: errorMessage(error) });
       } finally {
-        if (version === statusVersion) set({ refreshing: false });
+        if (silent && autoVersion === autoRefreshVersion) set({ autoRefreshing: false });
+        if (!silent && version === statusVersion) set({ refreshing: false });
       }
     },
     selectWorktree: id => {
@@ -333,7 +360,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       ++diffVersion;
       ++branchVersion;
       const selection = worktree.source === 'native' ? null : resolveSelection(worktree);
-      set({ activeWorktreeId: id, selection, view: 'changes', refreshing: false, error: null, diff: emptyDiff, branches: emptyBranches });
+      set({ activeWorktreeId: id, selection, view: 'changes', refreshing: false, error: null, autoRefreshError: null, diff: emptyDiff, branches: emptyBranches });
       rememberSession();
       if (worktree.source === 'native') void get().refresh();
       else void loadDiff(worktree, selection);
@@ -394,21 +421,24 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     commit: async () => {
       const worktree = currentWorktree();
       const draft = get().drafts[worktree.id] ?? emptyDraft;
-      if (!draft.summary.trim()) throw new Error('请输入提交标题。');
+      /** 仅在提交时去除首尾空白，再按首行标题与其余正文交给 Git。 */
+      const [summary, ...lines] = draft.message.trim().split('\n');
+      const description = lines.join('\n').trim();
+      if (!summary) throw new Error('请输入提交标题。');
       if (getChanges(worktree, 'staged').length === 0) throw new Error('请先暂存需要提交的修改。');
       beginMutation();
       try {
         let commitId: string;
         if (worktree.source === 'native') {
-          ({ commitId } = await nativeGit.commit(worktree.path, draft.summary, draft.description));
+          ({ commitId } = await nativeGit.commit(worktree.path, summary, description));
         } else {
-          const committed = commitWorktree(worktree, draft.summary, draft.description);
+          const committed = commitWorktree(worktree, summary, description);
           commitId = committed.commits[0].id;
           replaceWorktree(committed);
         }
         set(state => {
           const currentDraft = state.drafts[worktree.id];
-          return currentDraft?.summary === draft.summary && currentDraft?.description === draft.description
+          return currentDraft?.message === draft.message
             ? { drafts: { ...state.drafts, [worktree.id]: emptyDraft } } : {};
         });
         if (worktree.source === 'native') await refreshAfterMutation(worktree);
@@ -425,6 +455,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       ++statusVersion;
       ++diffVersion;
       ++branchVersion;
+      ++autoRefreshVersion;
       restorePromise = undefined;
       set(initialState());
     },
