@@ -123,7 +123,7 @@ function FileGroup({ worktree, area, disabled }: { worktree: Worktree; area: Cha
   return <Collapsible defaultOpen className="file-group">
     <div className="file-group-header"><CollapsibleTrigger className="file-group-heading"><Icon name="chevron-down" /><span>{label}</span><Badge variant="secondary" className="count-badge">{files.length}</Badge></CollapsibleTrigger>{files.length > 0 && renderBulkAction()}</div>
     <CollapsibleContent>
-      {fileView === 'tree' ? <ChangeFileTree nodes={nodes} renderFile={renderFile} renderDirectoryAction={renderBulkAction} /> : files.map(file => renderFile(file))}
+      {fileView === 'tree' ? <ChangeFileTree nodes={nodes} selectedFileId={selection?.area === area ? selection.fileId : null} renderFile={renderFile} renderDirectoryAction={renderBulkAction} /> : files.map(file => renderFile(file))}
       {files.length === 0 && <p className="empty-group">{area === 'staged' ? '暂存文件后即可提交' : '工作区没有未暂存的更改'}</p>}
     </CollapsibleContent>
   </Collapsible>;

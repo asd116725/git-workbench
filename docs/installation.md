@@ -2,15 +2,15 @@
 
 ## 下载和校验
 
-当前版本为 Apple Silicon（M 系列芯片）构建，文件名为 `GitWorkbench_0.1.1_macos_arm64.dmg`。可在「关于本机」查看芯片类型；此安装包不支持 Intel Mac。
+当前版本为 Apple Silicon（M 系列芯片）构建，文件名为 `GitWorkbench_0.1.2_macos_arm64.dmg`。可在「关于本机」查看芯片类型；此安装包不支持 Intel Mac。
 
-在 [v0.1.1 Release](https://github.com/asd116725/git-workbench/releases/tag/v0.1.1) 下载 DMG 和同一版本的 `SHA256SUMS.txt`，将二者放在同一目录。在该目录打开终端：
+在 [v0.1.2 Release](https://github.com/asd116725/git-workbench/releases/tag/v0.1.2) 下载 DMG 和同一版本的 `SHA256SUMS.txt`，将二者放在同一目录。在该目录打开终端：
 
 ```sh
 shasum -a 256 -c SHA256SUMS.txt
 ```
 
-输出 `GitWorkbench_0.1.1_macos_arm64.dmg: OK` 后继续。如校验失败，重新从该 Release 下载，不要使用损坏的文件。
+输出 `GitWorkbench_0.1.2_macos_arm64.dmg: OK` 后继续。如校验失败，重新从该 Release 下载，不要使用损坏的文件。
 
 ## 安装
 

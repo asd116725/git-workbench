@@ -5,14 +5,16 @@
 `package.json` 是版本号来源，Tauri 的 `version` 直接引用它。Rust 包和锁文件的根包版本由脚本同步。Git 标签采用 `vX.Y.Z`，日志使用 `## [X.Y.Z] - YYYY-MM-DD`。
 
 ```sh
-pnpm release:version 0.1.1
-# 手动将本次变化写入 CHANGELOG.md 的 [0.1.1] 节
-pnpm release:check --tag v0.1.1
+pnpm release:version 0.1.2
+# 手动将本次变化写入 CHANGELOG.md 的 [0.1.2] 节
+pnpm release:check --tag v0.1.2
 ```
 
 脚本拒绝无效格式和版本回退，保留第三方依赖版本，不创建提交或标签。预发布状态由 GitHub Release 标记控制，版本仍使用 `x.y.z`。
 
 ## 本地检查及构建
+
+应用图标原图保存在 `src-tauri/icons/app-icon-source.png`，使用不透明、背景铺满的正方形画布，不预先添加透明留白、圆角底板或外框，避免新版 macOS 自动适配时出现灰色底板。替换原图后，执行 `pnpm tauri icon src-tauri/icons/app-icon-source.png --output src-tauri/icons` 生成各平台尺寸，并将生成的 `src-tauri/icons/128x128.png` 同步为 `public/app-icon.png`。构建后须在 Finder 和 Dock 中检查系统实际显示效果，不能只检查 PNG 预览。
 
 1. 使用干净的 `main`，确认更新日志、下载链接、手册和截图适用于本次版本。
 2. 执行 README 中全部检查。版本脚本的测试覆盖不同步、标签错误、日志缺失和无效升级。
@@ -21,7 +23,7 @@ pnpm release:check --tag v0.1.1
 
 ```text
 release-artifacts/
-  GitWorkbench_0.1.1_macos_arm64.dmg
+  GitWorkbench_0.1.2_macos_arm64.dmg
   SHA256SUMS.txt
   release-notes.md
 ```
@@ -38,10 +40,10 @@ release-artifacts/
 
 ```sh
 git add <本次发布文件>
-git commit -m "chore: 发布 0.1.1 预发布版本"
-git tag -a v0.1.1 -m "Git Workbench 0.1.1 预发布"
+git commit -m "chore: 发布 0.1.2 预发布版本"
+git tag -a v0.1.2 -m "Git Workbench 0.1.2 预发布"
 git push origin main
-git push origin v0.1.1
+git push origin v0.1.2
 ```
 
 基础 CI 检查 `main`、Pull Request 和 `v*` 标签。标签任务先检查版本/标签、类型、lint、前端构建和前后端测试，再在 `macos-15` 构建 arm64 DMG；只有发布任务拥有 `contents: write`。
@@ -56,7 +58,7 @@ git push origin v0.1.1
 4. 在 GitHub 编辑草稿发布为预发布，或执行：
 
 ```sh
-gh release edit v0.1.1 --repo asd116725/git-workbench --draft=false --prerelease
+gh release edit v0.1.2 --repo asd116725/git-workbench --draft=false --prerelease
 ```
 
 5. 从公开链接重新下载 DMG 和校验文件，检查 README 的下载链接与操作手册可访问。

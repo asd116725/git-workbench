@@ -79,6 +79,7 @@
   --titlebar-foreground: #9da5b4;
   --list-hover-background: #2c313a66;
   --indent-guide: #abb2bf26;
+  --indent-guide-active: #abb2bf66;
   --ring: #528bff;
   --badge-background: var(--ring);
   --badge-foreground: var(--foreground-strong);

@@ -2,7 +2,7 @@
 
 一个面向本地仓库的 Git 桌面工具。使用 Tauri 2、React 和 TypeScript 构建，将 worktree、分支、文件变更与 Diff 放在同一个窗口中。
 
-[下载 v0.1.1 预发布版](https://github.com/asd116725/git-workbench/releases/tag/v0.1.1) · [中文操作手册](docs/user-manual.md) · [安装说明](docs/installation.md) · [更新日志](CHANGELOG.md)
+[下载 v0.1.2 预发布版](https://github.com/asd116725/git-workbench/releases/tag/v0.1.2) · [中文操作手册](docs/user-manual.md) · [安装说明](docs/installation.md) · [更新日志](CHANGELOG.md)
 
 ![Git Workbench 本地变更界面，使用虚构示例数据](docs/screenshots/workbench.jpg)
 
@@ -21,7 +21,7 @@
 
 当前版本提供 **macOS Apple Silicon（arm64）** 安装包。Intel Mac、Windows、Linux 暂无官方构建。
 
-1. 从 [v0.1.1 Release](https://github.com/asd116725/git-workbench/releases/tag/v0.1.1) 下载 [DMG](https://github.com/asd116725/git-workbench/releases/download/v0.1.1/GitWorkbench_0.1.1_macos_arm64.dmg) 和 `SHA256SUMS.txt`。
+1. 从 [v0.1.2 Release](https://github.com/asd116725/git-workbench/releases/tag/v0.1.2) 下载 [DMG](https://github.com/asd116725/git-workbench/releases/download/v0.1.2/GitWorkbench_0.1.2_macos_arm64.dmg) 和 `SHA256SUMS.txt`。
 2. 按[安装说明](docs/installation.md)校验文件，将「代码管理」拖入 Applications 后打开。
 3. 点击「打开本地仓库」，选择已有仓库的目录。应用使用本机 Git，请先确认 `git --version` 可以运行。
 4. 选择文件阅读 Diff，在行末点击 `+` 暂存；填写提交标题，点击提交按钮。
@@ -66,7 +66,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v0.1.1
+pnpm release:check --tag v0.1.2
 ```
 
 ```sh

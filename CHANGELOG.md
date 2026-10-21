@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-21
+
+- 优化文件树引导线：默认隐藏层级竖线，选中文件时仅显示最近父级的引导线，鼠标进入文件树区域时显示全部层级关系。
+- 切换文件、暂存分组或折叠目录时同步更新引导线，避免其他分组或祖先目录残留高亮。
+- 更新应用图标为石墨底色与蓝色立体 Git 分支标识，同步桌面图标及网页 favicon。
+- 调整图标源图为背景铺满的不透明画布，移除预置留白与外框。
+
+此版本仅提供 Apple Silicon（arm64）macOS 安装包，继续使用 ad-hoc 签名，尚未进行 Developer ID 签名及 Apple 公证。首次打开提示的处理方式见[安装说明](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md)。
+
+升级前请保存提交草稿，再用 `⌘Q` 完全退出旧版。安装包：`GitWorkbench_0.1.2_macos_arm64.dmg`；请使用同一 Release 的 `SHA256SUMS.txt` 校验后安装。
+
 ## [0.1.1] - 2026-10-20
 
 - 对齐 Atom One Dark 上游的控件、列表、徽标与 Diff 配色，统一系统界面字体和文件树行高。

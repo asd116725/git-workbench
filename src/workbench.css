@@ -78,7 +78,9 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .file-view-switch [aria-pressed='true'] { background: var(--accent); color: var(--blue); }
 .change-tree, .change-tree-children { margin: 0; padding: 0; list-style: none; }
 .change-tree-children { position: relative; }
-.change-tree-children::before { position: absolute; z-index: 1; top: 0; bottom: 0; left: calc(23px + var(--file-depth) * 12px); border-left: 1px solid var(--indent-guide); pointer-events: none; content: ''; }
+.change-tree-children::before { position: absolute; z-index: 1; top: 0; bottom: 0; left: calc(23px + var(--file-depth) * 12px); border-left: 1px solid var(--indent-guide); opacity: 0; pointer-events: none; content: ''; }
+.file-groups:hover .change-tree-children::before, .change-tree-children.active-indent-guide::before { opacity: 1; }
+.change-tree-children.active-indent-guide::before { border-left-color: var(--indent-guide-active); }
 .change-directory-heading, .file-group-header { display: flex; align-items: center; padding-right: 8px; }
 .change-directory-row { display: flex; flex: 1; min-width: 0; align-items: center; gap: 6px; height: var(--tree-row-height); padding: 0 0 0 calc(16px + var(--file-depth) * 12px); border: 0; background: transparent; text-align: left; font-size: var(--workbench-font-size); line-height: var(--tree-row-height); }
 .change-directory-heading:hover { background: var(--list-hover-background); }
