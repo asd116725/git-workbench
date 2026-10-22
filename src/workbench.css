@@ -156,28 +156,6 @@ input[type='range'] { padding: 0; border: 0; box-shadow: none; accent-color: var
 .picker-row span { display: flex; flex: 1; flex-direction: column; gap: 5px; }
 .picker-row strong { font-size: 14px; font-weight: 500; }
 .picker-row small { color: var(--muted-foreground); font-size: 12px; }
-.history-view { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
-.history-title { display: flex; align-items: center; gap: 9px; flex-shrink: 0; height: 49px; padding: 0 20px; border-bottom: 1px solid var(--border); }
-.history-title h1 { margin: 0; font-size: 14px; font-weight: 500; }
-.history-title > span:last-child { margin-left: auto; color: var(--muted-foreground); font-size: 11px; }
-.history-list { flex-shrink: 0; min-height: 80px; max-height: 240px; overflow: auto; }
-.history-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) 80px 125px 70px; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 0 20px; border: 0; border-bottom: 1px solid var(--border); background: transparent; text-align: left; font-size: 12px; }
-.history-row.selected { background: var(--accent); }
-.history-row:hover:not(.selected) { background: var(--list-hover-background); }
-.history-row > .codicon { color: var(--blue); }
-.history-row > span:not(.history-message), .history-row time, .history-row code { color: var(--muted-foreground); font-size: 11px; }
-.history-message { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.commit-detail { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px 20px; padding: 14px 20px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--background); }
-.commit-detail strong { font-size: 14px; font-weight: 500; }
-.commit-detail span, .commit-detail p { margin: 0; color: var(--muted-foreground); font-size: 11px; }
-.commit-detail p { width: 100%; }
-.history-diff { display: flex; flex: 1; min-width: 0; min-height: 0; }
-.history-files { flex-shrink: 0; width: 270px; overflow: auto; border-right: 1px solid var(--border); }
-.history-file { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 0 14px; border: 0; background: transparent; text-align: left; font-size: 11px; }
-.history-file .codicon { color: var(--blue); }
-.history-file.selected { background: var(--accent); }
-.history-file .file-status { margin-left: auto; }
-.history-empty { display: flex; flex: 1; align-items: center; justify-content: center; color: var(--muted-foreground); }
 .spin { animation: spin 1s linear infinite; }
 .welcome-view, .diff-message { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 18px; height: 100%; padding: 40px; text-align: center; }
 .welcome-icon { display: grid; place-items: center; width: 84px; height: 84px; margin-bottom: 6px; border: 1px solid var(--widget-border); border-radius: 22px; background: var(--accent); color: var(--blue); }
@@ -200,6 +178,15 @@ input[type='range'] { padding: 0; border: 0; box-shadow: none; accent-color: var
 .git-error { display: flex; flex-shrink: 0; align-items: flex-start; gap: 9px; max-height: 160px; padding: 10px 16px; border-bottom: 1px solid var(--error-border); background: var(--error-background); }
 .git-error > .codicon { color: var(--destructive); margin-top: 2px; }
 .commit-warning { margin: 0; font-size: 11px; line-height: 1.7; color: var(--orange); }
+.merge-trigger { gap: 7px; font-weight: 400; }
+.merge-status-banner { display: flex; flex-shrink: 0; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--section-header-background); }
+.merge-status-banner > .codicon { color: var(--yellow); font-size: 20px; }
+.merge-status-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.merge-status-copy strong { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.merge-status-copy span { color: var(--muted-foreground); font-size: 12px; }
+.merge-status-banner > button { flex-shrink: 0; }
+.merge-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.abort-merge-dialog { max-width: 460px; }
 .status-native { color: var(--green); }
 .status-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 44%; font-size: 11px; color: var(--subtle-foreground); }
 .window-context { max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -210,6 +197,7 @@ input[type='range'] { padding: 0; border: 0; box-shadow: none; accent-color: var
   .toolbar-actions { gap: 4px; }
   .view-tabs-list [data-slot='tabs-trigger'] { padding: 0 14px; }
   .branch-trigger { max-width: 190px; }
+  .remote-action { gap: 4px; padding-right: 5px; padding-left: 5px; }
   .workbench-toolbar { gap: 6px; padding-right: 10px; }
   .commit-fields textarea { height: 96px; }
   .file-row { padding-left: 12px; }

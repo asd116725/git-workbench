@@ -11,7 +11,7 @@ const main: NativeWorktree = {
 const linked = { ...main, path: '/test/editor-preview', name: 'preview', branch: 'feature/preview', isMain: false };
 const editor: NativeRepository = {
   commonDir: '/test/editor/.git', repositoryName: 'editor', worktrees: [main, linked],
-  path: main.path, name: main.name, branch: main.branch, hasHead: true,
+  path: main.path, name: main.name, branch: main.branch, hasHead: true, operation: null,
   files: [{ path: 'first.ts', originalPath: null, statusIndex: ' ', statusWorktree: 'M', conflicted: false }],
 };
 const preview = { ...editor, path: linked.path, name: linked.name, branch: linked.branch };
@@ -52,6 +52,25 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('本地仓库跨重启恢复', () => {
+  it('重启恢复工作区的未完成合并，并从 Git 信息初始化独立合并草稿', async () => {
+    const first = await launch();
+    await first.getState().openRepository(linked.path);
+    const operation = {
+      kind: 'merge' as const, head: 'target-commit', mergeHeads: ['source-commit'],
+      source: 'feature/source', message: "Merge branch 'feature/source'",
+    };
+    repositories.set(linked.path, { ...preview, operation });
+
+    const reopened = await launch();
+    await reopened.getState().restoreSession();
+    const state = reopened.getState();
+    const current = state.repositories[0].worktrees.find(item => item.id === state.activeWorktreeId)!;
+    expect(current.operation).toEqual(operation);
+    expect(state.mergeDrafts[current.id].message).toBe(operation.message);
+    expect(state.drafts).toEqual({});
+    expect([...saved.values()].join('')).not.toContain('source-commit');
+  });
+
   it('恢复多个仓库和最后选中的 worktree，并重新读取 Git 状态与 Diff', async () => {
     const first = await launch();
     await first.getState().openRepository(main.path);

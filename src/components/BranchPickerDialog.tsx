@@ -3,18 +3,9 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { commitAge } from './branch-display';
 import { useWorkbench } from '../lib/store';
 import type { GitBranch, Worktree } from '../lib/types';
-
-const relativeTime = new Intl.RelativeTimeFormat('zh-CN', { numeric: 'always' });
-
-/** 提交时间为 Unix 秒，保留未来时间语义，避免系统时钟差异显示成负数。 */
-function commitAge(committedAt: number) {
-  const seconds = (Date.now() / 1000) - committedAt;
-  const units = [['year', 365 * 86400], ['month', 30 * 86400], ['week', 7 * 86400], ['day', 86400], ['hour', 3600], ['minute', 60]] as const;
-  const unit = units.find(([, duration]) => Math.abs(seconds) >= duration);
-  return unit ? relativeTime.format(-Math.trunc(seconds / unit[1]), unit[0]) : '刚刚';
-}
 
 /** 搜索并切换当前工作区分支；其他 worktree 占用的分支只展示，不强制检出。 */
 export function BranchPickerDialog({ worktree, open, onOpenChange }: {

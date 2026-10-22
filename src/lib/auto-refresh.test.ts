@@ -3,6 +3,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen, type EventCallback, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { startAutoRefresh } from './auto-refresh';
+import { useHistory } from './history-store';
 import { useWorkbench } from './store';
 import type { Worktree } from './types';
 
@@ -16,6 +17,7 @@ const focusChanges = new Set<EventCallback<boolean>>();
 const onFocusChanged = vi.fn<(handler: EventCallback<boolean>) => Promise<UnlistenFn>>();
 const isFocused = vi.fn<() => Promise<boolean>>();
 const refresh = vi.fn(async () => {});
+const checkHistory = vi.fn(async () => {});
 const setError = vi.fn();
 const cleanups: Array<() => void> = [];
 const main: Worktree = { id: 'main', path: '/test/main', source: 'native', name: 'main', branch: 'main', files: [], commits: [] };
@@ -62,6 +64,9 @@ beforeEach(() => {
   isFocused.mockReset().mockResolvedValue(true);
   vi.mocked(getCurrentWindow).mockReturnValue({ onFocusChanged, isFocused } as unknown as ReturnType<typeof getCurrentWindow>);
   refresh.mockReset().mockResolvedValue(undefined);
+  checkHistory.mockReset().mockResolvedValue(undefined);
+  useHistory.getState().reset();
+  useHistory.setState({ checkForUpdates: checkHistory });
   setError.mockReset();
   useWorkbench.getState().reset();
   useWorkbench.setState({
@@ -243,5 +248,69 @@ describe('原生自动刷新生命周期', () => {
     expect(watchedPaths()).toEqual([]);
     expect(refresh).not.toHaveBeenCalled();
     expect(listen).toHaveBeenCalledOnce();
+  });
+});
+
+
+describe('历史可见性与 watcher 联动', () => {
+  it('历史可见时在状态刷新后轻量检查目标引用，连续文件事件合并为一次', async () => {
+    useWorkbench.getState().setView('history');
+    start();
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(checkHistory).toHaveBeenCalledExactlyOnceWith(main);
+    checkHistory.mockClear();
+    change();
+    change();
+    change();
+    await vi.advanceTimersByTimeAsync(999);
+    expect(checkHistory).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(checkHistory).toHaveBeenCalledExactlyOnceWith(main);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(refresh.mock.invocationCallOrder[1]).toBeLessThan(checkHistory.mock.invocationCallOrder[0]);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(checkHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it('本地更改可见时不检查历史；回到历史后下次文件事件才触发检查', async () => {
+    start();
+    await vi.advanceTimersByTimeAsync(6_000);
+    change();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(checkHistory).not.toHaveBeenCalled();
+    useWorkbench.getState().setView('history');
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(checkHistory).not.toHaveBeenCalled();
+    change();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(checkHistory).toHaveBeenCalledExactlyOnceWith(main);
+  });
+
+  it('状态读取期间离开历史页，不会在请求结束后补发历史检查', async () => {
+    const pending = deferred<void>();
+    refresh.mockReturnValueOnce(pending.promise);
+    useWorkbench.getState().setView('history');
+    start();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(refresh).toHaveBeenCalledOnce();
+    useWorkbench.getState().setView('changes');
+    pending.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(checkHistory).not.toHaveBeenCalled();
+  });
+
+  it('切换工作区后旧状态读取完成不会检查新工作区的错误引用', async () => {
+    const pending = deferred<void>();
+    refresh.mockReturnValueOnce(pending.promise);
+    useWorkbench.getState().setView('history');
+    start();
+    await vi.advanceTimersByTimeAsync(1_000);
+    useWorkbench.setState({ activeWorktreeId: linked.id });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(checkHistory).toHaveBeenCalledExactlyOnceWith(linked);
+    pending.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(checkHistory).toHaveBeenCalledTimes(1);
   });
 });

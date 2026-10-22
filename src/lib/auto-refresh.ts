@@ -1,6 +1,7 @@
 import { isTauri } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useHistory } from './history-store';
 import { nativeGit } from './native-git';
 import { createRefreshScheduler, type RefreshScheduler } from './refresh-scheduler';
 import { findWorktree, useWorkbench } from './store';
@@ -60,7 +61,12 @@ export function startAutoRefresh(): () => void {
       scheduler?.dispose();
       path = nextPath;
       generation += 1;
-      scheduler = path ? createRefreshScheduler(() => useWorkbench.getState().refresh({ silent: true })) : undefined;
+      scheduler = path ? createRefreshScheduler(async () => {
+        await useWorkbench.getState().refresh({ silent: true });
+        const state = useWorkbench.getState();
+        const active = findWorktree(state.repositories, state.activeWorktreeId);
+        if (state.view === 'history' && active?.path === nextPath) await useHistory.getState().checkForUpdates(active);
+      }) : undefined;
       useWorkbench.getState().setAutoRefreshError(null);
       if (ready) updateWatch();
     }

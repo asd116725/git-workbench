@@ -396,7 +396,20 @@ fn conflicting_files_are_reported_and_commit_is_rejected() {
     fixture.write("conflict.txt", "resolved\n");
     stage(fixture.path(), "conflict.txt").unwrap();
     assert!(!changes(fixture.path()).unwrap()[0].conflicted);
-    commit(fixture.path(), "解决冲突", "").unwrap();
+    assert!(commit(fixture.path(), "解决冲突", "").is_err());
+    let pending = operation(fixture.path()).unwrap().unwrap();
+    let result = tauri::async_runtime::block_on(merge::git_merge_continue(
+        fixture.root.to_string_lossy().into_owned(),
+        pending.head.clone(),
+        pending.merge_heads.clone(),
+        "解决冲突".into(),
+    ))
+    .unwrap();
+    assert_eq!(result.outcome, "merged");
+    assert_eq!(
+        git_line(fixture.path(), &["show", "-s", "--format=%P", "HEAD"]).unwrap(),
+        format!("{} {}", pending.head, pending.merge_heads[0])
+    );
 }
 
 #[test]

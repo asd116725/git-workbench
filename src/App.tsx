@@ -16,13 +16,18 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CodeDiff } from './components/CodeDiff';
+import { HistoryView } from './components/HistoryView';
+import { useHistory } from './lib/history-store';
 import { BranchPickerDialog } from './components/BranchPickerDialog';
+import { MergeBranchDialog } from './components/MergeBranchDialog';
+import { MergeStatusBanner } from './components/MergeStatusBanner';
 import { ChangeFileTree } from './components/ChangeFileTree';
 import { buildChangeTree } from './lib/change-tree';
-import { findWorktree, usePreferences, useWorkbench } from './lib/store';
+import { findWorktree, getMergeMessage, usePreferences, useWorkbench } from './lib/store';
+import { commitBlockReason, mergeStartBlockReason } from './lib/merge-view';
 import { startAutoRefresh } from './lib/auto-refresh';
 import { getChanges, getFileStatus } from './lib/demo-git';
-import type { ChangeArea, Commit, FileSnapshot, Repository, Worktree } from './lib/types';
+import type { ChangeArea, FileSnapshot, Repository, Worktree } from './lib/types';
 import '@vscode/codicons/dist/codicon.css';
 import './workbench.css';
 
@@ -74,33 +79,38 @@ function RepositorySidebar({ onOpen, onSettings }: { onOpen: () => void; onSetti
   </aside>;
 }
 
-function WorkbenchToolbar({ repository, worktree, onBranchOpen }: { repository: Repository; worktree: Worktree; onBranchOpen: () => void }) {
+function WorkbenchToolbar({ repository, worktree, onBranchOpen, onMergeOpen }: { repository: Repository; worktree: Worktree; onBranchOpen: () => void; onMergeOpen: () => void }) {
   const { view, setView, selectWorktree, busy, refreshing, refresh } = useWorkbench();
   const real = worktree.source === 'native';
+  const mergeBlocked = mergeStartBlockReason(worktree);
+  const historyLoading = useHistory(state => state.sessions[worktree.id]?.loading ?? false);
+  const refreshingView = view === 'history' ? historyLoading : refreshing;
   return <div className="workbench-toolbar">
     <Tabs value={view} onValueChange={value => setView(value as 'changes' | 'history')} className="view-tabs">
-      <TabsList className="view-tabs-list"><TabsTrigger value="changes">本地更改</TabsTrigger><TabsTrigger value="history" disabled={real} title={real ? '真实仓库的历史浏览将在后续版本提供' : undefined}>提交历史</TabsTrigger></TabsList>
+      <TabsList className="view-tabs-list"><TabsTrigger value="changes">本地更改</TabsTrigger><TabsTrigger value="history">提交历史</TabsTrigger></TabsList>
     </Tabs>
     <div className="toolbar-actions">
-      {real ? <Button variant="outline" size="sm" className="branch-trigger" disabled={busy || refreshing} onClick={onBranchOpen} aria-label={`切换分支：${worktree.branch}`} title="查看和切换分支"><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="truncate">{worktree.branch}</span><Icon name="chevron-down" /></Button> : <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="branch-trigger" disabled={busy} title={worktree.path}><Icon name="git-branch" /><span className="truncate">{worktree.branch}</span><Icon name="chevron-down" /></Button></DropdownMenuTrigger>
+      {real ? <Button variant="outline" size="sm" className="branch-trigger" disabled={busy || refreshing || Boolean(worktree.operation)} onClick={onBranchOpen} aria-label={`切换分支：${worktree.branch}`} title={worktree.operation ? '请先完成当前 Git 操作' : '查看和切换分支'}><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="truncate">{worktree.branch}</span><Icon name="chevron-down" /></Button> : <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="branch-trigger" disabled={busy} title={worktree.path}><Icon name="git-branch" /><span className="truncate">{worktree.branch}</span><Icon name="chevron-down" /></Button></DropdownMenuTrigger>
         <DropdownMenuContent align="end"><DropdownMenuLabel>切换工作区</DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuGroup>{repository.worktrees.map(item => <DropdownMenuItem key={item.id} onSelect={() => selectWorktree(item.id)}><Icon name={item.id === worktree.id ? 'check' : 'git-branch'} /><span>{item.branch}</span><span className="menu-detail">{item.name}</span></DropdownMenuItem>)}</DropdownMenuGroup></DropdownMenuContent>
       </DropdownMenu>}
+      {real && <Hint label={mergeBlocked ?? `将其他分支合并到 ${worktree.branch}`}><span><Button variant="ghost" size="sm" className="merge-trigger" disabled={busy || refreshing || Boolean(mergeBlocked)} onClick={onMergeOpen}><Icon name="git-merge" />合并</Button></span></Hint>}
       <Separator orientation="vertical" className="toolbar-separator" />
-      {real && <Button variant="ghost" size="sm" disabled={busy || refreshing} onClick={() => void refresh().catch(error => toast.error(errorMessage(error)))}><Icon name="refresh" className={refreshing ? 'spin' : ''} />{refreshing ? '刷新中' : '刷新'}</Button>}
+      {(real || view === 'history') && <Button variant="ghost" size="sm" disabled={busy || refreshingView} onClick={() => void (view === 'history' ? useHistory.getState().refresh(worktree) : refresh()).catch(error => toast.error(errorMessage(error)))}><Icon name="refresh" className={refreshingView ? 'spin' : ''} />{refreshingView ? '刷新中' : '刷新'}</Button>}
       {([['获取', 'cloud-download'], ['拉取', 'arrow-down'], ['推送', 'arrow-up']] as const).map(([label, icon]) => <Hint key={label} label="远程操作将在后续版本提供"><span><Button variant="ghost" size="sm" className="remote-action" disabled><Icon name={icon} />{label}</Button></span></Hint>)}
     </div>
   </div>;
 }
 
-function FileGroup({ worktree, area, disabled }: { worktree: Worktree; area: ChangeArea; disabled: boolean }) {
+function FileGroup({ worktree, area, disabled, conflictsOnly = false }: { worktree: Worktree; area: ChangeArea; disabled: boolean; conflictsOnly?: boolean }) {
   const { selection, selectFile, stage, unstage } = useWorkbench();
   const { fileView } = usePreferences();
-  const files = useMemo(() => getChanges(worktree, area), [worktree, area]);
+  const files = useMemo(() => getChanges(worktree, area).filter(file => Boolean(file.git?.conflicted) === conflictsOnly), [worktree, area, conflictsOnly]);
   const nodes = useMemo(() => fileView === 'tree' ? buildChangeTree(files) : [], [files, fileView]);
-  const label = area === 'unstaged' ? '未暂存' : '已暂存';
+  const label = conflictsOnly ? '合并冲突' : area === 'unstaged' ? '未暂存' : '已暂存';
 
   /** 目录按钮仅处理当前分组的后代文件，保留另一分组及同名前缀目录的状态。 */
   function renderBulkAction(path?: string) {
+    if (conflictsOnly) return null;
     const targets = path ? files.filter(file => file.path.startsWith(`${path}/`)) : files;
     const actionLabel = `${area === 'unstaged' ? '暂存' : '取消暂存'}${path ? `目录 ${path}` : '全部变更'}`;
     return <Hint label={`${actionLabel}（${targets.length} 个文件）`}><Button variant="ghost" size="icon-sm" className="bulk-stage-action" disabled={disabled || targets.length === 0} aria-label={actionLabel} onClick={() => void (area === 'unstaged' ? stage : unstage)(targets.map(file => file.id)).catch(error => toast.error(errorMessage(error)))}><Icon name={area === 'unstaged' ? 'add' : 'remove'} /></Button></Hint>;
@@ -109,7 +119,7 @@ function FileGroup({ worktree, area, disabled }: { worktree: Worktree; area: Cha
   function renderFile(file: FileSnapshot, depth = 0) {
     const selected = selection?.fileId === file.id && selection.area === area;
     const status = getFileStatus(file, area);
-    const actionLabel = `${area === 'unstaged' ? '暂存' : '取消暂存'} ${fileName(file)}`;
+    const actionLabel = `${conflictsOnly ? '暂存已解决的冲突' : area === 'unstaged' ? '暂存' : '取消暂存'} ${file.path}`;
     const path = file.git?.originalPath ? `${file.git.originalPath} → ${file.path}` : file.path;
     return <div key={file.id} className={`file-row ${fileView === 'tree' ? 'tree-file-row' : ''} ${selected ? 'selected' : ''}`} style={{ '--file-depth': depth } as CSSProperties}>
       <button className="file-select" onClick={() => selectFile(file.id, area)} aria-pressed={selected} aria-label={`${label}：${file.path}`} title={path}>
@@ -117,7 +127,7 @@ function FileGroup({ worktree, area, disabled }: { worktree: Worktree; area: Cha
         <span className="file-copy"><span className="file-name">{fileName(file)}</span>{fileView === 'list' && <span className="file-path">{file.git?.originalPath ? path : directory(file)}</span>}</span>
         <span className={`file-status status-${status}`}>{status}</span>
       </button>
-      <Hint label={actionLabel}><Button variant={selected ? 'secondary' : 'ghost'} size="icon-sm" className="file-action" disabled={disabled} aria-label={`${area === 'unstaged' ? '暂存' : '取消暂存'} ${file.path}`} onClick={() => void (area === 'unstaged' ? stage(file.id) : unstage(file.id)).catch(error => toast.error(errorMessage(error)))}><Icon name={area === 'unstaged' ? 'add' : 'remove'} /></Button></Hint>
+      <Hint label={actionLabel}><Button variant={selected ? 'secondary' : 'ghost'} size="icon-sm" className="file-action" disabled={disabled} aria-label={actionLabel} onClick={() => void (area === 'unstaged' ? stage(file.id) : unstage(file.id)).catch(error => toast.error(errorMessage(error)))}><Icon name={area === 'unstaged' ? 'add' : 'remove'} /></Button></Hint>
     </div>;
   }
 
@@ -131,22 +141,23 @@ function FileGroup({ worktree, area, disabled }: { worktree: Worktree; area: Cha
 }
 
 function CommitComposer({ worktree, busy, onCommit }: { worktree: Worktree; busy: boolean; onCommit: () => Promise<void> }) {
-  const { drafts, setDraft } = useWorkbench();
-  const draft = drafts[worktree.id] ?? { message: '' };
+  const { drafts, setDraft, mergeDrafts, setMergeMessage } = useWorkbench();
+  const merging = worktree.operation?.kind === 'merge';
+  const message = merging ? getMergeMessage(worktree, mergeDrafts) : drafts[worktree.id]?.message ?? '';
   const stagedCount = getChanges(worktree, 'staged').length;
-  const conflicted = worktree.files.some(file => file.git?.conflicted);
-  const ready = stagedCount > 0 && draft.message.trim().length > 0 && !busy && !conflicted;
+  const blocked = commitBlockReason(worktree, message);
+  const ready = !busy && !blocked;
   return <form className="commit-composer" onSubmit={event => { event.preventDefault(); if (ready) void onCommit(); }}>
-    <FieldGroup className="commit-fields"><Field><FieldLabel htmlFor="commit-message">提交信息</FieldLabel><Textarea id="commit-message" placeholder={'简要说明这次更改\n\n添加详细说明（可选）'} value={draft.message} disabled={busy} autoComplete="off" onChange={event => setDraft({ message: event.target.value })} /></Field>
+    <FieldGroup className="commit-fields"><Field><FieldLabel htmlFor="commit-message">{merging ? '合并提交信息' : '提交信息'}</FieldLabel><Textarea id="commit-message" placeholder={'简要说明这次更改\n\n添加详细说明（可选）'} value={message} disabled={busy || Boolean(worktree.operation && !merging)} autoComplete="off" onChange={event => merging ? setMergeMessage(event.target.value) : setDraft({ message: event.target.value })} /></Field>
     </FieldGroup>
-    {conflicted && <p className="commit-warning">请先在编辑器中解决冲突，再暂存对应文件。</p>}
-    <Button type="submit" className="commit-button" disabled={!ready}><Icon name={busy ? 'loading' : 'check'} className={busy ? 'spin' : ''} />{busy ? '正在处理…' : `提交 ${stagedCount} 个文件`}</Button>
+    {blocked && (worktree.operation || worktree.files.some(file => file.git?.conflicted)) && <p className="commit-warning">{blocked}</p>}
+    <Button type="submit" className="commit-button" disabled={!ready} title={blocked ?? undefined}><Icon name={busy ? 'loading' : merging ? 'git-merge' : 'check'} className={busy ? 'spin' : ''} />{busy ? '正在处理…' : merging ? '完成合并' : `提交 ${stagedCount} 个文件`}</Button>
     <div className="commit-target"><Icon name="git-branch" /><span className="truncate">{worktree.branch}</span><kbd>⌘ ↵</kbd></div>
   </form>;
 }
 
 function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; shortcutsEnabled: boolean }) {
-  const { selection, closeFile, stageChunk, commit, drafts, busy, refreshing, diff, refresh } = useWorkbench();
+  const { selection, closeFile, stageChunk, commit, continueMerge, mergeDrafts, drafts, busy, refreshing, diff, refresh } = useWorkbench();
   const { fontSize, diffMode, setDiffMode, fileView, setFileView, layout, setLayout } = usePreferences();
   const real = worktree.source === 'native';
   const file = real ? diff.file : worktree.files.find(item => item.id === selection?.fileId) ?? null;
@@ -155,6 +166,13 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
   async function handleCommit() {
     if (busy || refreshing) return;
     try {
+      if (worktree.operation?.kind === 'merge') {
+        const result = await continueMerge();
+        if (result.outcome !== 'merged') toast.warning(result.outcome === 'conflicts' ? '仍有未解决的冲突' : '合并尚未完成', { description: result.warning ?? '请检查文件和当前合并状态后重试。' });
+        else if (result.warning) toast.warning('合并已完成', { description: result.warning });
+        else toast.success('合并已完成', { description: result.commitId?.slice(0, 7) });
+        return;
+      }
       const hash = await commit();
       toast.success(real ? '提交成功' : '演示提交成功', { description: `${hash.slice(0, 7)} · 已提交暂存内容，未暂存的更改仍然保留。` });
     } catch (error) { toast.error(errorMessage(error)); }
@@ -162,10 +180,10 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
 
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
-      if (!shortcutsEnabled || event.defaultPrevented) return;
+      if (!shortcutsEnabled || event.defaultPrevented || document.querySelector('[role="dialog"]')) return;
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && !event.isComposing) {
-        const draft = drafts[worktree.id];
-        if (!busy && !refreshing && !worktree.files.some(item => item.git?.conflicted) && draft?.message.trim() && getChanges(worktree, 'staged').length) {
+        const message = worktree.operation?.kind === 'merge' ? getMergeMessage(worktree, mergeDrafts) : drafts[worktree.id]?.message ?? '';
+        if (!busy && !refreshing && !commitBlockReason(worktree, message)) {
           event.preventDefault();
           void handleCommit();
         }
@@ -179,7 +197,7 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
     <Panel id="changes" defaultSize="24.2%" minSize="270px" maxSize="420px">
       <section className="changes-panel" aria-label="文件变更与提交">
         <div className="changes-heading"><h1>本地更改</h1><Badge variant="secondary" className="count-badge">{changedCount}</Badge><div className="file-view-switch" role="group" aria-label="文件显示方式">{(['tree', 'list'] as const).map(mode => <Hint key={mode} label={mode === 'tree' ? '树形视图' : '列表视图'}><Button variant="ghost" size="icon-xs" aria-label={mode === 'tree' ? '树形视图' : '列表视图'} aria-pressed={fileView === mode} onClick={() => setFileView(mode)}><Icon name={mode === 'tree' ? 'list-tree' : 'list-flat'} /></Button></Hint>)}</div></div>
-        <div className="file-groups"><FileGroup worktree={worktree} area="unstaged" disabled={busy || refreshing} /><FileGroup worktree={worktree} area="staged" disabled={busy || refreshing} /></div>
+        <div className="file-groups">{worktree.files.some(file => file.git?.conflicted) && <FileGroup worktree={worktree} area="unstaged" conflictsOnly disabled={busy || refreshing} />}<FileGroup worktree={worktree} area="unstaged" disabled={busy || refreshing} /><FileGroup worktree={worktree} area="staged" disabled={busy || refreshing} /></div>
         <CommitComposer worktree={worktree} busy={busy || refreshing} onCommit={handleCommit} />
       </section>
     </Panel>
@@ -190,31 +208,12 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
   </Group>;
 }
 
-function HistoryView({ worktree }: { worktree: Worktree }) {
-  const [selectedId, setSelectedId] = useState(worktree.commits[0]?.id);
-  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
-  const [closed, setClosed] = useState(false);
-  const { fontSize, diffMode, setDiffMode } = usePreferences();
-  const selected = worktree.commits.find(commit => commit.id === selectedId) ?? worktree.commits[0];
-  const file = closed ? null : selected?.files.find(item => item.id === selectedFileId) ?? selected?.files[0] ?? null;
-  function selectCommit(commit: Commit) { setSelectedId(commit.id); setSelectedFileId(null); setClosed(false); }
-  return <section className="history-view" aria-label="提交历史">
-    <div className="history-title"><Icon name="history" /><h1>提交历史</h1><Badge variant="secondary">{worktree.commits.length}</Badge><span>当前工作区 · {worktree.branch}</span></div>
-    <div className="history-list" role="list" aria-label="提交记录">{worktree.commits.map(commit => <button key={commit.id} className={`history-row ${selected?.id === commit.id ? 'selected' : ''}`} onClick={() => selectCommit(commit)}>
-      <Icon name="git-commit" /><span className="history-message">{commit.message}</span><span>{commit.author}</span><time>{new Date(commit.date).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}</time><code>{commit.id.slice(0, 7)}</code>
-    </button>)}</div>
-    {selected ? <><div className="commit-detail"><strong>{selected.message}</strong><span>{selected.author} · {selected.files.length} 个文件 · {selected.id.slice(0, 7)}</span>{selected.description && <p>{selected.description}</p>}</div>
-      <div className="history-diff"><div className="history-files"><div className="file-group-heading">变更文件<Badge variant="secondary" className="count-badge">{selected.files.length}</Badge></div>{selected.files.map(item => <button className={`history-file ${file?.id === item.id ? 'selected' : ''}`} key={item.id} onClick={() => { setSelectedFileId(item.id); setClosed(false); }} title={item.path}><Icon name="file-code" /><span className="truncate">{fileName(item)}</span><span className={`file-status status-${getFileStatus(item, 'staged')}`}>{getFileStatus(item, 'staged')}</span></button>)}</div>
-      <CodeDiff file={file} area="staged" worktreeId={`${worktree.id}/history/${selected.id}`} fontSize={fontSize} mode={diffMode} onModeChange={setDiffMode} originalLabel="父提交" modifiedLabel="当前提交" onClose={() => setClosed(true)} /></div></> : <div className="history-empty">还没有提交记录，先完成一次演示提交。</div>}
-  </section>;
-}
-
 function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { fontSize, setFontSize, resetLayout } = usePreferences();
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="settings-dialog"><DialogHeader><DialogTitle>工作台设置</DialogTitle><DialogDescription>调整阅读体验，偏好会保存在当前设备。</DialogDescription></DialogHeader>
     <FieldGroup><Field><FieldLabel htmlFor="font-size">代码字号 <span className="field-value">{fontSize}px</span></FieldLabel><Input id="font-size" type="range" min="11" max="18" step="1" value={fontSize} onChange={event => setFontSize(Number(event.target.value))} /><FieldDescription>应用于并排和内联代码差异视图。</FieldDescription></Field></FieldGroup>
     <Separator /><div className="settings-row"><div><strong>恢复默认布局</strong><p>重置分栏宽度、字号与 Diff 显示方式。</p></div><Button variant="outline" onClick={() => { resetLayout(); onOpenChange(false); toast.success('已恢复默认布局'); }}>恢复</Button></div>
-    {!native && <div className="settings-row"><div><strong>重置示例数据</strong><p>恢复最初的文件更改与提交记录。</p></div><Button variant="outline" onClick={() => { useWorkbench.getState().reset(); onOpenChange(false); toast.success('示例数据已重置'); }}>重置</Button></div>}
+    {!native && <div className="settings-row"><div><strong>重置示例数据</strong><p>恢复最初的文件更改与提交记录。</p></div><Button variant="outline" onClick={() => { useWorkbench.getState().reset(); useHistory.getState().reset(); onOpenChange(false); toast.success('示例数据已重置'); }}>重置</Button></div>}
     <Separator /><div className="settings-row"><div><strong>Git Workbench</strong><p>当前版本</p></div><span>v{appVersion}</span></div>
     <p className="settings-footnote"><Icon name="info" />{native ? '使用系统 Git，提交沿用仓库的作者、签名和 hooks 配置。' : '浏览器为界面演示，真实仓库操作请使用桌面应用。'}</p>
   </DialogContent></Dialog>;
@@ -270,6 +269,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [repositoryOpen, setRepositoryOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const repository = repositories.find(item => item.worktrees.some(worktree => worktree.id === activeWorktreeId));
   const worktree = findWorktree(repositories, activeWorktreeId);
   const changedCount = worktree ? new Set([...getChanges(worktree, 'unstaged'), ...getChanges(worktree, 'staged')].map(item => item.id)).size : 0;
@@ -287,12 +287,14 @@ export default function App() {
         {error && <div className="git-error" role="alert"><Icon name="warning" /><pre>{error}</pre></div>}
         {autoRefreshError && <div className="git-error" role="status"><Icon name="warning" /><pre>{autoRefreshError}</pre></div>}
         {repository && worktree ? <>
-        <WorkbenchToolbar repository={repository} worktree={worktree} onBranchOpen={() => setBranchOpen(true)} />
-        {view === 'changes' || real ? <ChangesView key={activeWorktreeId} worktree={worktree} shortcutsEnabled={!settingsOpen && !repositoryOpen && !branchOpen} /> : <HistoryView key={activeWorktreeId} worktree={worktree} />}
-        <footer className="statusbar"><span className="status-branch"><Icon name="git-branch" />{worktree.branch}</span><span className="status-divider" /><span>{busy ? 'Git 操作进行中…' : refreshing ? '正在刷新…' : changedCount ? `${changedCount} 个文件有更改` : '工作区干净'}</span><span className={`status-demo ${real ? 'status-native' : ''}`}><Icon name={real ? 'repo' : 'beaker'} />{real ? '本地 Git' : '演示模式'}</span><span className="status-spacer" /><span className="status-path" title={worktree.path}>{worktree.path}</span></footer>
+        <WorkbenchToolbar repository={repository} worktree={worktree} onBranchOpen={() => setBranchOpen(true)} onMergeOpen={() => setMergeOpen(true)} />
+        {worktree.operation && <MergeStatusBanner key={`${worktree.id}:${worktree.operation.kind}:${worktree.operation.head}:${worktree.operation.mergeHeads.join(',')}`} worktree={worktree} />}
+        {view === 'changes' ? <ChangesView key={activeWorktreeId} worktree={worktree} shortcutsEnabled={!settingsOpen && !repositoryOpen && !branchOpen && !mergeOpen} /> : <HistoryView key={activeWorktreeId} worktree={worktree} />}
+        <footer className="statusbar"><span className="status-branch"><Icon name="git-branch" />{worktree.branch}</span><span className="status-divider" /><span>{view === 'history' ? '历史只读' : busy ? 'Git 操作进行中…' : refreshing ? '正在刷新…' : changedCount ? `${changedCount} 个文件有更改` : '工作区干净'}</span><span className={`status-demo ${real ? 'status-native' : ''}`}><Icon name={real ? 'repo' : 'beaker'} />{real ? '本地 Git' : '演示模式'}</span><span className="status-spacer" /><span className="status-path" title={worktree.path}>{worktree.path}</span></footer>
       </> : restoring ? <div className="diff-message" role="status"><Icon name="loading spin" />正在恢复上次打开的仓库…</div> : <WelcomeView onOpen={() => setRepositoryOpen(true)} />}</main></Panel>
     </Group>
     <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} /><OpenRepositoryDialog open={repositoryOpen} onOpenChange={setRepositoryOpen} /><Toaster theme="dark" position="bottom-right" closeButton richColors />
     {branchOpen && worktree && <BranchPickerDialog key={worktree.id} worktree={worktree} open onOpenChange={setBranchOpen} />}
+    {mergeOpen && worktree && <MergeBranchDialog key={worktree.id} worktree={worktree} open onOpenChange={setMergeOpen} />}
   </div></TooltipProvider>;
 }

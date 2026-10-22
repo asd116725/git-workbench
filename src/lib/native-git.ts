@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, GitFileStatus, Repository, Worktree } from './types';
+import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, GitFileStatus, GitMergePreview, GitMergeResult, GitOperation, Repository, Worktree } from './types';
 
 /** 工作目录元数据不携带文件正文，未选中的目录保持懒加载。 */
 export interface NativeWorktree {
@@ -23,6 +23,7 @@ export interface NativeRepository {
   name: string;
   branch: string;
   hasHead: boolean;
+  operation: GitOperation | null;
   files: Array<GitFileStatus & { path: string }>;
 }
 
@@ -41,6 +42,11 @@ const languages: Record<string, string> = {
   c: 'c', h: 'c', cpp: 'cpp', go: 'go', sql: 'sql', xml: 'xml', svg: 'xml',
 };
 
+/** 文件语言由扩展名推导，本地与历史 Diff 使用同一组映射。 */
+export function fileLanguage(path: string): string {
+  return languages[path.split('.').pop()?.toLowerCase() ?? ''] ?? 'plaintext';
+}
+
 /** 原生文件标识保留完整相对路径，避免同名文件及特殊字符发生碰撞。 */
 export function toWorktree(repository: NativeRepository): Worktree {
   const metadata = repository.worktrees.find(worktree => worktree.path === repository.path);
@@ -52,11 +58,12 @@ export function toWorktree(repository: NativeRepository): Worktree {
     path: repository.path,
     source: 'native',
     hasHead: repository.hasHead,
+    operation: repository.operation,
     commits: [],
     files: repository.files.map(({ path, ...git }): FileSnapshot => ({
       id: path,
       path,
-      language: languages[path.split('.').pop()?.toLowerCase() ?? ''] ?? 'plaintext',
+      language: fileLanguage(path),
       head: null,
       index: null,
       working: null,
@@ -94,6 +101,10 @@ export const nativeGit = {
   status: (repoPath: string) => invoke<NativeRepository>('git_status', { repoPath }),
   branches: (repoPath: string) => invoke<GitBranch[]>('git_branches', { repoPath }),
   checkout: (repoPath: string, fullName: string) => invoke<GitCheckoutResult>('git_checkout', { repoPath, fullName }),
+  mergePreview: (repoPath: string, sourceRef: string) => invoke<GitMergePreview>('git_merge_preview', { repoPath, sourceRef }),
+  merge: (repoPath: string, preview: GitMergePreview, noFf: boolean) => invoke<GitMergeResult>('git_merge', { repoPath, preview, noFf }),
+  continueMerge: (repoPath: string, expectedHead: string, expectedMergeHeads: string[], message: string) => invoke<GitMergeResult>('git_merge_continue', { repoPath, expectedHead, expectedMergeHeads, message }),
+  abortMerge: (repoPath: string, expectedHead: string, expectedMergeHeads: string[]) => invoke<GitMergeResult>('git_merge_abort', { repoPath, expectedHead, expectedMergeHeads }),
   diff: (repoPath: string, path: string, area: ChangeArea) => invoke<NativeDiff>('git_diff', { repoPath, path, area }),
   stage: (repoPath: string, paths: string[]) => invoke<void>('git_stage', { repoPath, paths }),
   unstage: (repoPath: string, paths: string[]) => invoke<void>('git_unstage', { repoPath, paths }),

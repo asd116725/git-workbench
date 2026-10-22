@@ -20,6 +20,9 @@ mod navigation;
 use navigation::{GitBranch, GitWorktreeInfo, branches, checkout, common_directory, worktrees};
 pub mod watch;
 pub use watch::GitWatchState;
+pub mod history;
+pub mod merge;
+use merge::{GitOperation, operation};
 
 #[cfg(target_os = "macos")]
 mod environment;
@@ -36,6 +39,7 @@ pub struct GitRepository {
     pub branch: String,
     pub has_head: bool,
     pub files: Vec<GitChange>,
+    pub operation: Option<GitOperation>,
 }
 
 /// 保留索引区和工作区的独立状态，避免部分暂存的文件被错误合并。
@@ -236,6 +240,7 @@ fn status(repo: &Path) -> GitResult<GitRepository> {
         branch,
         has_head,
         files: changes(repo)?,
+        operation: operation(repo)?,
     })
 }
 
@@ -321,7 +326,7 @@ fn diff(repo: &Path, path: &str, area: ChangeArea) -> GitResult<GitDiff> {
         })
     };
     if file.conflicted {
-        return notice("此文件包含合并冲突，请先在编辑器中解决冲突，再暂存和提交。");
+        return notice("此文件包含合并冲突，请先在外部编辑器中解决并暂存，再继续当前 Git 操作。");
     }
     // 子模块提交对象通常只存在于子模块对象库，不能交给父仓库 cat-file 读取。
     let index_entry = git(repo, &["ls-files", "--stage", "-z", "--", path])?;
@@ -572,7 +577,8 @@ fn stage_paths(repo: &Path, paths: &[String]) -> GitResult<()> {
     let mut removed = Vec::new();
     let mut added = Vec::new();
     for file in &files {
-        if file.status_worktree == "D" {
+        // UD 冲突中的 D 表示另一侧删除，工作文件仍可能保留；交给 Git 按实际文件解决。
+        if file.status_worktree == "D" && !file.conflicted {
             removed.push(file.path.as_str());
         } else {
             added.push(file.path.as_str());
@@ -704,6 +710,9 @@ fn commit(repo: &Path, summary: &str, description: &str) -> GitResult<CommitResu
     if files.iter().any(|file| file.conflicted) {
         return Err("仓库存在未解决的冲突，请解决并暂存后重试。".into());
     }
+    if operation(repo)?.is_some() {
+        return Err("仓库存在未完成的 Git 操作，请通过对应操作的完成入口继续。".into());
+    }
     if !files
         .iter()
         .any(|file| !matches!(file.status_index.as_str(), " " | "?"))
@@ -781,7 +790,15 @@ pub async fn git_checkout(
     repo_path: String,
     full_name: String,
 ) -> GitResult<navigation::CheckoutResult> {
-    blocking(move || with_repository(&repo_path, |repo| checkout(repo, &full_name))).await
+    blocking(move || {
+        with_repository(&repo_path, |repo| {
+            if operation(repo)?.is_some() {
+                return Err("请先完成或中止当前 Git 操作，再切换分支。".into());
+            }
+            checkout(repo, &full_name)
+        })
+    })
+    .await
 }
 
 #[cfg(test)]

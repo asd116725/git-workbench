@@ -1,0 +1,15 @@
+.merge-dialog .branch-results { min-height: 100px; max-height: 300px; }
+.merge-confirmation { flex-shrink: 0; padding: 14px 24px 20px; border-top: 1px solid var(--border); }
+.merge-preview { min-height: 50px; font-size: 12px; }
+.merge-preview p { display: flex; align-items: center; gap: 6px; margin: 6px 0 10px; color: var(--muted-foreground); line-height: 1.6; }
+.merge-preview > [data-slot='button'] { margin-top: 6px; }
+.merge-direction { display: flex; align-items: center; gap: 10px; }
+.merge-direction strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.merge-direction .codicon { flex-shrink: 0; color: var(--blue); }
+.merge-strategy { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; }
+.merge-strategy input { width: 14px; height: 14px; margin: 0; accent-color: var(--primary); }
+.merge-strategy:has(input:disabled) { color: var(--muted-foreground); }
+.merge-source-hint { margin: 9px 0 14px; color: var(--subtle-foreground); font-size: 11px; line-height: 1.7; }
+.merge-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.merge-dialog-actions [data-slot='button'] { max-width: 75%; }
+.merge-dialog-actions [data-slot='button'] span { overflow: hidden; text-overflow: ellipsis; }

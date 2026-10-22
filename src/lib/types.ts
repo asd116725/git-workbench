@@ -46,6 +46,7 @@ export interface Worktree {
   available?: boolean;
   locked?: string | null;
   prunable?: string | null;
+  operation?: GitOperation | null;
 }
 
 /** 将共享 Git 仓库的多个工作目录归为一组。 */
@@ -76,5 +77,34 @@ export interface GitBranch {
 /** 分支已切换成功时，hook 后续失败仅作为警告返回，避免误报为未切换。 */
 export interface GitCheckoutResult {
   branch: string;
+  warning: string | null;
+}
+
+/** Git 在工作目录中记录的未完成操作，重启后仍以磁盘状态为准。 */
+export interface GitOperation {
+  kind: 'merge' | 'rebase' | 'cherry-pick' | 'revert' | 'am';
+  head: string;
+  mergeHeads: string[];
+  message: string;
+  source: string | null;
+}
+
+/** 预览固定双方引用与提交，执行时由后端核验，防止期间分支移动。 */
+export interface GitMergePreview {
+  targetRef: string;
+  targetBranch: string;
+  targetOid: string;
+  sourceRef: string;
+  sourceName: string;
+  sourceOid: string;
+  incomingCommits: number;
+  fastForward: boolean;
+  upToDate: boolean;
+}
+
+/** 冲突和等待提交属于可恢复状态；hook 警告不覆盖已经完成的合并结果。 */
+export interface GitMergeResult {
+  outcome: 'upToDate' | 'fastForward' | 'merged' | 'conflicts' | 'pending' | 'aborted';
+  commitId: string | null;
   warning: string | null;
 }

@@ -18,6 +18,14 @@ pub fn run() {
             git::git_commit,
             git::git_branches,
             git::git_checkout,
+            git::merge::git_merge_preview,
+            git::merge::git_merge,
+            git::merge::git_merge_continue,
+            git::merge::git_merge_abort,
+            git::history::git_history_ref,
+            git::history::git_history,
+            git::history::git_commit_detail,
+            git::history::git_commit_diff,
             git::watch::git_watch,
         ]);
 

@@ -4,13 +4,16 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { createDemoRepositories } from './demo-data';
 import { commitWorktree, getChanges, stageFile, stageHunk, unstageFile } from './demo-git';
 import { nativeGit, toRepository, toWorktree } from './native-git';
+import { commitBlockReason } from './merge-view';
 import type { NativeRepository } from './native-git';
-import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, Repository, Worktree } from './types';
+import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, GitMergePreview, GitMergeResult, GitOperation, Repository, Worktree } from './types';
 
 /** 文件与比较区域共同标识一个差异视图。 */
 export interface Selection { fileId: string; area: ChangeArea }
 /** 每个工作区独立保存完整草稿，输入期间保留空行和首尾空白。 */
 export interface CommitDraft { message: string }
+/** 合并草稿绑定双方提交，避免新一轮合并误用上一轮编辑的信息。 */
+export interface MergeDraft { key: string; message: string }
 /** 正文和状态分开加载，切换文件时不会显示上一个文件的差异。 */
 export interface DiffState { file: FileSnapshot | null; loading: boolean; notice: string | null; error: string | null }
 
@@ -48,12 +51,39 @@ export function findWorktree(repositories: Repository[], id: string): Worktree |
   return repositories.flatMap(repository => repository.worktrees).find(worktree => worktree.id === id);
 }
 
+function mergeKey(operation: GitOperation): string {
+  return JSON.stringify([operation.head, ...operation.mergeHeads]);
+}
+
+/** 同一轮合并优先使用手写草稿，首次读取或新一轮操作使用 Git 默认信息。 */
+export function getMergeMessage(worktree: Worktree, drafts: Record<string, MergeDraft>): string {
+  const operation = worktree.operation;
+  if (operation?.kind !== 'merge') return '';
+  const draft = drafts[worktree.id];
+  return draft?.key === mergeKey(operation) ? draft.message : operation.message;
+}
+
+/** 只在操作身份变化时替换草稿；磁盘确认合并已结束时清除对应草稿。 */
+function initializeMergeDraft(worktree: Worktree, drafts: Record<string, MergeDraft>): Record<string, MergeDraft> {
+  const operation = worktree.operation;
+  if (operation?.kind !== 'merge') {
+    if (operation === undefined || !drafts[worktree.id]) return drafts;
+    const next = { ...drafts };
+    delete next[worktree.id];
+    return next;
+  }
+  const key = mergeKey(operation);
+  if (drafts[worktree.id]?.key === key) return drafts;
+  return { ...drafts, [worktree.id]: { key, message: operation.message } };
+}
+
 interface WorkbenchState {
   repositories: Repository[];
   activeWorktreeId: string;
   selection: Selection | null;
   view: 'changes' | 'history';
   drafts: Record<string, CommitDraft>;
+  mergeDrafts: Record<string, MergeDraft>;
   busy: boolean;
   restoring: boolean;
   refreshing: boolean;
@@ -65,6 +95,11 @@ interface WorkbenchState {
   branches: BranchState;
   loadBranches: () => Promise<void>;
   checkoutBranch: (fullName: string) => Promise<GitCheckoutResult>;
+  previewMerge: (sourceRef: string) => Promise<GitMergePreview>;
+  mergeBranch: (preview: GitMergePreview, noFf: boolean) => Promise<GitMergeResult>;
+  continueMerge: () => Promise<GitMergeResult>;
+  abortMerge: () => Promise<GitMergeResult>;
+  setMergeMessage: (message: string) => void;
   openRepository: (path: string) => Promise<void>;
   /** 启动时恢复本地路径，同一进程内的重复调用共用一次恢复。 */
   restoreSession: () => Promise<void>;
@@ -93,6 +128,7 @@ function initialState() {
     selection,
     view: 'changes' as const,
     drafts: worktree ? { [worktree.id]: { message: 'fix(editor): 修复 Markdown 滚动同步\n\n统一预览与源码滚动位置' } } : {},
+    mergeDrafts: {} as Record<string, MergeDraft>,
     busy: false,
     restoring: false,
     refreshing: false,
@@ -116,6 +152,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   let branchVersion = 0;
   let autoRefreshVersion = 0;
   let restorePromise: Promise<void> | undefined;
+  const mergePreviewWorktrees = new WeakMap<GitMergePreview, string>();
 
   /** 以主工作区作为稳定入口；不可用路径保留在记录中，避免一次恢复失败就丢失。 */
   function rememberSession() {
@@ -202,6 +239,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
         : [...state.repositories, repository],
       activeWorktreeId: worktree.id,
       selection,
+      mergeDrafts: initializeMergeDraft(worktree, state.mergeDrafts),
     });
     rememberSession();
     return loadDiff(worktree, selection, preserveDiff);
@@ -266,17 +304,60 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
         }
       }
       const selection = worktree ? resolveSelection(worktree) : null;
-      set({ repositories, activeWorktreeId: worktree?.id ?? '', selection, error: errors.length ? `部分仓库恢复失败：\n${errors.join('\n')}` : null });
+      const mergeDrafts = repositories.flatMap(repository => repository.worktrees).reduce((drafts, item) => initializeMergeDraft(item, drafts), get().mergeDrafts);
+      set({ repositories, activeWorktreeId: worktree?.id ?? '', selection, mergeDrafts, error: errors.length ? `部分仓库恢复失败：\n${errors.join('\n')}` : null });
       if (worktree) void loadDiff(worktree, selection);
     } finally { set({ busy: false, restoring: false }); }
   }
 
-  async function refreshAfterMutation(worktree: Worktree) {
+  async function refreshAfterMutation(worktree: Worktree, failurePrefix = '操作已完成，但刷新失败') {
     try {
       void applyNativeRepository(await nativeGit.status(worktree.path), get().selection);
     } catch (error) {
-      set({ error: `操作已完成，但刷新失败：${errorMessage(error)}`, diff: emptyDiff });
+      set({ error: `${failurePrefix}：${errorMessage(error)}`, diff: emptyDiff });
     }
+  }
+
+  /** 合并失败也重读磁盘，Git 可能已经写入冲突索引或留下待完成的合并。 */
+  async function runMergeMutation(worktree: Worktree, action: () => Promise<GitMergeResult>) {
+    beginMutation();
+    try {
+      const result = await action();
+      const completed = result.outcome !== 'conflicts' && result.outcome !== 'pending';
+      if (completed) {
+        set(state => {
+          const mergeDrafts = { ...state.mergeDrafts };
+          delete mergeDrafts[worktree.id];
+          return {
+            mergeDrafts,
+            repositories: state.repositories.map(repository => ({
+              ...repository,
+              worktrees: repository.worktrees.map(item => item.id === worktree.id ? { ...item, operation: null } : item),
+            })),
+          };
+        });
+      }
+      await refreshAfterMutation(worktree, completed ? undefined : '合并尚未完成，且无法刷新仓库状态');
+      await loadBranches(currentWorktree());
+      if (result.warning) set(state => ({ error: [result.warning, state.error].filter(Boolean).join('\n') }));
+      return result;
+    } catch (error) {
+      const message = errorMessage(error);
+      await refreshAfterMutation(worktree, '操作失败，且无法刷新仓库状态');
+      set(state => ({ error: [message, state.error].filter(Boolean).join('\n') }));
+      throw Object.assign(new Error(message), { cause: error });
+    } finally { set({ busy: false }); }
+  }
+
+  function nativeWorktree() {
+    const worktree = currentWorktree();
+    if (worktree.source !== 'native') throw new Error('请在真实仓库中合并分支。');
+    return worktree;
+  }
+
+  function unfinishedMerge(worktree: Worktree) {
+    if (worktree.operation?.kind !== 'merge') throw new Error('当前没有待完成的合并，请刷新后重试。');
+    return worktree.operation;
   }
 
   /** 整组选中文件一次交给后端处理，避免逐文件通信和重复扫描仓库。 */
@@ -360,7 +441,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       ++diffVersion;
       ++branchVersion;
       const selection = worktree.source === 'native' ? null : resolveSelection(worktree);
-      set({ activeWorktreeId: id, selection, view: 'changes', refreshing: false, error: null, autoRefreshError: null, diff: emptyDiff, branches: emptyBranches });
+      set({ activeWorktreeId: id, selection, refreshing: false, error: null, autoRefreshError: null, diff: emptyDiff, branches: emptyBranches });
       rememberSession();
       if (worktree.source === 'native') void get().refresh();
       else void loadDiff(worktree, selection);
@@ -372,6 +453,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     checkoutBranch: async fullName => {
       const worktree = currentWorktree();
       if (worktree.source !== 'native') throw new Error('请在真实仓库中切换分支。');
+      if (worktree.operation) throw new Error('请先完成或中止当前 Git 操作，再切换分支。');
       beginMutation();
       try {
         const { branch, warning = null } = await nativeGit.checkout(worktree.path, fullName);
@@ -400,6 +482,40 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
         throw Object.assign(new Error(message), { cause: error });
       } finally { set({ busy: false }); }
     },
+    previewMerge: async sourceRef => {
+      const worktree = nativeWorktree();
+      if (get().busy) throw new Error('Git 操作正在进行，请稍候。');
+      if (worktree.operation) throw new Error('请先完成或中止当前 Git 操作，再合并分支。');
+      const version = statusVersion;
+      const preview = await nativeGit.mergePreview(worktree.path, sourceRef);
+      if (get().activeWorktreeId !== worktree.id || version !== statusVersion) throw new Error('工作区状态已变化，请重新选择分支。');
+      mergePreviewWorktrees.set(preview, worktree.id);
+      return preview;
+    },
+    mergeBranch: async (preview, noFf) => {
+      const worktree = nativeWorktree();
+      if (worktree.operation) throw new Error('请先完成或中止当前 Git 操作，再合并分支。');
+      if (mergePreviewWorktrees.get(preview) !== worktree.id) throw new Error('工作区状态已变化，请重新选择分支。');
+      return runMergeMutation(worktree, () => nativeGit.merge(worktree.path, preview, noFf));
+    },
+    continueMerge: async () => {
+      const worktree = nativeWorktree();
+      const operation = unfinishedMerge(worktree);
+      const message = getMergeMessage(worktree, get().mergeDrafts).trim();
+      const blocked = commitBlockReason(worktree, message);
+      if (blocked) throw new Error(blocked);
+      return runMergeMutation(worktree, () => nativeGit.continueMerge(worktree.path, operation.head, operation.mergeHeads, message));
+    },
+    abortMerge: async () => {
+      const worktree = nativeWorktree();
+      const operation = unfinishedMerge(worktree);
+      return runMergeMutation(worktree, () => nativeGit.abortMerge(worktree.path, operation.head, operation.mergeHeads));
+    },
+    setMergeMessage: message => {
+      const worktree = currentWorktree();
+      const operation = unfinishedMerge(worktree);
+      set(state => ({ mergeDrafts: { ...state.mergeDrafts, [worktree.id]: { key: mergeKey(operation), message } } }));
+    },
     selectFile: (fileId, area) => {
       if (get().busy) return;
       const worktree = currentWorktree();
@@ -420,6 +536,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     },
     commit: async () => {
       const worktree = currentWorktree();
+      if (worktree.operation) throw new Error('请先完成或中止当前 Git 操作，合并请使用「完成合并」。');
       const draft = get().drafts[worktree.id] ?? emptyDraft;
       /** 仅在提交时去除首尾空白，再按首行标题与其余正文交给 Git。 */
       const [summary, ...lines] = draft.message.trim().split('\n');
@@ -466,11 +583,13 @@ interface Preferences {
   fontSize: number;
   fileView: 'tree' | 'list';
   diffMode: 'split' | 'inline';
+  historyDiffMode: 'split' | 'inline';
   layout: Record<string, number>;
   layoutResetKey: number;
   setFontSize: (value: number) => void;
   setFileView: (value: 'tree' | 'list') => void;
   setDiffMode: (value: 'split' | 'inline') => void;
+  setHistoryDiffMode: (value: 'split' | 'inline') => void;
   setLayout: (value: Record<string, number>) => void;
   resetLayout: () => void;
 }
@@ -480,11 +599,13 @@ export const usePreferences = create<Preferences>()(persist(set => ({
   fontSize: 15,
   fileView: 'tree',
   diffMode: 'split',
+  historyDiffMode: 'inline',
   layout: {},
   layoutResetKey: 0,
   setFontSize: fontSize => set({ fontSize }),
   setFileView: fileView => set({ fileView }),
   setDiffMode: diffMode => set({ diffMode }),
+  setHistoryDiffMode: historyDiffMode => set({ historyDiffMode }),
   setLayout: layout => set(state => Object.entries(layout).every(([key, value]) => state.layout[key] === value) ? state : { layout: { ...state.layout, ...layout } }),
-  resetLayout: () => set(state => ({ layout: {}, layoutResetKey: state.layoutResetKey + 1, fontSize: 15, diffMode: 'split' })),
+  resetLayout: () => set(state => ({ layout: {}, layoutResetKey: state.layoutResetKey + 1, fontSize: 15, diffMode: 'split', historyDiffMode: 'inline' })),
 }), { name: 'git-workbench.preferences' }));

@@ -8,7 +8,7 @@ export function ChangeFileTree({ nodes, selectedFileId, renderFile, renderDirect
   nodes: ChangeTreeNode[];
   selectedFileId: string | null;
   renderFile: (file: FileSnapshot, depth: number) => ReactNode;
-  renderDirectoryAction: (path: string) => ReactNode;
+  renderDirectoryAction?: (path: string) => ReactNode;
 }) {
   function renderNodes(items: ChangeTreeNode[], depth: number): ReactNode {
     return items.map(node => {
@@ -22,7 +22,7 @@ export function ChangeFileTree({ nodes, selectedFileId, renderFile, renderDirect
             <i className="codicon codicon-folder directory-icon-closed" aria-hidden="true" />
             <i className="codicon codicon-folder-opened directory-icon-open" aria-hidden="true" />
             <span>{node.name}</span><small>{node.fileCount}</small>
-          </CollapsibleTrigger>{renderDirectoryAction(node.path)}</div>
+          </CollapsibleTrigger>{renderDirectoryAction?.(node.path)}</div>
           <CollapsibleContent><ul className={`change-tree-children${hasSelectedFile ? ' active-indent-guide' : ''}`}>{renderNodes(node.children, depth + 1)}</ul></CollapsibleContent>
         </Collapsible>
       </li>;

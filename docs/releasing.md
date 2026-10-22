@@ -5,9 +5,9 @@
 `package.json` 是版本号来源，Tauri 的 `version` 直接引用它。Rust 包和锁文件的根包版本由脚本同步。Git 标签采用 `vX.Y.Z`，日志使用 `## [X.Y.Z] - YYYY-MM-DD`。
 
 ```sh
-pnpm release:version 1.0.0
-# 手动将本次变化写入 CHANGELOG.md 的 [1.0.0] 节，保留空的 [Unreleased]
-pnpm release:check --tag v1.0.0
+pnpm release:version 1.1.0
+# 手动将本次变化写入 CHANGELOG.md 的 [1.1.0] 节，保留空的 [Unreleased]
+pnpm release:check --tag v1.1.0
 ```
 
 脚本拒绝无效格式和版本回退，保留第三方依赖版本，不创建提交或标签。预发布状态由 GitHub Release 标记控制，版本仍使用 `x.y.z`。
@@ -23,7 +23,7 @@ pnpm release:check --tag v1.0.0
 
 ```text
 release-artifacts/
-  GitWorkbench_1.0.0_macos_arm64.dmg
+  GitWorkbench_1.1.0_macos_arm64.dmg
   SHA256SUMS.txt
   release-notes.md
 ```
@@ -42,10 +42,10 @@ release-artifacts/
 
 ```sh
 git add <本次发布文件>
-git commit -m "chore: 发布 1.0.0 正式版本"
-git tag -a v1.0.0 -m "Git Workbench 1.0.0"
+git commit -m "chore: 发布 1.1.0 正式版本"
+git tag -a v1.1.0 -m "Git Workbench 1.1.0"
 git push origin main
-git push origin v1.0.0
+git push origin v1.1.0
 ```
 
 基础 CI 检查 `main`、Pull Request 和 `v*` 标签。标签任务先检查版本/标签、类型、lint、前端构建和前后端测试，再在 `macos-15` 构建 arm64 DMG；只有发布任务拥有 `contents: write`。
@@ -57,10 +57,10 @@ git push origin v1.0.0
 1. 确认标签工作流所有任务成功，Release 目标提交与标签一致。
 2. 下载草稿附件，核对其 SHA-256，再检查 DMG 版本、架构与启动。
 3. 复核更新说明、ad-hoc 签名提示、安装手册链接及附件命名。
-4. `1.0.0` 在核对完成后发布为正式版本，并设为最新版本。执行：
+4. `1.1.0` 在核对完成后发布为正式版本，并设为最新版本。执行：
 
 ```sh
-gh release edit v1.0.0 --repo asd116725/git-workbench --draft=false --prerelease=false --latest
+gh release edit v1.1.0 --repo asd116725/git-workbench --draft=false --prerelease=false --latest
 ```
 
 5. 从公开链接重新下载 DMG 和校验文件，检查 README 的下载链接与操作手册可访问。
