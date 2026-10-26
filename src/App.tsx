@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Field, FieldGroup, FieldLabel, FieldDescription } from '@/components/ui/field';
@@ -79,8 +78,8 @@ function RepositorySidebar({ onOpen, onSettings }: { onOpen: () => void; onSetti
   </aside>;
 }
 
-function WorkbenchToolbar({ repository, worktree, onBranchOpen, onMergeOpen }: { repository: Repository; worktree: Worktree; onBranchOpen: () => void; onMergeOpen: () => void }) {
-  const { view, setView, selectWorktree, busy, refreshing, refresh } = useWorkbench();
+function WorkbenchToolbar({ worktree, onBranchOpen, onMergeOpen }: { worktree: Worktree; onBranchOpen: () => void; onMergeOpen: () => void }) {
+  const { view, setView, busy, refreshing, refresh } = useWorkbench();
   const real = worktree.source === 'native';
   const mergeBlocked = mergeStartBlockReason(worktree);
   const historyLoading = useHistory(state => state.sessions[worktree.id]?.loading ?? false);
@@ -90,9 +89,7 @@ function WorkbenchToolbar({ repository, worktree, onBranchOpen, onMergeOpen }: {
       <TabsList className="view-tabs-list"><TabsTrigger value="changes">本地更改</TabsTrigger><TabsTrigger value="history">提交历史</TabsTrigger></TabsList>
     </Tabs>
     <div className="toolbar-actions">
-      {real ? <Button variant="outline" size="sm" className="branch-trigger" disabled={busy || refreshing || Boolean(worktree.operation)} onClick={onBranchOpen} aria-label={`切换分支：${worktree.branch}`} title={worktree.operation ? '请先完成当前 Git 操作' : '查看和切换分支'}><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="truncate">{worktree.branch}</span><Icon name="chevron-down" /></Button> : <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="branch-trigger" disabled={busy} title={worktree.path}><Icon name="git-branch" /><span className="truncate">{worktree.branch}</span><Icon name="chevron-down" /></Button></DropdownMenuTrigger>
-        <DropdownMenuContent align="end"><DropdownMenuLabel>切换工作区</DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuGroup>{repository.worktrees.map(item => <DropdownMenuItem key={item.id} onSelect={() => selectWorktree(item.id)}><Icon name={item.id === worktree.id ? 'check' : 'git-branch'} /><span>{item.branch}</span><span className="menu-detail">{item.name}</span></DropdownMenuItem>)}</DropdownMenuGroup></DropdownMenuContent>
-      </DropdownMenu>}
+      <Button variant="outline" size="sm" className="branch-trigger" disabled={busy || refreshing} onClick={onBranchOpen} aria-label={`管理分支：${worktree.branch}`} title="查看、切换、创建或删除本地分支"><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="truncate">{worktree.branch}</span><Icon name="chevron-down" /></Button>
       {real && <Hint label={mergeBlocked ?? `将其他分支合并到 ${worktree.branch}`}><span><Button variant="ghost" size="sm" className="merge-trigger" disabled={busy || refreshing || Boolean(mergeBlocked)} onClick={onMergeOpen}><Icon name="git-merge" />合并</Button></span></Hint>}
       <Separator orientation="vertical" className="toolbar-separator" />
       {(real || view === 'history') && <Button variant="ghost" size="sm" disabled={busy || refreshingView} onClick={() => void (view === 'history' ? useHistory.getState().refresh(worktree) : refresh()).catch(error => toast.error(errorMessage(error)))}><Icon name="refresh" className={refreshingView ? 'spin' : ''} />{refreshingView ? '刷新中' : '刷新'}</Button>}
@@ -287,7 +284,7 @@ export default function App() {
         {error && <div className="git-error" role="alert"><Icon name="warning" /><pre>{error}</pre></div>}
         {autoRefreshError && <div className="git-error" role="status"><Icon name="warning" /><pre>{autoRefreshError}</pre></div>}
         {repository && worktree ? <>
-        <WorkbenchToolbar repository={repository} worktree={worktree} onBranchOpen={() => setBranchOpen(true)} onMergeOpen={() => setMergeOpen(true)} />
+        <WorkbenchToolbar worktree={worktree} onBranchOpen={() => setBranchOpen(true)} onMergeOpen={() => setMergeOpen(true)} />
         {worktree.operation && <MergeStatusBanner key={`${worktree.id}:${worktree.operation.kind}:${worktree.operation.head}:${worktree.operation.mergeHeads.join(',')}`} worktree={worktree} />}
         {view === 'changes' ? <ChangesView key={activeWorktreeId} worktree={worktree} shortcutsEnabled={!settingsOpen && !repositoryOpen && !branchOpen && !mergeOpen} /> : <HistoryView key={activeWorktreeId} worktree={worktree} />}
         <footer className="statusbar"><span className="status-branch"><Icon name="git-branch" />{worktree.branch}</span><span className="status-divider" /><span>{view === 'history' ? '历史只读' : busy ? 'Git 操作进行中…' : refreshing ? '正在刷新…' : changedCount ? `${changedCount} 个文件有更改` : '工作区干净'}</span><span className={`status-demo ${real ? 'status-native' : ''}`}><Icon name={real ? 'repo' : 'beaker'} />{real ? '本地 Git' : '演示模式'}</span><span className="status-spacer" /><span className="status-path" title={worktree.path}>{worktree.path}</span></footer>

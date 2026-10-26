@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, GitFileStatus, GitMergePreview, GitMergeResult, GitOperation, Repository, Worktree } from './types';
+import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitFileStatus, GitMergePreview, GitMergeResult, GitOperation, Repository, Worktree } from './types';
 
 /** 工作目录元数据不携带文件正文，未选中的目录保持懒加载。 */
 export interface NativeWorktree {
@@ -101,6 +101,9 @@ export const nativeGit = {
   status: (repoPath: string) => invoke<NativeRepository>('git_status', { repoPath }),
   branches: (repoPath: string) => invoke<GitBranch[]>('git_branches', { repoPath }),
   checkout: (repoPath: string, fullName: string) => invoke<GitCheckoutResult>('git_checkout', { repoPath, fullName }),
+  createBranch: (repoPath: string, name: string, startRef: string, checkout: boolean) => invoke<GitCreateBranchResult>('git_create_branch', { repoPath, name, startRef, checkout }),
+  previewDeleteBranch: (repoPath: string, fullName: string) => invoke<GitDeleteBranchPreview>('git_delete_branch_preview', { repoPath, fullName }),
+  deleteBranch: (repoPath: string, preview: GitDeleteBranchPreview, force: boolean) => invoke<GitDeleteBranchResult>('git_delete_branch', { repoPath, preview, force }),
   mergePreview: (repoPath: string, sourceRef: string) => invoke<GitMergePreview>('git_merge_preview', { repoPath, sourceRef }),
   merge: (repoPath: string, preview: GitMergePreview, noFf: boolean) => invoke<GitMergeResult>('git_merge', { repoPath, preview, noFf }),
   continueMerge: (repoPath: string, expectedHead: string, expectedMergeHeads: string[], message: string) => invoke<GitMergeResult>('git_merge_continue', { repoPath, expectedHead, expectedMergeHeads, message }),

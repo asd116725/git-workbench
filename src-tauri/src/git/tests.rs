@@ -1,6 +1,9 @@
 use super::*;
 use tempfile::TempDir;
 
+#[path = "branch_management_tests.rs"]
+mod branch_management_tests;
+
 fn stage(repo: &Path, path: &str) -> GitResult<()> {
     stage_paths(repo, &[path.into()])
 }

@@ -18,6 +18,7 @@ static REPOSITORY_LOCKS: OnceLock<RepositoryLocks> = OnceLock::new();
 
 mod navigation;
 use navigation::{GitBranch, GitWorktreeInfo, branches, checkout, common_directory, worktrees};
+pub mod branch_management;
 pub mod watch;
 pub use watch::GitWatchState;
 pub mod history;

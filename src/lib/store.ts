@@ -3,10 +3,11 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { createDemoRepositories } from './demo-data';
 import { commitWorktree, getChanges, stageFile, stageHunk, unstageFile } from './demo-git';
+import { createDemoBranch, createDemoBranchState, deleteDemoBranch, listDemoBranches, previewDemoBranchDeletion, recordDemoBranchCommit, switchDemoBranch, type DemoBranchState } from './demo-branches';
 import { nativeGit, toRepository, toWorktree } from './native-git';
 import { commitBlockReason } from './merge-view';
 import type { NativeRepository } from './native-git';
-import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, GitMergePreview, GitMergeResult, GitOperation, Repository, Worktree } from './types';
+import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitMergePreview, GitMergeResult, GitOperation, Repository, Worktree } from './types';
 
 /** 文件与比较区域共同标识一个差异视图。 */
 export interface Selection { fileId: string; area: ChangeArea }
@@ -95,6 +96,9 @@ interface WorkbenchState {
   branches: BranchState;
   loadBranches: () => Promise<void>;
   checkoutBranch: (fullName: string) => Promise<GitCheckoutResult>;
+  createBranch: (name: string, startRef: string, checkout: boolean) => Promise<GitCreateBranchResult>;
+  previewDeleteBranch: (fullName: string) => Promise<GitDeleteBranchPreview>;
+  deleteBranch: (preview: GitDeleteBranchPreview, force: boolean) => Promise<GitDeleteBranchResult>;
   previewMerge: (sourceRef: string) => Promise<GitMergePreview>;
   mergeBranch: (preview: GitMergePreview, noFf: boolean) => Promise<GitMergeResult>;
   continueMerge: () => Promise<GitMergeResult>;
@@ -153,6 +157,19 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   let autoRefreshVersion = 0;
   let restorePromise: Promise<void> | undefined;
   const mergePreviewWorktrees = new WeakMap<GitMergePreview, string>();
+  const deletePreviewWorktrees = new WeakMap<GitDeleteBranchPreview, string>();
+  const demoBranchStates = new Map<string, DemoBranchState>();
+
+  /** 演示分支按共享仓库保存于内存，切换工作区仍能看到刚创建的分支。 */
+  function demoBranches(worktree: Worktree) {
+    const repository = get().repositories.find(item => item.worktrees.some(item => item.id === worktree.id))!;
+    let state = demoBranchStates.get(repository.id);
+    if (!state) {
+      state = createDemoBranchState(repository);
+      demoBranchStates.set(repository.id, state);
+    }
+    return { id: repository.id, state };
+  }
 
   /** 以主工作区作为稳定入口；不可用路径保留在记录中，避免一次恢复失败就丢失。 */
   function rememberSession() {
@@ -247,10 +264,11 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
 
   async function loadBranches(worktree: Worktree) {
     const version = ++branchVersion;
-    if (worktree.source !== 'native') { set({ branches: emptyBranches }); return; }
     set({ branches: { ...get().branches, loading: true, error: null } });
     try {
-      const items = await nativeGit.branches(worktree.path);
+      const items = worktree.source === 'native'
+        ? await nativeGit.branches(worktree.path)
+        : listDemoBranches(demoBranches(worktree).state, worktree);
       if (version === branchVersion && get().activeWorktreeId === worktree.id) {
         set({ branches: { items, loading: false, error: null } });
       }
@@ -262,10 +280,10 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   }
 
   /** 写操作期间锁定工作区；原生 Git 锁之外再防止界面重复提交。 */
-  function beginMutation() {
+  function beginMutation({ preserveDiff = false } = {}) {
     if (get().busy) throw new Error('Git 操作正在进行，请稍候。');
     ++statusVersion;
-    ++diffVersion;
+    if (!preserveDiff) ++diffVersion;
     ++branchVersion;
     set({ busy: true, refreshing: false, error: null, branches: { ...get().branches, loading: false } });
   }
@@ -316,6 +334,39 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     } catch (error) {
       set({ error: `${failurePrefix}：${errorMessage(error)}`, diff: emptyDiff });
     }
+  }
+
+  /** 切换已成功时先更新身份；刷新失败也不能继续展示原分支文件。 */
+  async function applyBranchSwitch(worktree: Worktree, branch: string) {
+    ++diffVersion;
+    const real = worktree.source === 'native';
+    const updated = { ...worktree, branch, detached: false, hasHead: true, files: real ? [] : worktree.files };
+    set(state => ({
+      repositories: state.repositories.map(repository => ({
+        ...repository,
+        worktrees: repository.worktrees.map(item => item.id === worktree.id ? updated : item),
+      })),
+      selection: real ? null : state.selection,
+      diff: real ? emptyDiff : state.diff,
+      branches: emptyBranches,
+      view: 'changes',
+    }));
+    if (real) await refreshAfterMutation(worktree);
+  }
+
+  /** 仅修改引用时保留阅读状态；已完成的写入不因随后刷新失败而变成操作失败。 */
+  async function runBranchMutation<T extends GitDeleteBranchResult & { switched?: boolean }>(worktree: Worktree, action: () => Promise<T>): Promise<T> {
+    if (worktree.operation) throw new Error('请先完成或中止当前 Git 操作，再管理分支。');
+    beginMutation({ preserveDiff: true });
+    try {
+      const result = await action();
+      if (result.switched) await applyBranchSwitch(worktree, result.branch);
+      await loadBranches(currentWorktree());
+      const warning = [result.warning, get().error, get().branches.error && `操作已完成，但分支列表刷新失败：${get().branches.error}`].filter(Boolean).join('\n') || null;
+      return { ...result, warning };
+    } catch (error) {
+      throw Object.assign(new Error(errorMessage(error)), { cause: error });
+    } finally { set({ busy: false }); }
   }
 
   /** 合并失败也重读磁盘，Git 可能已经写入冲突索引或留下待完成的合并。 */
@@ -452,24 +503,20 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     },
     checkoutBranch: async fullName => {
       const worktree = currentWorktree();
-      if (worktree.source !== 'native') throw new Error('请在真实仓库中切换分支。');
+      if (worktree.source !== 'native') {
+        const result = await runBranchMutation(worktree, async () => {
+          const demo = demoBranches(worktree);
+          const next = switchDemoBranch(demo.state, worktree, fullName);
+          demoBranchStates.set(demo.id, next.state);
+          return { ...next.result, switched: true };
+        });
+        return { branch: result.branch, warning: result.warning };
+      }
       if (worktree.operation) throw new Error('请先完成或中止当前 Git 操作，再切换分支。');
       beginMutation();
       try {
         const { branch, warning = null } = await nativeGit.checkout(worktree.path, fullName);
-        /** 刷新失败时也不能继续展示已离开的分支内容。 */
-        set(state => ({
-          repositories: state.repositories.map(repository => ({
-            ...repository,
-            worktrees: repository.worktrees.map(item => item.id === worktree.id
-              ? { ...item, branch, detached: false, hasHead: true, files: [] } : item),
-          })),
-          selection: null,
-          diff: emptyDiff,
-          branches: emptyBranches,
-          view: 'changes',
-        }));
-        await refreshAfterMutation(worktree);
+        await applyBranchSwitch(worktree, branch);
         await loadBranches(currentWorktree());
         if (warning) {
           set(state => ({ error: [`已切换到 ${branch}，但 ${warning}`, state.error].filter(Boolean).join('\n') }));
@@ -481,6 +528,41 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
         void loadDiff(worktree, get().selection);
         throw Object.assign(new Error(message), { cause: error });
       } finally { set({ busy: false }); }
+    },
+    createBranch: async (name, startRef, checkout) => {
+      const worktree = currentWorktree();
+      return runBranchMutation(worktree, async () => {
+        if (worktree.source === 'native') return nativeGit.createBranch(worktree.path, name, startRef, checkout);
+        const demo = demoBranches(worktree);
+        const next = createDemoBranch(demo.state, worktree, name, startRef, checkout);
+        demoBranchStates.set(demo.id, next.state);
+        return next.result;
+      });
+    },
+    previewDeleteBranch: async fullName => {
+      const worktree = currentWorktree();
+      if (get().busy) throw new Error('Git 操作正在进行，请稍候。');
+      if (worktree.operation) throw new Error('请先完成或中止当前 Git 操作，再管理分支。');
+      const version = statusVersion;
+      const preview = worktree.source === 'native'
+        ? await nativeGit.previewDeleteBranch(worktree.path, fullName)
+        : previewDemoBranchDeletion(demoBranches(worktree).state, worktree, fullName);
+      if (get().activeWorktreeId !== worktree.id || version !== statusVersion) throw new Error('工作区状态已变化，请重新选择分支。');
+      deletePreviewWorktrees.set(preview, worktree.id);
+      return preview;
+    },
+    deleteBranch: async (preview, force) => {
+      const worktree = currentWorktree();
+      if (deletePreviewWorktrees.get(preview) !== worktree.id) throw new Error('工作区状态已变化，请重新预览并确认删除。');
+      return runBranchMutation(worktree, async () => {
+        /** 每次执行都消费确认，失败后必须重新读取目标，不能重复使用强制删除授权。 */
+        deletePreviewWorktrees.delete(preview);
+        if (worktree.source === 'native') return nativeGit.deleteBranch(worktree.path, preview, force);
+        const demo = demoBranches(worktree);
+        const next = deleteDemoBranch(demo.state, worktree, preview, force);
+        demoBranchStates.set(demo.id, next.state);
+        return next.result;
+      });
     },
     previewMerge: async sourceRef => {
       const worktree = nativeWorktree();
@@ -551,6 +633,8 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
         } else {
           const committed = commitWorktree(worktree, summary, description);
           commitId = committed.commits[0].id;
+          const demo = demoBranches(worktree);
+          demoBranchStates.set(demo.id, recordDemoBranchCommit(demo.state, committed));
           replaceWorktree(committed);
         }
         set(state => {
@@ -574,6 +658,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       ++branchVersion;
       ++autoRefreshVersion;
       restorePromise = undefined;
+      demoBranchStates.clear();
       set(initialState());
     },
   };

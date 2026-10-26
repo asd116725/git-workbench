@@ -238,3 +238,43 @@ input[type='range'] { padding: 0; border: 0; box-shadow: none; accent-color: var
 .branch-option:hover .branch-enter, .branch-option:focus-visible .branch-enter { opacity: 1; }
 .branch-placeholder { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 120px; padding: 20px; color: var(--muted-foreground); font-size: 13px; }
 .branch-footer { margin: 0; padding: 13px 24px; border-top: 1px solid var(--border); color: var(--subtle-foreground); font-size: 11px; line-height: 1.7; }
+
+.branch-management-dialog .branch-list-toolbar { display: flex; align-items: center; gap: 12px; padding: 0 20px; }
+.branch-list-toolbar .branch-search { flex: 1; min-width: 0; margin: 0; }
+.branch-list-toolbar .branch-search input { min-width: 0; }
+.branch-management-row { display: flex; align-items: center; gap: 2px; border-radius: 4px; padding-right: 8px; }
+.branch-management-row.is-current { background: var(--accent); }
+.branch-management-row:hover, .branch-management-row:focus-within { background: var(--list-hover-background); }
+.branch-management-row .branch-option { flex: 1; min-width: 0; background: transparent; }
+.branch-management-row .branch-option:focus-visible { outline: 1px solid var(--ring); outline-offset: -1px; }
+.branch-management-row .branch-delete-action { opacity: 0; color: var(--destructive); }
+.branch-management-row:hover .branch-delete-action, .branch-management-row:focus-within .branch-delete-action { opacity: 1; }
+.branch-management-row .branch-delete-action:disabled { color: var(--subtle-foreground); }
+.branch-management-dialog .branch-demo-label { display: inline-block; margin-left: 12px; color: var(--yellow); font-size: 11px; }
+.branch-operation-note { margin: 0 24px; color: var(--yellow); font-size: 12px; line-height: 1.6; }
+.branch-form-dialog { width: min(620px, calc(100vw - 48px)); max-width: 620px; gap: 24px; overflow-y: auto; }
+.branch-form-fields { display: flex; flex-direction: column; gap: 24px; padding: 0 24px 24px; }
+.branch-form-fields input:not([type='checkbox']), .branch-form-fields select { height: 38px; font-size: 13px; }
+.branch-form-fields select { width: 100%; padding: 0 10px; border: 1px solid var(--input); border-radius: 4px; background: var(--input-background); color: var(--foreground); }
+.branch-form-fields select:focus-visible { outline: 1px solid var(--ring); border-color: var(--ring); }
+.branch-form-fields select option, .branch-form-fields select optgroup { background: var(--input-background); }
+.branch-form-fields [data-slot='field-description'] { font-size: 12px; }
+.branch-checkbox { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13px; line-height: 1.6; }
+.branch-checkbox input { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--primary); }
+.branch-checkbox input:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+.branch-form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 18px 24px; border-top: 1px solid var(--border); }
+.branch-form-actions p { flex: 1; margin: 0; color: var(--subtle-foreground); font-size: 11px; }
+.branch-delete-target { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 0 24px; }
+.branch-delete-target .codicon { font-size: 22px; color: var(--muted-foreground); }
+.branch-delete-target strong { overflow-wrap: anywhere; font-size: 17px; font-weight: 500; color: var(--foreground-strong); }
+.branch-delete-summary { display: flex; align-items: flex-start; gap: 14px; padding: 16px; border: 1px solid var(--widget-border); border-radius: 5px; background: var(--accent); }
+.branch-delete-summary > .codicon { flex-shrink: 0; font-size: 22px; color: var(--green); }
+.branch-delete-summary strong { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.branch-delete-summary p { margin: 8px 0 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.7; }
+.branch-delete-summary.has-unmerged { border-color: color-mix(in srgb, var(--yellow), transparent 40%); background: color-mix(in srgb, var(--yellow) 7%, var(--background)); }
+.branch-delete-summary.has-unmerged > .codicon, .branch-delete-summary.has-unmerged strong { color: var(--yellow); }
+.branch-delete-note { margin: 0; color: var(--muted-foreground); font-size: 12px; }
+@media (max-width: 640px) {
+  .branch-form-actions { flex-wrap: wrap; }
+  .branch-form-actions p { flex-basis: 100%; margin-bottom: 6px; }
+}

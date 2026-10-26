@@ -80,6 +80,28 @@ export interface GitCheckoutResult {
   warning: string | null;
 }
 
+/** 返回结果即表示分支已创建；切换失败只返回警告，不回滚新分支。 */
+export interface GitCreateBranchResult extends GitCheckoutResult {
+  switched: boolean;
+}
+
+/** 删除确认绑定目标和当前 HEAD，引用变化后必须重新预览并确认。 */
+export interface GitDeleteBranchPreview {
+  targetRef: string;
+  targetName: string;
+  targetOid: string;
+  headRef: string | null;
+  headOid: string;
+  headName: string;
+  unmergedCommits: number;
+}
+
+/** 分支已删除后的配置清理或刷新问题只作为警告，不诱导重复删除。 */
+export interface GitDeleteBranchResult {
+  branch: string;
+  warning: string | null;
+}
+
 /** Git 在工作目录中记录的未完成操作，重启后仍以磁盘状态为准。 */
 export interface GitOperation {
   kind: 'merge' | 'rebase' | 'cherry-pick' | 'revert' | 'am';
