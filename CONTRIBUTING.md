@@ -1,20 +1,22 @@
-# 贡献指南
+# Contributing
 
-欢迎通过 Issue 提交问题和建议，或通过 Pull Request 改进代码、文档及测试。开始较大的功能前，建议先描述使用场景和预期行为。
+**English** | [简体中文](CONTRIBUTING.zh-CN.md)
 
-## 本地开发
+Issues for bugs and suggestions, and pull requests for code, documentation, and tests are welcome. Before starting a larger feature, describe the use case and expected behavior in an issue.
 
-按 [README](README.md#源码启动)安装依赖和启动桌面应用。`src/` 为 React 界面、状态与浏览器演示，`src-tauri/src/` 为真实 Git 操作；两种数据源应保持隔离。
+## Local development
 
-## 编码与验证
+Follow the [README](README.md#run-from-source) to install dependencies and run the desktop app. `src/` contains the React interface, state, and browser demo; `src-tauri/src/` handles real Git operations. Keep these two data sources separate.
 
-- 优先使用已有组件，保持逻辑清晰，避免仅为减少几行代码而抽象。
-- 公共接口及含业务约束的复杂函数添加简短中文说明；注释重点解释原因。
-- Git 命令使用参数数组，避免 shell 拼接；保留用户未暂存内容和外部 Git 锁。
-- 修改 Git 行为时，在独立临时仓库验证新增、删除、重命名及部分暂存等相关情形。不要使用自己的业务仓库做写入测试。
-- 新功能、复杂修复应有针对行为的测试；文案、样式等小改动使用适当的人工验证即可。
+## Coding and validation
 
-提交前执行：
+- Reuse existing components, keep logic clear, and avoid abstractions that only save a few lines.
+- Add concise Chinese comments to public interfaces and complex functions with business constraints, focusing on why the behavior is needed.
+- Pass Git arguments as arrays rather than building shell commands. Preserve unstaged user changes and locks owned by external Git operations.
+- When changing Git behavior, use independent temporary repositories to verify relevant cases such as additions, deletions, renames, and partially staged files. Do not run write tests against your working business repositories.
+- Add behavior-focused tests for new features and complex fixes. Use appropriate manual validation for small wording or styling changes.
+
+Before submitting, run:
 
 ```sh
 pnpm typecheck
@@ -26,12 +28,12 @@ cargo test --locked --manifest-path src-tauri/Cargo.toml
 pnpm release:check
 ```
 
-UI 变更请附使用虚构数据的截图和实际验证结果。新增生产依赖或修改锁文件后，执行 `pnpm release:licenses` 并检查第三方许可文件。
+For UI changes, include screenshots using fictional data and the results of checks you actually ran. After adding a production dependency or changing a lockfile, run `pnpm release:licenses` and review the third-party license files.
 
-## 提交与 Pull Request
+## Commits and pull requests
 
-提交信息使用中文说明，例如 `fix: 保留取消暂存后的文件选择`。PR 请说明具体问题、最终行为、测试方式和未验证的范围，不要把未执行的检查写成通过。
+Write commit messages in Chinese, for example `fix: 保留取消暂存后的文件选择`. Describe the concrete problem, final behavior, validation, and anything left unverified in the pull request. Do not report a check as passing if you did not run it.
 
-不要提交凭据、个人绝对路径、业务仓库数据、依赖目录、构建产物或演示时的真实提交记录。示例数据必须虚构。
+Do not commit credentials, personal absolute paths, private repository data, dependency directories, build artifacts, or real commit records used during a demo. Example data must be fictional.
 
-贡献以本项目 [MIT](LICENSE) 许可证提供，第三方素材与依赖继续遵循原有许可。
+Contributions are provided under this project's [MIT license](LICENSE). Third-party assets and dependencies retain their original licenses.

@@ -1,91 +1,99 @@
-# 更新日志
+# Changelog
 
-版本号采用 `主版本.次版本.修订版本`，Git 标签使用 `v` 前缀。`0.1.x` 为预发布版本，`1.0.0` 为首个正式版本。
+**English** | [简体中文](CHANGELOG.zh-CN.md)
+
+Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` series consisted of prereleases; `1.0.0` was the first stable release.
 
 ## [Unreleased]
 
+- Add Simplified Chinese, Traditional Chinese, and English interface options, applied immediately and saved from settings, while preserving repository sessions, commit drafts, and reading preferences.
+- Localize the workbench, branch and merge operations, remote operations, history, and diff messages. Repository content and raw Git output remain unchanged.
+- Make English the default language for public documentation, with complete Simplified Chinese versions and language links for the README and its linked guides.
+
+These changes are available in the current source and are not included in the published 1.3.0 installer.
+
 ## [1.3.0] - 2026-10-28
 
-- 新增获取、拉取与推送：获取全部已配置远程的引用，按上游快进拉取，只推送当前分支；首次推送可建立上游跟踪。
-- 在推送箭头旁显示待上传提交数，提交、切换分支和远程操作后更新；计数基于本地已获取的远程引用，未知或为零时不显示。
-- 远程操作提供执行进度、错误及后续刷新警告，复用本机 Git 凭据和 SSH 配置；保留非快进、未完成操作及过期预览检查，不自动强推、变基或 stash。
-- 接入 vscode-icons 的 116 个原始 SVG，文件列表、目录树、提交历史和 Diff 标签页按文件名、复合后缀及语言显示对应图标，目录展开与收起使用配套图标。
-- 图标随应用离线打包，保留来源、图标 CC BY-SA 4.0 及关联数据 MIT 许可；更新安装说明与操作手册。
+- Add fetch, pull, and push: fetch refs from all configured remotes, pull from the upstream with fast-forward only, and push only the current branch. The first push can set upstream tracking.
+- Show the outgoing commit count beside the push arrow and refresh it after commits, branch switches, and remote operations. The count uses locally fetched remote refs and is hidden when unknown or zero.
+- Show progress, errors, and post-operation refresh warnings for remote operations, using the installed Git's credentials and SSH configuration. Retain checks for non-fast-forward updates, unfinished operations, and stale previews. Never automatically force-push, rebase, or stash.
+- Bundle 116 original SVG files from vscode-icons. File lists, folder trees, commit history, and diff tabs select icons by filename, compound extension, and language, with matching expanded and collapsed folder icons.
+- Bundle icons for offline use and retain attribution, the CC BY-SA 4.0 artwork license, and the MIT license for association data. Update the installation guide and user manual.
 
-此版本提供 Apple Silicon（arm64）macOS 正式安装包，采用 ad-hoc 签名，尚未进行 Developer ID 签名及 Apple 公证。安装与系统提示处理见[安装说明](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md)。
+This stable release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md) for installation steps and macOS prompts.
 
-升级前请保存提交草稿，并用 `⌘Q` 完全退出旧版。安装包：`GitWorkbench_1.3.0_macos_arm64.dmg`；请使用同一 Release 的 `SHA256SUMS.txt` 校验后安装。
+Before upgrading, save your commit drafts and quit the previous version completely with `⌘Q`. Installer: `GitWorkbench_1.3.0_macos_arm64.dmg`. Verify it against `SHA256SUMS.txt` from the same release before installing.
 
 ## [1.2.0] - 2026-10-26
 
-- 将分支切换弹窗扩展为分支管理，增加本地分支创建、可选创建后切换，以及悬停或键盘聚焦时的删除入口。
-- 支持从本地分支、已获取的远程分支或当前 HEAD 创建；远程起点建立跟踪关系，切换失败时保留已创建分支并提示实际结果。
-- 删除前检查当前分支、全部 Worktree 占用及未完成的 Git 操作；按当前 HEAD 统计未合入提交，强制删除需单独确认，过期预览需重新检查。
-- 仅修改其他分支引用时保留 Diff、历史阅读状态与提交草稿，浏览器演示同步提供创建、切换及普通/强制删除流程。
+- Expand the branch switcher into branch management, adding local branch creation, optional switching after creation, and a delete action available on hover or keyboard focus.
+- Create from a local branch, a fetched remote branch, or the current HEAD. A remote starting point sets upstream tracking. If switching fails, keep the newly created branch and report the actual outcome.
+- Before deletion, check the current branch, usage by all worktrees, and unfinished Git operations. Count unmerged commits relative to the current HEAD, require separate confirmation for force deletion, and recheck stale previews.
+- Preserve the diff, history reading state, and commit draft when only other branch refs change. Add equivalent creation, switching, and normal/force deletion flows to the browser demo.
 
-此版本提供 Apple Silicon（arm64）macOS 正式安装包，采用 ad-hoc 签名，尚未进行 Developer ID 签名及 Apple 公证。安装与系统提示处理见[安装说明](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md)。
+This stable release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md) for installation steps and macOS prompts.
 
-升级前请保存提交草稿，并用 `⌘Q` 完全退出旧版。安装包：`GitWorkbench_1.2.0_macos_arm64.dmg`；请使用同一 Release 的 `SHA256SUMS.txt` 校验后安装。
+Before upgrading, save your commit drafts and quit the previous version completely with `⌘Q`. Installer: `GitWorkbench_1.2.0_macos_arm64.dmg`. Verify it against `SHA256SUMS.txt` from the same release before installing.
 
 ## [1.1.0] - 2026-10-22
 
-- 新增合并分支入口，支持本地及已获取的远程分支、快进优先与始终创建合并提交，确认前展示合并方向和待合入提交数。
-- 新增合并冲突分组、独立合并提交草稿、完成合并与中止合并；重启或外部 Git 操作后从磁盘恢复合并状态，支持零文件差异的合并提交。
-- 合并前校验工作区、未完成操作及分支引用；保留 Git hooks 和签名检查，失败后展示实际状态供继续处理。
-- 新增真实仓库的只读提交历史，以提交列表、变更文件树和 Diff 三栏浏览；支持完整提交说明、完整 Hash 复制、独立栏宽和历史 Diff 模式。
-- 支持当前分支、本地分支及已获取远程分支的历史筛选，不执行分支切换；按 Git `--date-order` 排序，每页 50 条并固定分页快照，搜索覆盖提交说明、作者和 Hash 的完整可达历史。
-- 支持首次提交与空版本比较、合并提交切换父提交，以及新增、删除、重命名和权限变更；历史正文只读取 Git 对象，二进制、大文件和子模块展示说明。
-- 按 worktree 在会话内保留历史浏览状态；检测到引用变化时提示刷新，保留当前 Diff，读取失败可重试，不影响本地更改选择和提交草稿。
+- Add branch merging from local or fetched remote branches, with fast-forward when possible or an option to always create a merge commit. Show the merge direction and incoming commit count before confirmation.
+- Add a merge-conflict group, a separate merge message draft, and actions to complete or abort a merge. Restore merge state from disk after relaunch or external Git operations, and support merge commits with no file differences.
+- Check the worktree, unfinished operations, and branch refs before merging. Preserve Git hooks and signing checks, and show the actual state after a failure so the user can continue.
+- Add read-only history for real repositories, with commit, changed-file, and diff panes. Include full commit messages, copying full hashes, independent pane widths, and historical diff modes.
+- Filter history by the current branch, local branches, or fetched remote branches without switching the worktree branch. Use Git `--date-order`, 50 commits per page, and a fixed pagination snapshot. Search messages, authors, and hashes across the full reachable history.
+- Compare the initial commit with an empty tree, select parents of merge commits, and support additions, deletions, renames, and permission changes. Historical content comes only from Git objects; binary files, large files, and submodules show an explanation.
+- Keep history browsing state per worktree for the current session. Prompt for refresh when refs change while preserving the current diff. Failed reads can be retried without affecting local-change selection or commit drafts.
 
-此版本为正式版本，提供 Apple Silicon（arm64）macOS 安装包，采用 ad-hoc 签名，尚未进行 Developer ID 签名及 Apple 公证。安装与系统提示处理见[安装说明](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md)。
+This stable release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md) for installation steps and macOS prompts.
 
-升级前请保存提交草稿，并用 `⌘Q` 完全退出旧版。安装包：`GitWorkbench_1.1.0_macos_arm64.dmg`；请使用同一 Release 的 `SHA256SUMS.txt` 校验后安装。
+Before upgrading, save your commit drafts and quit the previous version completely with `⌘Q`. Installer: `GitWorkbench_1.1.0_macos_arm64.dmg`. Verify it against `SHA256SUMS.txt` from the same release before installing.
 
 ## [1.0.0] - 2026-10-21
 
-- 合并提交标题和详细说明为一个多行输入框，保留完整草稿与换行，提交时按首行和后续正文生成 Git 提交信息。
-- 新增当前工作区的原生文件监听，支持 linked worktree 公共 Git 元数据；采用 1 秒防抖、前台空闲门控及自动刷新完成后 5 秒冷却，无固定状态轮询。
-- 后台变化合并到返回前台后处理，静默更新保留当前 Diff、阅读位置和提交草稿；读取失败保留上次结果并提示。
-- 忽略无关文件及 Git 锁/对象噪声，状态读取禁用可选索引写入，避免刷新触发自身监听。
+- Combine the commit subject and body into one multiline input, preserving the full draft and line breaks. Use the first line as the Git subject and the remaining content as the body.
+- Add native filesystem watching for the active worktree, including shared Git metadata for linked worktrees. Use a 1-second debounce, require the app to be in the foreground and idle, and wait at least 5 seconds after an automatic refresh finishes. No fixed-interval status polling.
+- Combine background changes for processing when the app returns to the foreground. Silent updates preserve the current diff, reading position, and commit draft. Failed reads preserve the previous result and show a message.
+- Ignore unrelated files and Git lock/object noise. Disable optional index writes during status reads so refreshes do not trigger their own watchers.
 
-此版本发布为正式版本，仅提供 Apple Silicon（arm64）macOS 安装包。安装包继续使用 ad-hoc 签名，尚未进行 Developer ID 签名及 Apple 公证；正式版本标记不改变签名状态。首次打开提示的处理方式见[安装说明](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md)。
+This is a stable release with a macOS Apple Silicon (arm64) installer only. The installer remains ad-hoc signed, without Developer ID signing or Apple notarization; stable release status does not change its signing status. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md) for first-launch prompts.
 
-升级前请保存提交草稿，再用 `⌘Q` 完全退出旧版。安装包：`GitWorkbench_1.0.0_macos_arm64.dmg`；请使用同一 Release 的 `SHA256SUMS.txt` 校验后安装。
+Before upgrading, save your commit drafts and quit the previous version completely with `⌘Q`. Installer: `GitWorkbench_1.0.0_macos_arm64.dmg`. Verify it against `SHA256SUMS.txt` from the same release before installing.
 
 ## [0.1.2] - 2026-10-21
 
-- 优化文件树引导线：默认隐藏层级竖线，选中文件时仅显示最近父级的引导线，鼠标进入文件树区域时显示全部层级关系。
-- 切换文件、暂存分组或折叠目录时同步更新引导线，避免其他分组或祖先目录残留高亮。
-- 更新应用图标为石墨底色与蓝色立体 Git 分支标识，同步桌面图标及网页 favicon。
-- 调整图标源图为背景铺满的不透明画布，移除预置留白与外框。
+- Refine file-tree guides: hide vertical hierarchy lines by default, show only the selected file's nearest parent guide, and show all hierarchy lines while the pointer is inside the tree.
+- Update guides when switching files, staging groups, or collapsed folders, preventing stale highlights in other groups or ancestors.
+- Replace the app icon with a blue three-dimensional Git branch symbol on a graphite background, updating the desktop icon and web favicon together.
+- Make the source icon canvas opaque with an edge-to-edge background, removing preset padding and the outer frame.
 
-此版本仅提供 Apple Silicon（arm64）macOS 安装包，继续使用 ad-hoc 签名，尚未进行 Developer ID 签名及 Apple 公证。首次打开提示的处理方式见[安装说明](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md)。
+This release provides only a macOS Apple Silicon (arm64) installer. It remains ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md) for first-launch prompts.
 
-升级前请保存提交草稿，再用 `⌘Q` 完全退出旧版。安装包：`GitWorkbench_0.1.2_macos_arm64.dmg`；请使用同一 Release 的 `SHA256SUMS.txt` 校验后安装。
+Before upgrading, save your commit drafts and quit the previous version completely with `⌘Q`. Installer: `GitWorkbench_0.1.2_macos_arm64.dmg`. Verify it against `SHA256SUMS.txt` from the same release before installing.
 
 ## [0.1.1] - 2026-10-20
 
-- 对齐 Atom One Dark 上游的控件、列表、徽标与 Diff 配色，统一系统界面字体和文件树行高。
-- 保存已打开的本地仓库及当前 worktree，重启后恢复并读取最新 Git 状态；单个路径失效不影响其他仓库恢复。
-- macOS 关闭主窗口时隐藏并保留工作区、Diff 和提交草稿，点击 Dock 图标恢复窗口，`⌘Q` 正常退出。
-- 修复 macOS 从 Finder/Dock 启动后 hooks 找不到 Node、npm、npx 的问题；缓存登录 Shell PATH，并保留提交检查及失败后的暂存内容。
+- Align controls, lists, badges, and diff colors with upstream Atom One Dark. Unify system interface fonts and file-tree row heights.
+- Save open local repositories and the current worktree, restoring them with fresh Git state on launch. An unavailable path does not prevent other repositories from being restored.
+- On macOS, closing the main window hides it while preserving the worktree, diff, and commit draft. Clicking the Dock icon restores the window; `⌘Q` quits normally.
+- Fix hooks failing to find Node, npm, or npx when launched from Finder or the Dock. Cache the login shell's PATH while retaining commit checks and staged content after failures.
 
-此版本仅提供 Apple Silicon（arm64）macOS 安装包，继续使用 ad-hoc 签名，尚未进行 Developer ID 签名及 Apple 公证。首次打开提示的处理方式见[安装说明](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md)。
+This release provides only a macOS Apple Silicon (arm64) installer. It remains ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md) for first-launch prompts.
 
-升级前请保存提交草稿，再用 `⌘Q` 完全退出旧版。安装包：`GitWorkbench_0.1.1_macos_arm64.dmg`；请使用同一 Release 的 `SHA256SUMS.txt` 校验后安装。
+Before upgrading, save your commit drafts and quit the previous version completely with `⌘Q`. Installer: `GitWorkbench_0.1.1_macos_arm64.dmg`. Verify it against `SHA256SUMS.txt` from the same release before installing.
 
 ## [0.1.0] - 2026-10-16
 
-- 首次开源，提供 Apple Silicon（arm64）macOS DMG。
-- 打开本地 Git 仓库，发现并切换关联 worktree。
-- 搜索本地及已获取的远程分支，按最新提交排序并显示提交摘要。
-- 以目录树或列表查看已暂存、未暂存文件，支持并排及内联 Diff。
-- 按文件、目录或整组批量暂存与取消暂存；提交暂存区内容。
-- Atom One Dark 配色、代码字号与分栏布局偏好；设置中显示应用版本。
-- 提供中文安装说明、操作手册及版本发布流程。
+- Publish the project as open source, with a macOS Apple Silicon (arm64) DMG.
+- Open local Git repositories and discover and switch between linked worktrees.
+- Search local and fetched remote branches, sorted by latest commit, with commit summaries.
+- Browse staged and unstaged files in a tree or list, with side-by-side and inline diffs.
+- Stage or unstage files, directories, or entire groups, and commit the staged content.
+- Add Atom One Dark colors, code font size and pane layout preferences, and an app version display in settings.
+- Provide Chinese installation instructions, a user manual, and a release workflow.
 
-首版范围：仅提供 arm64 安装包；使用系统 Git；真实仓库的历史视图、Fetch、Pull、Push、按块暂存和冲突编辑尚未提供。仓库内容发生外部变化后请手动刷新。
+Initial release scope: arm64 installer only, using the system Git. Real-repository history, fetch, pull, push, hunk staging, and conflict editing are not yet available in this version. Refresh manually after external repository changes.
 
-签名说明：此包使用 ad-hoc 签名，尚未进行 Developer ID 签名及 Apple 公证。首次打开可能需要在「系统设置 → 隐私与安全性」中确认，详见[安装说明](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md)。
+Signing: this package is ad-hoc signed, without Developer ID signing or Apple notarization. On first launch, macOS may require confirmation in **System Settings → Privacy & Security**; see the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
 
-安装包：`GitWorkbench_0.1.0_macos_arm64.dmg`。请与同一 Release 的 `SHA256SUMS.txt` 校验后安装。
+Installer: `GitWorkbench_0.1.0_macos_arm64.dmg`. Verify it against `SHA256SUMS.txt` from the same release before installing.
