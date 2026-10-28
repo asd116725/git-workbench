@@ -4,15 +4,15 @@
 
 ## Download and verify
 
-The current stable release, `1.3.0`, is built for Apple Silicon (M-series chips). Its filename is `GitWorkbench_1.3.0_macos_arm64.dmg`. Check **About This Mac** for your chip type; this installer does not support Intel Macs.
+The current stable release, `1.4.0`, is built for Apple Silicon (M-series chips). Its filename is `GitWorkbench_1.4.0_macos_arm64.dmg`. Check **About This Mac** for your chip type; this installer does not support Intel Macs.
 
-Download the DMG and `SHA256SUMS.txt` from the [v1.3.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.3.0). Do not mix checksums from different releases. Open a terminal in the directory containing both files:
+Download the DMG and `SHA256SUMS.txt` from the [v1.4.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.4.0). Do not mix checksums from different releases. Open a terminal in the directory containing both files:
 
 ```sh
 shasum -a 256 -c SHA256SUMS.txt
 ```
 
-Continue when the output says `GitWorkbench_1.3.0_macos_arm64.dmg: OK`. If verification fails, download both files again from the same release; do not install the damaged file.
+Continue when the output says `GitWorkbench_1.4.0_macos_arm64.dmg: OK`. If verification fails, download both files again from the same release; do not install the damaged file.
 
 ## Install
 
@@ -25,7 +25,7 @@ The app uses your installed Git. Run `git --version` in a terminal; if macOS ask
 
 ## First launch
 
-This installer uses **ad-hoc signing** to seal the local executable for integrity checks. It does not include an Apple Developer ID signature and has not been notarized by Apple, so Gatekeeper may still ask you to confirm its source. The stable `1.3.0` version number does not imply Apple signing or notarization.
+This installer uses **ad-hoc signing** to seal the local executable for integrity checks. It does not include an Apple Developer ID signature and has not been notarized by Apple, so Gatekeeper may still ask you to confirm its source. The stable `1.4.0` version number does not imply Apple signing or notarization.
 
 If macOS says it cannot verify the developer:
 
@@ -45,6 +45,6 @@ To uninstall, quit the app and move **代码管理** from Applications to the Tr
 
 ## Compatibility
 
-The minimum build target is macOS 12. The current release provides an arm64 package whose installer layout, version, and basic Git operations have been checked on the maintainer's current arm64 macOS environment. This does not establish compatibility with every older system. Please include your system version and reproduction steps when reporting a compatibility issue.
+The minimum build target is macOS 12, and this release provides an arm64 package. Automated tests cover operations on real temporary Git repositories; native interface interaction for 1.4.0 remains pending verification. Compatibility with every older macOS version has not been established. Please include your system version and reproduction steps when reporting a compatibility issue.
 
 See the [user manual](user-manual.md) for app usage and the [official Tauri macOS signing documentation](https://v2.tauri.app/distribute/sign/macos/) for signing details.

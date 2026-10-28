@@ -6,11 +6,16 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-28
+
+- 在分支列表中显示各本地分支相对自身上游的待拉取、待推送提交数；使用本地已获取引用，打开列表不自动获取远程。
 - 新增中文简体、中文繁體和 English 界面语言选项，在设置中即时切换并保存；保留仓库会话、提交草稿与阅读偏好。
 - 本地化工作台、分支与合并操作、远程操作、历史和 Diff 提示；仓库内容及 Git 原始输出保持原文。
 - 公开文档改为英文优先，为 README 和链接的各项指南提供完整简体中文版及语言切换链接。
 
-以上变更位于当前源码中，尚未包含在已发布的 1.3.0 安装包内。
+此版本提供 macOS Apple Silicon（arm64）安装包，采用 ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证。详见[安装说明](https://github.com/asd116725/git-workbench/blob/main/docs/zh-CN/installation.md)。
+
+升级前请保存提交草稿，并用 `⌘Q` 完全退出旧版。请使用同一 Release 的 `SHA256SUMS.txt` 校验 `GitWorkbench_1.4.0_macos_arm64.dmg` 后安装。
 
 ## [1.3.0] - 2026-10-28
 

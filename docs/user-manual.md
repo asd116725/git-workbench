@@ -2,9 +2,9 @@
 
 **English** | [简体中文](zh-CN/user-manual.md)
 
-This manual covers the stable `1.3.0` desktop release and the current source. Installers are available only for macOS Apple Silicon (arm64) from the [v1.3.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.3.0). The browser uses separate demo data and does not access real repositories.
+This manual covers the stable `1.4.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.4.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.4.0). The browser uses separate demo data and does not access real repositories.
 
-The published 1.3.0 interface is in Chinese. English control names in this manual describe their function; language selection is available only in the current source, as explained in [settings](#9-refreshing-and-settings). Screenshots show the English development preview with fictional demo data.
+Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-refreshing-and-settings). Screenshots show the English interface with fictional demo data.
 
 ## 1. Window layout
 
@@ -50,6 +50,8 @@ Click the current branch in the top bar to open **Branch management** (分支管
 - Branches checked out in another worktree show the reason and cannot be selected.
 
 The branch list does not contact remote servers automatically. If a new branch is missing, click **Fetch** to update remote refs.
+
+**Available since 1.4.0:** local branches with pending changes show `↓` incoming and `↑` outgoing commit counts beside their names, for example `↓5 ↑0`. Each branch is compared with its own upstream, including branches that are not currently checked out. The pair is hidden when both counts are zero, no upstream is configured, or the counts cannot be determined. Remote branch rows do not show this pair. Counts describe locally fetched upstream refs; use **Fetch** before relying on them for the latest remote state.
 
 Uncommitted edits may prevent switching. The app respects Git's checks and does not force files to be overwritten. Commit your work, stash it using an external tool, or otherwise resolve the changes before retrying. There is currently no stash action in the app.
 
@@ -210,7 +212,7 @@ The app watches files and Git metadata for the active worktree, including shared
 
 **Settings** at the bottom left shows the current version and lets you change code font size or restore the default layout, font size, and diff mode. Layout, reading preferences, and repository paths are saved on the current device; commit drafts last only for the current session. Restoring the default layout does not clear remembered repositories.
 
-**In development:** the current source provides **Settings → Interface language**, with **中文简体 / 中文繁體 / English**, defaulting to Simplified Chinese. The interface updates immediately and retains your choice on the next launch. Restoring the default layout or resetting demo data does not reset the language. Switching languages leaves repository paths, branches, authors, commit messages, file contents, and raw Git output unchanged. System menus and standard system-dialog buttons follow the operating system. The published 1.3.0 installer does not include language selection.
+Since 1.4.0, **Settings → Interface language** provides language options, with **中文简体 / 中文繁體 / English**, defaulting to Simplified Chinese. The interface updates immediately and retains your choice on the next launch. Restoring the default layout or resetting demo data does not reset the language. Switching languages leaves repository paths, branches, authors, commit messages, file contents, and raw Git output unchanged. System menus and standard system-dialog buttons follow the operating system.
 
 ## 10. Keyboard shortcuts
 

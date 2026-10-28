@@ -4,9 +4,9 @@
 
 一个面向本地仓库的 Git 桌面工具。使用 Tauri 2、React 和 TypeScript 构建，将 worktree、分支、文件变更与 Diff 放在同一个窗口中。
 
-[下载 v1.3.0 安装包](https://github.com/asd116725/git-workbench/releases/tag/v1.3.0) · [中文操作手册](docs/zh-CN/user-manual.md) · [安装说明](docs/zh-CN/installation.md) · [更新日志](CHANGELOG.zh-CN.md)
+[下载 v1.4.0 安装包](https://github.com/asd116725/git-workbench/releases/tag/v1.4.0) · [中文操作手册](docs/zh-CN/user-manual.md) · [安装说明](docs/zh-CN/installation.md) · [更新日志](CHANGELOG.zh-CN.md)
 
-当前正式版本为 **1.3.0**，提供 `GitWorkbench_1.3.0_macos_arm64.dmg` 和同一 Release 的 `SHA256SUMS.txt`，请校验后安装。
+当前正式版本为 **1.4.0**，提供 `GitWorkbench_1.4.0_macos_arm64.dmg` 和同一 Release 的 `SHA256SUMS.txt`，请校验后安装。
 
 ![Git Workbench 本地变更界面，使用虚构示例数据](docs/screenshots/workbench.png)
 
@@ -23,7 +23,8 @@
 - 监听当前工作区变化，自动更新文件列表和 Diff，保留阅读位置与本次会话的提交草稿。
 - 以提交列表、变更文件树、Diff 三栏浏览真实历史，筛选分支、搜索完整历史，并切换合并提交的比较父提交。
 - 调整分栏宽度、代码字号和 Diff 模式；使用 Atom One Dark 配色。
-- 当前源码新增界面语言设置：中文简体、中文繁體和 English，即时切换并保存选择；已发布的 1.3.0 安装包尚不包含此功能。
+- 支持中文简体、中文繁體和 English 界面语言，在设置中即时切换并保存选择（1.4.0）。
+- 在各本地分支旁显示相对自身上游的待拉取（`↓`）和待推送（`↑`）提交数（1.4.0）；基于本地最近获取的引用，打开列表不自动获取远程。
 
 截图中的仓库、路径、作者和提交记录均为虚构演示数据。
 
@@ -35,12 +36,12 @@
 
 当前版本提供 **macOS Apple Silicon（arm64）** 安装包。Intel Mac、Windows、Linux 暂无官方构建。
 
-1. 从 [v1.3.0 Release](https://github.com/asd116725/git-workbench/releases/tag/v1.3.0) 下载 [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.3.0/GitWorkbench_1.3.0_macos_arm64.dmg) 和 `SHA256SUMS.txt`。
+1. 从 [v1.4.0 Release](https://github.com/asd116725/git-workbench/releases/tag/v1.4.0) 下载 [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.4.0/GitWorkbench_1.4.0_macos_arm64.dmg) 和 `SHA256SUMS.txt`。
 2. 按[安装说明](docs/zh-CN/installation.md)校验文件，将「代码管理」拖入 Applications 后打开。
 3. 点击「打开本地仓库」，选择已有仓库的目录。应用使用本机 Git，请先确认 `git --version` 可以运行。
 4. 选择文件阅读 Diff，在行末点击 `+` 暂存；在提交框中填写信息，点击提交按钮。
 
-v1.3.0 为正式版本，安装包仍采用 **ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证**。正式版本标记不代表已经获得 Apple 身份签名或公证。macOS 可能要求确认来源；处理方式见[首次打开](docs/zh-CN/installation.md#首次打开)。
+v1.4.0 为正式版本，安装包仍采用 **ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证**。正式版本标记不代表已经获得 Apple 身份签名或公证。macOS 可能要求确认来源；处理方式见[首次打开](docs/zh-CN/installation.md#首次打开)。
 
 ## 支持范围与限制
 
@@ -85,7 +86,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.3.0
+pnpm release:check --tag v1.4.0
 ```
 
 ```sh

@@ -25,7 +25,7 @@ const baseRepository: NativeRepository = {
 };
 const mainBranch: GitBranch = {
   fullName: 'refs/heads/main', name: 'main', kind: 'local', current: true,
-  worktreePath: '/test/repository', upstream: null, localName: null,
+  worktreePath: '/test/repository', upstream: null, localName: null, ahead: null, behind: null,
   lastCommit: { shortHash: '1234567', author: '测试作者', subject: '初始提交', committedAt: 1_700_000_000 },
 };
 const featureBranch: GitBranch = {

@@ -15,6 +15,29 @@ beforeEach(() => {
 });
 
 describe('浏览器演示分支列表', () => {
+  it('分别计算自身上游的领先、落后、分叉和同步状态，远程与无上游保持未知', () => {
+    const branches = listDemoBranches(state, worktree);
+    const counts = (name: string) => branches.find(branch => branch.name === name);
+    expect(counts('feature/markdown')).toMatchObject({ ahead: 2, behind: 0 });
+    expect(counts('feature/preview')).toMatchObject({ ahead: 0, behind: 1 });
+    expect(counts('feature/search')).toMatchObject({ ahead: 2, behind: 1 });
+    expect(counts('main')).toMatchObject({ ahead: 0, behind: 0 });
+    expect(counts('docs/guide')).toMatchObject({ ahead: null, behind: null });
+    expect(branches.filter(branch => branch.kind === 'remote').every(branch => branch.ahead === null && branch.behind === null)).toBe(true);
+    const siblingCounts = listDemoBranches(state, repository.worktrees[1]);
+    expect(siblingCounts.map(({ fullName, ahead, behind }) => ({ fullName, ahead, behind })))
+      .toEqual(branches.map(({ fullName, ahead, behind }) => ({ fullName, ahead, behind })));
+  });
+
+  it('上游消失不误报同步，恢复后的计数来自更新的引用', () => {
+    const upstream = 'refs/remotes/origin/feature/markdown';
+    const missing = { ...state, branches: { ...state.branches } };
+    delete missing.branches[upstream];
+    expect(listDemoBranches(missing, worktree).find(branch => branch.current)).toMatchObject({ ahead: null, behind: null });
+    missing.branches[upstream] = { ...state.branches[upstream], commits: [...state.branches['refs/heads/feature/markdown'].commits] };
+    expect(listDemoBranches(missing, worktree).find(branch => branch.current)).toMatchObject({ ahead: 0, behind: 0 });
+  });
+
   it('展示最近提交顺序、当前分支和所有工作区占用', () => {
     const branches = listDemoBranches(state, worktree);
     expect(branches[0].name).toBe('feature/search');
@@ -131,6 +154,7 @@ describe('演示提交推进分支引用', () => {
     const committed = { ...worktree, commits: [commit, ...worktree.commits] };
     const updated = recordDemoBranchCommit(state, committed);
     expect(listDemoBranches(updated, committed).find(branch => branch.current)?.lastCommit).toMatchObject({ shortHash: 'abc1234', subject: commit.message });
+    expect(listDemoBranches(updated, committed).find(branch => branch.current)).toMatchObject({ ahead: 3, behind: 0 });
     const created = createDemoBranch(updated, committed, 'feature/new-head', 'HEAD', false);
     expect(created.state.branches['refs/heads/feature/new-head'].commits[0]).toBe(commit.id.padEnd(40, '0'));
     expect(() => deleteDemoBranch(updated, committed, preview, true)).toThrow('重新预览');

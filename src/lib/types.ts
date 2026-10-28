@@ -83,6 +83,9 @@ export interface GitBranch {
   worktreePath: string | null;
   upstream: string | null;
   localName: string | null;
+  /** 相对自身上游的提交差异；未配置或无法读取上游时为 null，不能视为同步。 */
+  ahead: number | null;
+  behind: number | null;
   lastCommit: {
     shortHash: string;
     author: string;

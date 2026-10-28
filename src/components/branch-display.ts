@@ -1,6 +1,6 @@
 import { getLanguage, t } from '../lib/i18n';
 import { translateMessage } from '../lib/i18n-system';
-import type { Worktree } from '../lib/types';
+import type { GitBranch, Worktree } from '../lib/types';
 
 /** 提交时间为 Unix 秒，保留未来时间语义，避免系统时钟差异显示成负数。 */
 export function commitAge(committedAt: number) {
@@ -19,4 +19,12 @@ export function worktreeLabel(worktree: Worktree): string {
 /** 依据分离状态翻译 Git 生成的 HEAD 标签，普通分支名与提交 SHA 保持原文。 */
 export function branchLabel(worktree: Worktree): string {
   return worktree.source === 'native' && (worktree.detached || worktree.bare) ? translateMessage(worktree.branch) : worktree.branch;
+}
+
+/** 分支差异始终相对该分支的上游，不代表服务器刚刚获取到的最新状态。 */
+export function branchSyncDescription(branch: GitBranch): string | null {
+  if (branch.kind !== 'local' || !branch.upstream) return null;
+  if (branch.ahead == null || branch.behind == null) return t('无法确定与上游 {upstream} 的提交差异；请先获取远程更新。', { upstream: branch.upstream });
+  if (branch.ahead === 0 && branch.behind === 0) return t('已与上游 {upstream} 同步。数量基于最近获取的引用。', { upstream: branch.upstream });
+  return t('相对上游 {upstream}：待拉取 {behind} 个提交，待推送 {ahead} 个提交。数量基于最近获取的引用。', { upstream: branch.upstream, behind: branch.behind, ahead: branch.ahead });
 }

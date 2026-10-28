@@ -6,11 +6,18 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-28
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#140---2026-10-28)
+
+- Show incoming and outgoing commit counts next to local branches in the branch list, relative to each branch's upstream. Counts use locally fetched refs and do not trigger a fetch.
 - Add Simplified Chinese, Traditional Chinese, and English interface options, applied immediately and saved from settings, while preserving repository sessions, commit drafts, and reading preferences.
 - Localize the workbench, branch and merge operations, remote operations, history, and diff messages. Repository content and raw Git output remain unchanged.
 - Make English the default language for public documentation, with complete Simplified Chinese versions and language links for the README and its linked guides.
 
-These changes are available in the current source and are not included in the published 1.3.0 installer.
+This release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
+Save commit drafts and quit the previous version completely with `⌘Q` before upgrading. Verify `GitWorkbench_1.4.0_macos_arm64.dmg` against `SHA256SUMS.txt` from the same release before installing.
 
 ## [1.3.0] - 2026-10-28
 

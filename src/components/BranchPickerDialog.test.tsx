@@ -19,7 +19,7 @@ vi.mock('@/components/ui/dialog', () => ({
 
 const worktree: Worktree = { id: 'current', name: 'demo-editor', branch: 'feature/markdown', path: '/test/current', source: 'native', hasHead: true, files: [], commits: [] };
 function branch(name: string, patch: Partial<GitBranch> = {}): GitBranch {
-  return { fullName: `refs/heads/${name}`, name, kind: 'local', current: false, worktreePath: null, upstream: null, localName: null, lastCommit: { author: 'Demo User', shortHash: 'abc1234', subject: '分支提交说明', committedAt: 1_700_000_000 }, ...patch };
+  return { fullName: `refs/heads/${name}`, name, kind: 'local', current: false, worktreePath: null, upstream: null, localName: null, ahead: null, behind: null, lastCommit: { author: 'Demo User', shortHash: 'abc1234', subject: '分支提交说明', committedAt: 1_700_000_000 }, ...patch };
 }
 const branches: GitBranch[] = [
   branch('feature/markdown', { current: true, worktreePath: worktree.path }),
@@ -40,6 +40,39 @@ beforeEach(() => {
 afterEach(() => setLanguage('zh-CN'));
 
 describe('分支管理入口和分支保护', () => {
+  it.each([
+    ['zh-CN', '待拉取 5 个提交，待推送 0 个提交'],
+    ['en', 'commits to pull: 5; commits to push: 0'],
+    ['zh-TW', '待拉取 5 個提交，待推送 0 個提交'],
+  ] as const)('%s 在当前分支禁用行显示上游差异和可访问说明', (language, description) => {
+    setLanguage(language);
+    const current = branch('功能/中文-{name}', { current: true, upstream: 'refs/remotes/origin/功能/中文-{name}', ahead: 0, behind: 5 });
+    hooks.workbench.mockReturnValue({ branches: { items: [current], loading: false, error: null }, busy: false, loadBranches: vi.fn() });
+    const html = renderToStaticMarkup(<BranchPickerDialog worktree={worktree} open onOpenChange={vi.fn()} />);
+    expect(html).toContain(description);
+    expect(html).toContain('refs/remotes/origin/功能/中文-{name}');
+    expect(html).toContain('codicon-arrow-down"></i>5');
+    expect(html).toContain('codicon-arrow-up"></i>0');
+    expect(html).toContain('aria-describedby="commit-refs/heads/功能/中文-{name} branch-sync-refs/heads/功能/中文-{name}"');
+    expect(html).toMatch(/class="branch-option is-current" disabled=""/);
+  });
+
+  it('保留非零计数的完整数字，并隐藏同步、未知、无上游与远程分支计数', () => {
+    const renderBranch = (patch: Partial<GitBranch>) => {
+      hooks.workbench.mockReturnValue({ branches: { items: [branch('feature/sync', { upstream: 'refs/remotes/origin/feature/sync', ahead: 3, behind: 2, ...patch })], loading: false, error: null }, busy: false, loadBranches: vi.fn() });
+      return renderToStaticMarkup(<BranchPickerDialog worktree={worktree} open onOpenChange={vi.fn()} />);
+    };
+    const diverged = renderBranch({ ahead: 123456, behind: 234567, worktreePath: '/other-worktree' });
+    expect(diverged).toContain('codicon-arrow-down"></i>234567');
+    expect(diverged).toContain('codicon-arrow-up"></i>123456');
+    expect(diverged).toContain('其他工作区使用中');
+    for (const patch of [{ ahead: 0, behind: 0 }, { ahead: null }, { behind: null }, { upstream: null }, { kind: 'remote' as const }]) {
+      expect(renderBranch(patch)).not.toContain('class="branch-sync-status"');
+    }
+    expect(renderBranch({ ahead: null, behind: null })).toContain('无法确定与上游');
+    expect(renderBranch({ ahead: 0, behind: 0 })).toContain('已与上游');
+  });
+
   it('只按元数据翻译生成的工作区和分离HEAD标签', () => {
     setLanguage('en');
     expect(worktreeLabel({ ...worktree, name: '主工作区', isMain: true })).toBe('Main worktree');

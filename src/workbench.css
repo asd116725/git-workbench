@@ -239,7 +239,10 @@ input[type='range'] { padding: 0; border: 0; box-shadow: none; accent-color: var
 .branch-option:disabled:not(.is-current) { color: var(--muted-foreground); }
 .branch-option-copy { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
 .branch-option-heading { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.branch-option-heading strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; }
+.branch-option-heading strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; }
+.branch-sync-status { display: inline-flex; flex-shrink: 0; align-items: center; gap: 5px; color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.branch-sync-status > span { display: inline-flex; align-items: center; gap: 2px; }
+.branch-sync-status .codicon { font-size: 12px; }
 .branch-option-heading time { flex-shrink: 0; color: var(--muted-foreground); font-size: 11px; }
 .branch-option-copy small { overflow: hidden; color: var(--muted-foreground); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .branch-tag { flex-shrink: 0; color: var(--muted-foreground); font-size: 10px; }

@@ -1,5 +1,17 @@
 /** 应用界面文案；分支、路径、提交信息与文件内容始终保留原文。 */
 export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
+  "无法确定与上游 {upstream} 的提交差异；请先获取远程更新。": {
+    "en": "Commit differences from upstream {upstream} are unavailable. Fetch remote updates first.",
+    "zh-TW": "無法確定與上游 {upstream} 的提交差異；請先擷取遠端更新。"
+  },
+  "已与上游 {upstream} 同步。数量基于最近获取的引用。": {
+    "en": "In sync with upstream {upstream}. Counts use the most recently fetched refs.",
+    "zh-TW": "已與上游 {upstream} 同步。數量以最近擷取的引用為準。"
+  },
+  "相对上游 {upstream}：待拉取 {behind} 个提交，待推送 {ahead} 个提交。数量基于最近获取的引用。": {
+    "en": "Compared with upstream {upstream}: commits to pull: {behind}; commits to push: {ahead}. Counts use the most recently fetched refs.",
+    "zh-TW": "相對上游 {upstream}：待拉取 {behind} 個提交，待推送 {ahead} 個提交。數量以最近擷取的引用為準。"
+  },
   "仓库根目录": {
     "en": "Repository root",
     "zh-TW": "儲存庫根目錄"

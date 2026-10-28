@@ -18,6 +18,13 @@ function oid(value: string) {
   return value.padEnd(40, '0');
 }
 
+/** 演示用独立远程引用表达同步差异，计数随后由可达提交集合计算。 */
+function addDemoUpstream(branches: DemoBranchState['branches'], branch: DemoBranch, commits: string[], lastCommit = branch.lastCommit) {
+  const upstream = `refs/remotes/origin/${branch.name}`;
+  branches[`refs/heads/${branch.name}`] = { ...branch, upstream };
+  branches[upstream] = { ...branch, name: `origin/${branch.name}`, kind: 'remote', upstream: null, commits, lastCommit };
+}
+
 /** 每个演示仓库独立初始化，提供可普通删除和需强制删除的示例分支。 */
 export function createDemoBranchState(repository: Repository): DemoBranchState {
   const branches: DemoBranchState['branches'] = {};
@@ -36,14 +43,33 @@ export function createDemoBranchState(repository: Repository): DemoBranchState {
       ...base, name: 'main', commits: base.commits.slice(-1),
       lastCommit: { ...base.lastCommit, shortHash: base.commits[base.commits.length - 1].slice(0, 7), subject: 'chore: 初始化演示项目', committedAt: base.lastCommit.committedAt - 86_400 },
     };
-    branches['refs/heads/main'] = main;
-    branches['refs/remotes/origin/main'] = { ...main, name: 'origin/main', kind: 'remote' };
+    addDemoUpstream(branches, main, main.commits);
     branches['refs/heads/feature/search'] ??= {
       ...base, name: 'feature/search', commits: [oid('f1234567'), oid('f2345678'), ...base.commits],
       lastCommit: { ...base.lastCommit, shortHash: 'f123456', subject: 'feat(search): 添加搜索结果筛选（演示）', committedAt: base.lastCommit.committedAt + 60 },
     };
+    const search = branches['refs/heads/feature/search'];
+    addDemoUpstream(branches, search, [oid('e1234567'), ...base.commits], { ...base.lastCommit, shortHash: 'e123456', subject: 'fix(search): 远程搜索示例更新', committedAt: base.lastCommit.committedAt + 30 });
+    if (base.name !== 'main') {
+      const remoteCommits = base.commits.slice(-1);
+      addDemoUpstream(branches, base, remoteCommits, { ...base.lastCommit, shortHash: remoteCommits[0].slice(0, 7), subject: 'chore: 初始化远程演示分支', committedAt: base.lastCommit.committedAt - 86_400 });
+    }
+    const preview = branches['refs/heads/feature/preview'];
+    if (preview) addDemoUpstream(branches, preview, [oid('e2345678'), ...preview.commits], { ...preview.lastCommit, shortHash: 'e234567', subject: 'fix(preview): 远程预览示例更新', committedAt: preview.lastCommit.committedAt + 30 });
   }
   return { branches, worktrees: repository.worktrees.map(({ id, path, branch, detached }) => ({ id, path, branch, detached })) };
+}
+
+/** 与原生计数一样比较分支自身的上游，未配置或已丢失的引用保持未知。 */
+function demoSyncCounts(state: DemoBranchState, branch: DemoBranch): Pick<GitBranch, 'ahead' | 'behind'> {
+  const upstream = branch.kind === 'local' && branch.upstream ? state.branches[branch.upstream] : undefined;
+  if (!upstream) return { ahead: null, behind: null };
+  const localCommits = new Set(branch.commits);
+  const remoteCommits = new Set(upstream.commits);
+  return {
+    ahead: [...localCommits].filter(commit => !remoteCommits.has(commit)).length,
+    behind: [...remoteCommits].filter(commit => !localCommits.has(commit)).length,
+  };
 }
 
 /** 当前工作区的实时分支覆盖缓存，其余占用随演示切换同步。 */
@@ -59,6 +85,7 @@ export function listDemoBranches(state: DemoBranchState, worktree: Worktree): Gi
     current: branch.kind === 'local' && !worktree.detached && branch.name === worktree.branch,
     worktreePath: branch.kind === 'local' ? occupiedWorktree(state, worktree, branch.name)?.path ?? null : null,
     localName: branch.kind === 'remote' ? branch.name.slice('origin/'.length) : null,
+    ...demoSyncCounts(state, branch),
     lastCommit: branch.lastCommit,
   })).sort((left, right) => right.lastCommit.committedAt - left.lastCommit.committedAt || left.name.localeCompare(right.name));
 }

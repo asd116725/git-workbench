@@ -25,6 +25,9 @@ pub struct GitBranch {
     pub current: bool,
     pub worktree_path: Option<String>,
     pub upstream: Option<String>,
+    /// 相对本分支上游的本地引用计数；无上游、上游不可用或远程分支均为 null。
+    pub ahead: Option<u64>,
+    pub behind: Option<u64>,
     pub local_name: Option<String>,
     pub last_commit: BranchCommit,
 }
@@ -132,6 +135,20 @@ pub(super) fn worktrees(repo: &Path) -> GitResult<Vec<GitWorktreeInfo>> {
     parse_worktrees(&git(repo, &["worktree", "list", "--porcelain", "-z"])?)
 }
 
+/// 只有 Git 明确给出同步状态时才返回零，未知跟踪状态不能伪装成已同步。
+fn tracking_counts(tracking: &str, short: &str) -> Option<(u64, u64)> {
+    match short {
+        "=" if tracking.is_empty() => Some((0, 0)),
+        ">" => Some((tracking.strip_prefix("ahead ")?.parse().ok()?, 0)),
+        "<" => Some((0, tracking.strip_prefix("behind ")?.parse().ok()?)),
+        "<>" => {
+            let (ahead, behind) = tracking.strip_prefix("ahead ")?.split_once(", behind ")?;
+            Some((ahead.parse().ok()?, behind.parse().ok()?))
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn branches(repo: &Path) -> GitResult<Vec<GitBranch>> {
     let worktrees = worktrees(repo)?;
     let current = worktrees
@@ -141,17 +158,20 @@ pub(super) fn branches(repo: &Path) -> GitResult<Vec<GitBranch>> {
     let mut remotes: Vec<&str> = remote_output.lines().collect();
     // remote 名称本身允许斜线；先匹配最长名称，避免把 team/origin 当成 team。
     remotes.sort_by_key(|remote| std::cmp::Reverse(remote.len()));
-    let output = utf8(git(
-        repo,
-        &[
+    // 一次枚举计算所有分支；仅固定此命令的语言，确保 tracking 机器字段可解析。
+    let output = command(repo)
+        .env("LC_ALL", "C")
+        .args([
             "for-each-ref",
             "--sort=refname",
             "--sort=-committerdate",
-            "--format=%(refname)%00%(symref)%00%(upstream)%00%(objectname:short=7)%00%(authorname)%00%(subject)%00%(committerdate:unix)%00",
+            "--format=%(refname)%00%(symref)%00%(upstream)%00%(objectname:short=7)%00%(authorname)%00%(subject)%00%(committerdate:unix)%00%(upstream:track,nobracket)%00%(upstream:trackshort)%00",
             "refs/heads/",
             "refs/remotes/",
-        ],
-    )?)?;
+        ])
+        .output()
+        .map_err(|error| format!("无法运行 Git，请确认已安装 Git：{error}"))?;
+    let output = utf8(checked(output)?)?;
     let mut result = Vec::new();
     for line in output.lines() {
         let mut fields = line.split('\0');
@@ -171,6 +191,8 @@ pub(super) fn branches(repo: &Path) -> GitResult<Vec<GitBranch>> {
                 .parse()
                 .map_err(|_| "无法解析 Git 分支提交时间。")?,
         };
+        let tracking = fields.next().ok_or("Git 分支记录不完整。")?;
+        let tracking_short = fields.next().ok_or("Git 分支记录不完整。")?;
         let (kind, name, local_name) = if let Some(name) = full_name.strip_prefix("refs/heads/") {
             ("local", name, None)
         } else if let Some(name) = full_name.strip_prefix("refs/remotes/") {
@@ -185,6 +207,9 @@ pub(super) fn branches(repo: &Path) -> GitResult<Vec<GitBranch>> {
         let occupied = worktrees
             .iter()
             .find(|worktree| !worktree.detached && !worktree.bare && worktree.branch == name);
+        let counts = (kind == "local" && !upstream.is_empty())
+            .then(|| tracking_counts(tracking, tracking_short))
+            .flatten();
         result.push(GitBranch {
             full_name: full_name.into(),
             name: name.into(),
@@ -195,6 +220,8 @@ pub(super) fn branches(repo: &Path) -> GitResult<Vec<GitBranch>> {
                 .then(|| occupied.map(|worktree| worktree.path.clone()))
                 .flatten(),
             upstream: (!upstream.is_empty()).then(|| upstream.into()),
+            ahead: counts.map(|counts| counts.0),
+            behind: counts.map(|counts| counts.1),
             local_name,
             last_commit,
         });
@@ -322,20 +349,5 @@ pub(super) fn checkout(repo: &Path, full_name: &str) -> GitResult<CheckoutResult
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn porcelain_preserves_paths_and_optional_reasons() {
-        let records = b"worktree /missing bare\0bare\0\0worktree /missing\nlinked\0HEAD 0123456789\0detached\0locked reason\nwith newline\0prunable missing directory\0\0worktree /also missing\0HEAD 0000000\0branch refs/heads/topic\0locked\0\0";
-        let parsed = parse_worktrees(records).unwrap();
-        assert_eq!(parsed.len(), 3);
-        assert!(parsed[0].bare && parsed[0].is_main && !parsed[0].available);
-        assert_eq!(parsed[1].path, "/missing\nlinked");
-        assert_eq!(parsed[1].locked.as_deref(), Some("reason\nwith newline"));
-        assert_eq!(parsed[1].prunable.as_deref(), Some("missing directory"));
-        assert_eq!(parsed[1].branch, "分离 HEAD · 0123456");
-        assert!(parsed[1].detached && !parsed[1].available);
-        assert_eq!(parsed[2].locked.as_deref(), Some(""));
-    }
-}
+#[path = "navigation_tests.rs"]
+mod tests;

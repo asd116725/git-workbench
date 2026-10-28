@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { branchLabel, commitAge, worktreeLabel } from './branch-display';
+import { branchLabel, branchSyncDescription, commitAge, worktreeLabel } from './branch-display';
+import { BranchSyncStatus } from './BranchSyncStatus';
 import { BranchCreateForm, BranchDeleteConfirmation } from './BranchForms';
 import { useWorkbench } from '../lib/store';
 import type { GitBranch, GitDeleteBranchPreview, Worktree } from '../lib/types';
@@ -35,11 +36,12 @@ function BranchRow({ branch, worktreePath, locked, blocked, switching, onSwitch,
   const commit = branch.lastCommit;
   const summary = `${commit.author} · ${commit.shortHash} · ${commit.subject || t("（无提交说明）")}`;
   const date = new Date(commit.committedAt * 1000);
+  const syncDescription = branchSyncDescription(branch);
   const deleteBlocked = branch.current ? t("当前分支不能删除") : branch.worktreePath ? t("分支正在工作区使用，不能删除") : blocked;
   return <div className={`branch-management-row ${branch.current ? 'is-current' : ''}`}>
-    <button type="button" className={`branch-option ${branch.current ? 'is-current' : ''}`} disabled={locked || Boolean(blocked) || Boolean(reason)} aria-label={t("切换到 {value1}", { value1: branch.name })} aria-describedby={`commit-${branch.fullName}`} aria-current={branch.current ? 'true' : undefined} title={`${branch.name}\n${summary}\n${date.toLocaleString(getLanguage())}\n${reason ?? blocked ?? t("切换分支")} · ${context}`} onClick={() => void onSwitch(branch.fullName)}>
+    <button type="button" className={`branch-option ${branch.current ? 'is-current' : ''}`} disabled={locked || Boolean(blocked) || Boolean(reason)} aria-label={t("切换到 {value1}", { value1: branch.name })} aria-describedby={[`commit-${branch.fullName}`, syncDescription && `branch-sync-${branch.fullName}`].filter(Boolean).join(' ')} aria-current={branch.current ? 'true' : undefined} title={[branch.name, summary, date.toLocaleString(getLanguage()), `${reason ?? blocked ?? t("切换分支")} · ${context}`, syncDescription].filter(Boolean).join('\n')} onClick={() => void onSwitch(branch.fullName)}>
       <i className={`codicon codicon-${switching ? 'loading spin' : branch.current ? 'check' : branch.kind === 'remote' ? 'cloud' : 'git-branch'}`} aria-hidden="true" />
-      <span className="branch-option-copy"><span className="branch-option-heading"><strong>{branch.name}</strong><time dateTime={date.toISOString()}>{commitAge(commit.committedAt)}</time></span><small id={`commit-${branch.fullName}`}>{summary}</small></span>
+      <span className="branch-option-copy"><span className="branch-option-heading"><strong>{branch.name}</strong><BranchSyncStatus branch={branch} /><time dateTime={date.toISOString()}>{commitAge(commit.committedAt)}</time></span><small id={`commit-${branch.fullName}`}>{summary}</small></span>
       {reason ? <span className="branch-tag">{reason}</span> : <i className="codicon codicon-arrow-right branch-enter" aria-hidden="true" />}
     </button>
     {branch.kind === 'local' && <Button type="button" variant="ghost" size="icon-sm" className="branch-delete-action" disabled={locked || Boolean(deleteBlocked)} aria-label={t("删除本地分支 {value1}", { value1: branch.name })} title={deleteBlocked ?? t("删除本地分支")} onClick={() => void onDelete(branch)}><i className="codicon codicon-trash" aria-hidden="true" /></Button>}
