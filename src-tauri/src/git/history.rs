@@ -272,7 +272,11 @@ fn history(
         .map_err(|_| "Git 错误输出读取已中断。")?
         .map_err(|error| error.to_string())?;
     if result.is_ok() && !stopped_early && !status.success() {
-        return Err(String::from_utf8_lossy(&error).trim().to_owned());
+        checked(Output {
+            status,
+            stdout: Vec::new(),
+            stderr: error,
+        })?;
     }
     result
 }

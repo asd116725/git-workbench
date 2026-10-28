@@ -97,16 +97,18 @@ fn run_git(repo: &Path, args: &[&str]) -> GitResult<Output> {
         .map_err(|error| format!("无法运行 Git，请确认已安装 Git：{error}"))
 }
 
+/// 技术来源前缀区分 Git 原始输出与应用提示，避免界面将同名 hook 文本当作译文键。
 fn checked(output: Output) -> GitResult<Vec<u8>> {
     if output.status.success() {
         Ok(output.stdout)
     } else {
-        let error = String::from_utf8_lossy(&output.stderr).trim().to_owned();
-        Err(if error.is_empty() {
-            String::from_utf8_lossy(&output.stdout).trim().to_owned()
+        let error = String::from_utf8_lossy(&output.stderr);
+        let detail = if error.trim().is_empty() {
+            String::from_utf8_lossy(&output.stdout)
         } else {
             error
-        })
+        };
+        Err(format!("Git:\n{detail}"))
     }
 }
 

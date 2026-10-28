@@ -1,3 +1,4 @@
+import { t, useI18n } from '../lib/i18n';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { editor } from 'monaco-editor';
 import { structuredPatch } from 'diff';
@@ -29,13 +30,14 @@ function CodeIcon({ name }: { name: string }) {
 
 /** 按比较对象重建编辑器，让卸载生命周期释放旧文件的两个 Monaco 模型。 */
 export function CodeDiff(props: CodeDiffProps) {
+  useI18n();
   if (!props.file) {
     return (
-      <section className="code-diff-root code-diff-empty" aria-label="代码差异">
+      <section className="code-diff-root code-diff-empty" aria-label={t("代码差异")}>
         <span className="code-diff-empty-icon"><CodeIcon name="diff" /></span>
-        <h2>选择一个文件，查看更改</h2>
-        <p>在左侧选择未暂存或已暂存的文件</p>
-        <span className="code-diff-empty-hint">每一次清晰的提交，都从查看差异开始</span>
+        <h2>{t("选择一个文件，查看更改")}</h2>
+        <p>{t("在左侧选择未暂存或已暂存的文件")}</p>
+        <span className="code-diff-empty-hint">{t("每一次清晰的提交，都从查看差异开始")}</span>
       </section>
     );
   }
@@ -61,6 +63,7 @@ function ActiveCodeDiff({
   modifiedLabel: modifiedLabelOverride,
   onClose,
 }: CodeDiffProps & { file: FileSnapshot }) {
+  const { t } = useI18n();
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const contentUpdaterRef = useRef<ReturnType<typeof createDiffContentUpdater> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -85,8 +88,8 @@ function ActiveCodeDiff({
   const activeHunk = Math.min(selectedHunk, Math.max(0, hunks.length - 1));
   const pathParts = file.path.split('/').slice(0, -1);
   const fileName = file.path.slice(file.path.lastIndexOf('/') + 1);
-  const originalLabel = originalLabelOverride ?? (area === 'staged' ? 'HEAD（上次提交）' : '暂存区（当前版本）');
-  const modifiedLabel = modifiedLabelOverride ?? (area === 'staged' ? '暂存区（已暂存的更改）' : '工作区（未暂存的更改）');
+  const originalLabel = originalLabelOverride ?? (area === 'staged' ? t("HEAD（上次提交）") : t("暂存区（当前版本）"));
+  const modifiedLabel = modifiedLabelOverride ?? (area === 'staged' ? t("暂存区（已暂存的更改）") : t("工作区（未暂存的更改）"));
   const canStageHunk = area === 'unstaged' && onStageHunk !== undefined;
   /** 两侧模型必须使用不同 URI，防止不同 worktree 或暂存状态复用内容。 */
   const modelRoot = `git-workbench://diff/${encodeURIComponent(worktreeId)}/${encodeURIComponent(file.id)}/${area}`;
@@ -133,8 +136,10 @@ function ActiveCodeDiff({
     ignoreTrimWhitespace: false,
     hideUnchangedRegions: { enabled: false },
     scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8, useShadows: false },
-    ariaLabel: `${fileName} 的代码差异`,
-  }), [fileName, fontSize, mode]);
+    ariaLabel: t("{value1} 的代码差异", { value1: fileName }),
+    originalAriaLabel: `${fileName} · ${originalLabel}`,
+    modifiedAriaLabel: `${fileName} · ${modifiedLabel}`,
+  }), [fileName, fontSize, mode, originalLabel, modifiedLabel, t]);
 
   /** Monaco 0.57 必须先解绑模型再销毁；组件独占两份模型，StrictMode 重挂载时重新创建。 */
   useLayoutEffect(() => {
@@ -184,16 +189,16 @@ function ActiveCodeDiff({
   }
 
   return (
-    <section className="code-diff-root" aria-label={`${fileName} 的代码差异`}>
+    <section className="code-diff-root" aria-label={t("{value1} 的代码差异", { value1: fileName })}>
       <div className="code-diff-tabs">
         <div className="code-diff-tab">
           <FileIcon path={file.path} language={file.language} />
           <span className="code-diff-tab-name">{fileName}</span>
-          <button className="code-diff-icon-button code-diff-close" onClick={onClose} title="关闭文件" aria-label="关闭文件">
+          <button className="code-diff-icon-button code-diff-close" onClick={onClose} title={t("关闭文件")} aria-label={t("关闭文件")}>
             <CodeIcon name="close" />
           </button>
         </div>
-        <span className="code-diff-readonly"><CodeIcon name="lock" />只读</span>
+        <span className="code-diff-readonly"><CodeIcon name="lock" />{t("只读")}</span>
       </div>
 
       <div className="code-diff-toolbar">
@@ -206,16 +211,16 @@ function ActiveCodeDiff({
           <span className="code-diff-breadcrumb-name">{fileName}</span>
         </div>
         <div className="code-diff-toolbar-actions">
-          <div className="code-diff-mode" role="group" aria-label="差异显示方式">
-            <button className={mode === 'split' ? 'is-active' : ''} aria-pressed={mode === 'split'} onClick={() => onModeChange('split')}>并排</button>
-            <button className={mode === 'inline' ? 'is-active' : ''} aria-pressed={mode === 'inline'} onClick={() => onModeChange('inline')}>内联</button>
+          <div className="code-diff-mode" role="group" aria-label={t("差异显示方式")}>
+            <button className={mode === 'split' ? 'is-active' : ''} aria-pressed={mode === 'split'} onClick={() => onModeChange('split')}>{t("并排")}</button>
+            <button className={mode === 'inline' ? 'is-active' : ''} aria-pressed={mode === 'inline'} onClick={() => onModeChange('inline')}>{t("内联")}</button>
           </div>
           {stats ? (
-            <span className="code-diff-stats" aria-label={`新增 ${stats.additions} 行，删除 ${stats.deletions} 行`}>
+            <span className="code-diff-stats" aria-label={t("新增 {value1} 行，删除 {value2} 行", { value1: stats.additions, value2: stats.deletions })}>
               <span className="code-diff-added">+{stats.additions}</span>
               <span className="code-diff-deleted">−{stats.deletions}</span>
             </span>
-          ) : <span className="code-diff-stats" title="变更较复杂，已省略行数统计与分块导航">统计已省略</span>}
+          ) : <span className="code-diff-stats" title={t("变更较复杂，已省略行数统计与分块导航")}>{t("统计已省略")}</span>}
         </div>
       </div>
 
@@ -225,13 +230,13 @@ function ActiveCodeDiff({
           {mode === 'split' && <span className="code-diff-comparison-label">{modifiedLabel}</span>}
           <div className="code-diff-hunk-actions">
             {canStageHunk && (
-              <button className="code-diff-stage-button" onClick={() => onStageHunk(activeHunk)} disabled={hunks.length === 0} title={`暂存第 ${activeHunk + 1} 个变更块`}>
-                <CodeIcon name="git-branch" /><span>暂存此块</span>
+              <button className="code-diff-stage-button" onClick={() => onStageHunk(activeHunk)} disabled={hunks.length === 0} title={t("暂存第 {value1} 个变更块", { value1: activeHunk + 1 })}>
+                <CodeIcon name="git-branch" /><span>{t("暂存此块")}</span>
               </button>
             )}
-            <span className="code-diff-hunk-count" title={stats ? '当前变更块' : '分块导航不可用'}>{stats ? `${hunks.length ? activeHunk + 1 : 0}/${hunks.length}` : '—'}</span>
-            <button className="code-diff-icon-button" onClick={() => navigateHunk(-1)} disabled={hunks.length < 2} title="上一个变更块" aria-label="上一个变更块"><CodeIcon name="arrow-up" /></button>
-            <button className="code-diff-icon-button" onClick={() => navigateHunk(1)} disabled={hunks.length < 2} title="下一个变更块" aria-label="下一个变更块"><CodeIcon name="arrow-down" /></button>
+            <span className="code-diff-hunk-count" title={stats ? t("当前变更块") : t("分块导航不可用")}>{stats ? `${hunks.length ? activeHunk + 1 : 0}/${hunks.length}` : '—'}</span>
+            <button className="code-diff-icon-button" onClick={() => navigateHunk(-1)} disabled={hunks.length < 2} title={t("上一个变更块")} aria-label={t("上一个变更块")}><CodeIcon name="arrow-up" /></button>
+            <button className="code-diff-icon-button" onClick={() => navigateHunk(1)} disabled={hunks.length < 2} title={t("下一个变更块")} aria-label={t("下一个变更块")}><CodeIcon name="arrow-down" /></button>
           </div>
         </div>
       </div>

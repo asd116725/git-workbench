@@ -1,3 +1,4 @@
+import { t, useI18n } from '../lib/i18n';
 import type { CSSProperties, ReactNode } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { ChangeTreeNode } from '../lib/change-tree';
@@ -11,6 +12,7 @@ export function ChangeFileTree({ nodes, selectedFileId, renderFile, renderDirect
   renderFile: (file: FileSnapshot, depth: number) => ReactNode;
   renderDirectoryAction?: (path: string) => ReactNode;
 }) {
+  useI18n();
   function renderNodes(items: ChangeTreeNode[], depth: number): ReactNode {
     return items.map(node => {
       if (node.kind === 'file') return <li key={`file:${node.path}`}>{renderFile(node.file, depth)}</li>;
@@ -18,7 +20,7 @@ export function ChangeFileTree({ nodes, selectedFileId, renderFile, renderDirect
       const hasSelectedFile = node.children.some(child => child.kind === 'file' && child.file.id === selectedFileId);
       return <li key={`directory:${node.path}`} style={{ '--file-depth': depth } as CSSProperties}>
         <Collapsible defaultOpen className="change-directory">
-          <div className="change-directory-heading"><CollapsibleTrigger className="change-directory-row" title={`${node.path} · ${node.fileCount} 个变更文件`} aria-label={`文件夹 ${node.path}`}>
+          <div className="change-directory-heading"><CollapsibleTrigger className="change-directory-row" title={t("{value1} · {value2} 个变更文件", { value1: node.path, value2: node.fileCount })} aria-label={t("文件夹 {value1}", { value1: node.path })}>
             <i className="codicon codicon-chevron-down directory-chevron" aria-hidden="true" />
             <FolderIcon path={node.path} expanded={false} className="directory-icon-closed" />
             <FolderIcon path={node.path} expanded className="directory-icon-open" />

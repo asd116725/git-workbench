@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { RemoteActions } from './RemoteActions';
+import { setLanguage } from '../lib/i18n';
 import { remoteBlockReason } from '../lib/remote-view';
 import type { Worktree } from '../lib/types';
 
@@ -17,7 +18,18 @@ function render(target = worktree) { return renderToStaticMarkup(<TooltipProvide
 
 beforeEach(() => { hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteOperation: null, runRemote: vi.fn() }); });
 
+afterEach(() => setLanguage('zh-CN'));
+
 describe('远程工具栏', () => {
+  it.each([['en', 'Fetch', 'Pull', 'Push, commits to push: 3'], ['zh-TW', '擷取', '拉取', '推送，3 個待上傳提交']] as const)('%s 更新三个操作及动态数量的无障碍名称', (language, fetch, pull, push) => {
+    setLanguage(language);
+    const html = render();
+    expect(html).toContain(`aria-label="${fetch}"`);
+    expect(html).toContain(`aria-label="${pull}"`);
+    expect(html).toContain(`aria-label="${push}"`);
+    expect(html).toMatch(/remote-count[^]*?>3<\/span>/);
+  });
+
   it('三个按钮可操作，待上传数字紧邻推送图标并提供可读名称', () => {
     const html = render();
     expect(html).toContain('aria-label="获取"');

@@ -146,11 +146,15 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .status-demo { display: flex; align-items: center; gap: 5px; color: var(--subtle-foreground); font-size: 10px; }
 .status-demo .codicon { font-size: 12px; }
 .status-spacer { flex: 1; }
-.settings-dialog { max-width: 480px; }
+.settings-dialog { max-width: 480px; max-height: calc(100vh - 48px); overflow-y: auto; }
+.settings-dialog select { width: 100%; height: 38px; padding: 0 10px; border: 1px solid var(--input); border-radius: 4px; background: var(--input-background); color: var(--foreground); font: inherit; }
+.settings-dialog select:focus-visible { outline: 1px solid var(--ring); border-color: var(--ring); }
+.settings-row > div { min-width: 0; }
+.settings-row > button, .settings-footnote > .codicon { flex-shrink: 0; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .settings-row strong { font-size: 13px; font-weight: 500; }
 .settings-row p { margin-top: 5px; color: var(--muted-foreground); font-size: 12px; }
-.settings-footnote { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--muted-foreground); font-size: 11px; line-height: 1.6; }
+.settings-footnote { display: flex; align-items: flex-start; gap: 6px; margin: 0; color: var(--muted-foreground); font-size: 11px; line-height: 1.6; }
 .settings-footnote .codicon { font-size: 14px; }
 .field-value { margin-left: auto; color: var(--muted-foreground); font-size: 12px; }
 input[type='range'] { padding: 0; border: 0; box-shadow: none; accent-color: var(--primary); }
@@ -199,9 +203,10 @@ input[type='range'] { padding: 0; border: 0; box-shadow: none; accent-color: var
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
 @media (max-width: 1250px) {
-  .toolbar-actions { gap: 4px; }
-  .view-tabs-list [data-slot='tabs-trigger'] { padding: 0 14px; }
-  .branch-trigger { max-width: 190px; }
+  .toolbar-actions { gap: 4px; flex: 1; justify-content: flex-end; }
+  .view-tabs-list [data-slot='tabs-trigger'] { padding: 0 10px; }
+  .branch-trigger { min-width: 90px; max-width: 160px; flex-shrink: 1; }
+  .view-tabs { min-width: 0; }
   .remote-action { gap: 4px; padding-right: 5px; padding-left: 5px; }
   .workbench-toolbar { gap: 6px; padding-right: 10px; }
   .commit-fields textarea { height: 96px; }

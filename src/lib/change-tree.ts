@@ -1,14 +1,14 @@
 import type { FileSnapshot } from './types';
+import { getLanguage, type Language } from './i18n';
 
 /** 文件节点保留原始快照，目录只负责分组，不改变 Git 操作的目标路径。 */
 export type ChangeTreeNode =
   | { kind: 'file'; name: string; path: string; file: FileSnapshot }
   | { kind: 'directory'; name: string; path: string; children: ChangeTreeNode[]; fileCount: number };
 
-const names = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' });
-
 /** Git 路径使用正斜线；文件和同名目录可同时存在于删除、新增的变更列表中。 */
-export function buildChangeTree(files: FileSnapshot[]): ChangeTreeNode[] {
+export function buildChangeTree(files: FileSnapshot[], language: Language = getLanguage()): ChangeTreeNode[] {
+  const names = new Intl.Collator(language, { numeric: true, sensitivity: 'base' });
   const root: ChangeTreeNode[] = [];
   const directories = new Map<string, Extract<ChangeTreeNode, { kind: 'directory' }>>();
   for (const file of files) {
@@ -29,7 +29,7 @@ export function buildChangeTree(files: FileSnapshot[]): ChangeTreeNode[] {
     children.push({ kind: 'file', name: parts[parts.length - 1], path: file.path, file });
   }
   function sort(nodes: ChangeTreeNode[]) {
-    nodes.sort((a, b) => a.kind !== b.kind ? (a.kind === 'directory' ? -1 : 1) : names.compare(a.name, b.name) || a.name.localeCompare(b.name));
+    nodes.sort((a, b) => a.kind !== b.kind ? (a.kind === 'directory' ? -1 : 1) : names.compare(a.name, b.name) || a.name.localeCompare(b.name, language));
     for (const node of nodes) if (node.kind === 'directory') sort(node.children);
   }
   sort(root);

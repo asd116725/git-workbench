@@ -261,15 +261,48 @@ fn failed_commit_hook_keeps_index_and_head_intact() {
     fixture.write("file.txt", "second");
     stage(fixture.path(), "file.txt").unwrap();
     let hook = fixture.path().join(".git/test-hooks/pre-commit");
-    fs::write(&hook, "#!/bin/sh\necho 'test hook rejected' >&2\nexit 1\n").unwrap();
+    fs::write(&hook, "#!/bin/sh\ncat .git/test-hook-output >&2\nexit 1\n").unwrap();
     fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
-    let error = commit(fixture.path(), "失败提交", "").unwrap_err();
-    assert!(error.contains("test hook rejected"));
+    for detail in [
+        "test hook rejected\n",
+        "今天",
+        "请填写提交信息。",
+        "  文件/今天 {error}\n请填写提交信息。\n",
+    ] {
+        fixture.write(".git/test-hook-output", detail);
+        let error = commit(fixture.path(), "失败提交", "").unwrap_err();
+        assert_eq!(error, format!("Git:\n{detail}"));
+    }
     assert_eq!(
         git_line(fixture.path(), &["rev-parse", "HEAD"]).unwrap(),
         before
     );
     assert_eq!(changes(fixture.path()).unwrap()[0].status_index, "M");
+}
+
+#[cfg(unix)]
+#[test]
+fn checked_preserves_raw_output_and_marks_failed_git_source() {
+    use std::os::unix::process::ExitStatusExt;
+    use std::process::ExitStatus;
+
+    let output = |status, stdout: &[u8], stderr: &[u8]| Output {
+        status: ExitStatus::from_raw(status),
+        stdout: stdout.into(),
+        stderr: stderr.into(),
+    };
+    assert_eq!(
+        checked(output(0, "今天\n".as_bytes(), b"warning")).unwrap(),
+        "今天\n".as_bytes()
+    );
+    assert_eq!(
+        checked(output(1 << 8, "今天\n".as_bytes(), b" \n")).unwrap_err(),
+        "Git:\n今天\n"
+    );
+    assert_eq!(
+        checked(output(1 << 8, b"ignored", " 请填写提交信息。\n".as_bytes())).unwrap_err(),
+        "Git:\n 请填写提交信息。\n"
+    );
 }
 
 #[cfg(target_os = "macos")]

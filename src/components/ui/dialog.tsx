@@ -1,3 +1,4 @@
+import { t, useI18n } from '../../lib/i18n';
 import * as React from "react"
 import { cn } from "cn"
 import { Dialog as DialogPrimitive } from "radix-ui"
@@ -53,6 +54,7 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  useI18n();
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -74,7 +76,7 @@ function DialogContent({
             >
               <XIcon
               />
-              <span className="sr-only">关闭</span>
+              <span className="sr-only">{t("关闭")}</span>
             </Button>
           </DialogPrimitive.Close>
         )}
@@ -101,6 +103,7 @@ function DialogFooter({
 }: React.ComponentProps<"div"> & {
   showCloseButton?: boolean
 }) {
+  useI18n();
   return (
     <div
       data-slot="dialog-footer"
@@ -113,7 +116,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close asChild>
-          <Button variant="outline">关闭</Button>
+          <Button variant="outline">{t("关闭")}</Button>
         </DialogPrimitive.Close>
       )}
     </div>

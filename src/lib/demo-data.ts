@@ -229,7 +229,7 @@ export function createDemoRepositories(): Repository[] {
   return [
     {
       id: 'demo-editor', name: 'demo-editor', worktrees: [
-        { id: 'editor-main', name: '主工作区', branch: 'feature/markdown', path: '~/Projects/demo-editor', files: markdownFiles, commits: createHistory(markdownFiles) },
+        { id: 'editor-main', name: '主工作区', isMain: true, branch: 'feature/markdown', path: '~/Projects/demo-editor', files: markdownFiles, commits: createHistory(markdownFiles) },
         { id: 'editor-preview', name: 'preview', branch: 'feature/preview', path: '~/Projects/demo-editor-preview', files: grayFiles, commits: createHistory(grayFiles) },
         { id: 'editor-docs', name: 'docs', branch: 'docs/guide', path: '~/Projects/demo-editor-docs', files: [], commits: createHistory(markdownFiles) },
       ],

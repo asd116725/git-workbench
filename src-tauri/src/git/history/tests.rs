@@ -455,3 +455,26 @@ fn frozen_history_reads_can_run_while_repository_write_lock_is_held() {
     })
     .unwrap();
 }
+
+#[test]
+fn failed_history_traversal_preserves_raw_git_error_source() {
+    let repo = Repo::new();
+    let parent = repo.initial();
+    let head = repo.commit("second");
+    fs::remove_file(
+        repo.root
+            .join(format!(".git/objects/{}/{}", &parent[..2], &parent[2..])),
+    )
+    .unwrap();
+    let output = history_command(&repo.root)
+        .args([&head, "--"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let detail = String::from_utf8_lossy(&output.stderr);
+    assert!(detail.contains(&parent));
+    assert_eq!(
+        history(&repo.root, &head, "", None).unwrap_err(),
+        format!("Git:\n{detail}")
+    );
+}

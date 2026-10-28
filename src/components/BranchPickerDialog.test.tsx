@@ -1,9 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import type { GitBranch, GitDeleteBranchPreview, Worktree } from '../lib/types';
 import { BranchCreateForm, BranchDeleteConfirmation } from './BranchForms';
 import { BranchPickerDialog } from './BranchPickerDialog';
+import { setLanguage } from '../lib/i18n';
+import { branchLabel, worktreeLabel } from './branch-display';
 
 const hooks = vi.hoisted(() => ({ workbench: vi.fn() }));
 vi.mock('../lib/store', () => ({ useWorkbench: hooks.workbench }));
@@ -35,7 +37,27 @@ beforeEach(() => {
   hooks.workbench.mockReturnValue({ branches: { items: branches, loading: false, error: null }, busy: false, loadBranches: vi.fn() });
 });
 
+afterEach(() => setLanguage('zh-CN'));
+
 describe('分支管理入口和分支保护', () => {
+  it('只按元数据翻译生成的工作区和分离HEAD标签', () => {
+    setLanguage('en');
+    expect(worktreeLabel({ ...worktree, name: '主工作区', isMain: true })).toBe('Main worktree');
+    expect(worktreeLabel({ ...worktree, source: undefined, name: '主工作区', isMain: true })).toBe('Main worktree');
+    expect(worktreeLabel({ ...worktree, name: '主工作区', isMain: false })).toBe('主工作区');
+    expect(branchLabel({ ...worktree, branch: '分离 HEAD · abc1234', detached: true })).toBe('Detached HEAD · abc1234');
+    expect(branchLabel({ ...worktree, branch: '分离 HEAD · abc1234', detached: false })).toBe('分离 HEAD · abc1234');
+  });
+
+  it.each([['en', 'Branch management', 'New branch'], ['zh-TW', '分支管理', '新增分支']] as const)('%s 翻译分支操作且保留提交和分支原文', (language, title, action) => {
+    setLanguage(language);
+    const html = renderToStaticMarkup(<BranchPickerDialog worktree={worktree} open onOpenChange={vi.fn()} />);
+    expect(html).toContain(title);
+    expect(html).toContain(action);
+    expect(html).toContain('feature/markdown');
+    expect(html).toContain('Demo User · abc1234 · 分支提交说明');
+  });
+
   it('展示管理入口、提交摘要，当前和其他 worktree 使用中的分支不可删除', () => {
     const html = renderToStaticMarkup(<BranchPickerDialog worktree={worktree} open onOpenChange={vi.fn()} />);
     expect(html).toContain('分支管理');
@@ -108,5 +130,12 @@ describe('创建与删除确认表单', () => {
     expect(html).toContain('>删除分支</button>');
     expect(html).not.toContain('type="checkbox"');
     expect(html).toContain('只删除本地分支，远程分支不受影响。');
+  });
+
+  it.each([['en', 'Current HEAD'], ['zh-TW', '目前 HEAD']] as const)('%s 翻译分离 HEAD 标签，保留同名真实分支', (language, label) => {
+    setLanguage(language);
+    const headName = '当前 HEAD · bbbbbbb';
+    expect(deletion({ preview: { ...preview, headRef: null, headName } })).toContain(`${label} · bbbbbbb`);
+    expect(deletion({ preview: { ...preview, headRef: `refs/heads/${headName}`, headName } })).toContain(headName);
   });
 });
