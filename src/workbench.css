@@ -67,6 +67,14 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .toolbar-separator { height: 22px !important; margin: 0 5px; }
 .remote-action { gap: 8px; padding-right: 9px; padding-left: 9px; font-weight: 400; }
 .remote-action .codicon { font-size: 18px; }
+.remote-action-trigger, .remote-action-icon { display: inline-flex; align-items: center; }
+.remote-action-icon { gap: 4px; }
+.remote-count.count-badge { min-width: 18px; height: 18px; padding: 0 5px; font-size: 11px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.remote-dialog.branch-dialog { width: min(480px, calc(100vw - 48px)); }
+.remote-dialog > form { display: flex; flex-direction: column; min-height: 0; }
+.remote-dialog .branch-form-fields { min-height: 0; overflow-y: auto; overflow-wrap: anywhere; }
+.remote-dialog .branch-form-actions { flex-shrink: 0; }
+.remote-dialog-error { max-height: 30vh; overflow-y: auto; margin: 0; color: var(--destructive); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .menu-detail { margin-left: auto; color: var(--muted-foreground); font-size: 11px; }
 .changes-view { flex: 1; min-height: 0; }
 .changes-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--sidebar); }
@@ -91,12 +99,10 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .change-directory-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .change-directory-row small { margin-left: auto; padding-left: 8px; color: var(--subtle-foreground); font-size: 10px; }
 .change-directory-row > .codicon { flex-shrink: 0; font-size: 16px; }
-.change-directory-row .directory-icon-open, .change-directory-row .directory-icon-closed { color: var(--yellow); }
 .change-directory-row[data-state='open'] .directory-icon-closed, .change-directory-row[data-state='closed'] .directory-icon-open { display: none; }
 .change-directory-row[data-state='closed'] .directory-chevron { transform: rotate(-90deg); }
 .file-row.tree-file-row { min-height: var(--tree-row-height); padding-left: calc(36px + var(--file-depth) * 12px); }
 .tree-file-row .file-select { align-items: center; gap: 7px; height: var(--tree-row-height); padding: 0; line-height: var(--tree-row-height); }
-.tree-file-row .file-select > .codicon { flex-shrink: 0; margin-top: 0; font-size: 16px; }
 .tree-file-row .file-name { font-size: var(--workbench-font-size); }
 .tree-file-row .file-action { width: 20px; height: 20px; }
 .tree-file-row .file-status { margin-top: 0; }
@@ -109,7 +115,8 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .file-row:hover { background: var(--list-hover-background); }
 .file-row.selected { background: var(--accent); }
 .file-select { display: flex; align-items: flex-start; gap: 12px; flex: 1; min-width: 0; height: 60px; padding: 10px 0; border: 0; background: transparent; text-align: left; }
-.file-select > .codicon { margin-top: 2px; font-size: 18px; }
+.file-select > .file-type-icon { width: 18px; height: 18px; margin-top: 2px; }
+.tree-file-row .file-select > .file-type-icon { width: 16px; height: 16px; margin-top: 0; }
 .file-copy { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
 .file-name { overflow: hidden; color: var(--foreground-strong); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .file-path { overflow: hidden; color: var(--muted-foreground); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
@@ -119,8 +126,6 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .status-D { color: var(--destructive); }
 .status-R, .status-C, .status-T { color: var(--blue); }
 .status-U { color: var(--destructive); }
-.file-icon-code { color: var(--blue); }
-.file-icon-style { color: var(--purple); }
 .file-action { flex-shrink: 0; margin-left: 6px; width: 23px; height: 23px; opacity: 0; }
 .file-row:hover .file-action, .file-row:focus-within .file-action, .file-row.selected .file-action { opacity: 1; }
 .file-row.selected .file-action { background: var(--primary); color: var(--primary-foreground); }

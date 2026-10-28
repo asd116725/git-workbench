@@ -10,6 +10,7 @@ const metadata = { path: '/test/branches', name: 'branches', branch: 'main', det
 const initial: NativeRepository = {
   path: metadata.path, name: metadata.name, branch: metadata.branch, commonDir: `${metadata.path}/.git`,
   repositoryName: 'branches', worktrees: [metadata], hasHead: true, operation: null,
+  remote: { remotes: [], upstream: null, upstreamRemote: null, upstreamBranch: null, defaultRemote: null, ahead: null, behind: null },
   files: [{ path: 'index.ts', statusIndex: ' ', statusWorktree: 'M', originalPath: null, conflicted: false }],
 };
 const preview: GitDeleteBranchPreview = {

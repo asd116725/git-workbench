@@ -47,7 +47,25 @@ export interface Worktree {
   locked?: string | null;
   prunable?: string | null;
   operation?: GitOperation | null;
+  remote?: GitRemoteStatus;
 }
+
+/** 计数来自本地已获取的远程引用；null 表示当前无法确定，不能按零展示。 */
+export interface GitRemoteStatus {
+  remotes: string[];
+  upstream: string | null;
+  upstreamRemote: string | null;
+  upstreamBranch: string | null;
+  defaultRemote: string | null;
+  ahead: number | null;
+  behind: number | null;
+}
+
+/** 拉取只允许快进，推送只处理当前分支。 */
+export type GitRemoteAction = 'fetch' | 'pull' | 'push';
+
+/** 远程写入已完成后发生的附带问题保留为警告，避免诱导重复操作。 */
+export interface GitRemoteResult { warning: string | null }
 
 /** 将共享 Git 仓库的多个工作目录归为一组。 */
 export interface Repository {

@@ -19,6 +19,7 @@ const baseRepository: NativeRepository = {
   commonDir: '/test/merge/.git', repositoryName: 'merge', worktrees: [metadata],
   path: metadata.path, name: metadata.name, branch: metadata.branch, hasHead: true,
   files: [], operation: null,
+  remote: { remotes: [], upstream: null, upstreamRemote: null, upstreamBranch: null, defaultRemote: null, ahead: null, behind: null },
 };
 const preview: GitMergePreview = {
   targetRef: 'refs/heads/main', targetBranch: 'main', targetOid: operation.head,

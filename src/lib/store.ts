@@ -6,8 +6,10 @@ import { commitWorktree, getChanges, stageFile, stageHunk, unstageFile } from '.
 import { createDemoBranch, createDemoBranchState, deleteDemoBranch, listDemoBranches, previewDemoBranchDeletion, recordDemoBranchCommit, switchDemoBranch, type DemoBranchState } from './demo-branches';
 import { nativeGit, toRepository, toWorktree } from './native-git';
 import { commitBlockReason } from './merge-view';
+import { remoteBlockReason } from './remote-view';
+import { useHistory } from './history-store';
 import type { NativeRepository } from './native-git';
-import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitMergePreview, GitMergeResult, GitOperation, Repository, Worktree } from './types';
+import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitMergePreview, GitMergeResult, GitOperation, GitRemoteAction, GitRemoteResult, Repository, Worktree } from './types';
 
 /** 文件与比较区域共同标识一个差异视图。 */
 export interface Selection { fileId: string; area: ChangeArea }
@@ -94,6 +96,8 @@ interface WorkbenchState {
   error: string | null;
   diff: DiffState;
   branches: BranchState;
+  remoteOperation: GitRemoteAction | null;
+  runRemote: (action: GitRemoteAction, remote?: string) => Promise<GitRemoteResult>;
   loadBranches: () => Promise<void>;
   checkoutBranch: (fullName: string) => Promise<GitCheckoutResult>;
   createBranch: (name: string, startRef: string, checkout: boolean) => Promise<GitCreateBranchResult>;
@@ -140,6 +144,7 @@ function initialState() {
     autoRefreshError: null,
     error: null,
     branches: emptyBranches,
+    remoteOperation: null as GitRemoteAction | null,
     diff: { ...emptyDiff, file: worktree?.files.find(file => file.id === selection?.fileId) ?? null },
   };
 }
@@ -332,7 +337,13 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     try {
       void applyNativeRepository(await nativeGit.status(worktree.path), get().selection);
     } catch (error) {
-      set({ error: `${failurePrefix}：${errorMessage(error)}`, diff: emptyDiff });
+      set(state => ({
+        error: `${failurePrefix}：${errorMessage(error)}`, diff: emptyDiff,
+        repositories: state.repositories.map(repository => ({
+          ...repository,
+          worktrees: repository.worktrees.map(item => item.id === worktree.id ? { ...item, remote: undefined } : item),
+        })),
+      }));
     }
   }
 
@@ -340,7 +351,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   async function applyBranchSwitch(worktree: Worktree, branch: string) {
     ++diffVersion;
     const real = worktree.source === 'native';
-    const updated = { ...worktree, branch, detached: false, hasHead: true, files: real ? [] : worktree.files };
+    const updated = { ...worktree, branch, detached: false, hasHead: true, remote: undefined, files: real ? [] : worktree.files };
     set(state => ({
       repositories: state.repositories.map(repository => ({
         ...repository,
@@ -437,6 +448,36 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
 
   return {
     ...initialState(),
+    runRemote: async (action, remote) => {
+      const worktree = currentWorktree();
+      const blocked = remoteBlockReason(worktree, action);
+      if (blocked) throw new Error(blocked);
+      beginMutation({ preserveDiff: action !== 'pull' });
+      set({ remoteOperation: action });
+      let result: GitRemoteResult | undefined;
+      let failure: unknown;
+      try {
+        try {
+          result = await (action === 'push' ? nativeGit.push(worktree.path, remote) : nativeGit[action](worktree.path));
+        } catch (error) { failure = error; }
+        /** 失败的 fetch/pull 仍可能已更新引用，因此两种结果都重新读取仓库和分支。 */
+        await refreshAfterMutation(worktree, result ? undefined : '远程操作失败，且无法刷新仓库状态');
+        await loadBranches(currentWorktree());
+        const history = useHistory.getState();
+        const refreshHistory = get().view === 'history' || history.sessions[worktree.id]?.initialized;
+        if (refreshHistory) await history.refresh(currentWorktree());
+        const warning = [result?.warning, get().error, get().branches.error && `分支列表刷新失败：${get().branches.error}`,
+          refreshHistory && useHistory.getState().sessions[worktree.id]?.error && `提交历史刷新失败：${useHistory.getState().sessions[worktree.id].error}`,
+        ].filter(Boolean).join('\n') || null;
+        if (!result) {
+          const message = errorMessage(failure);
+          set({ error: [message, warning].filter(Boolean).join('\n') });
+          throw Object.assign(new Error(message), { cause: failure });
+        }
+        set({ error: warning });
+        return { warning };
+      } finally { set({ busy: false, remoteOperation: null }); }
+    },
     restoreSession: () => {
       if (restorePromise) return restorePromise;
       if (!isTauri() || get().repositories.length || get().busy) return Promise.resolve();

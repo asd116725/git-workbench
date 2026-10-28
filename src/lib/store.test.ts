@@ -17,6 +17,7 @@ const linkedMetadata = { ...mainMetadata, path: '/test/linked', name: 'linked', 
 const baseRepository: NativeRepository = {
   commonDir: '/test/repository/.git', repositoryName: 'repository', worktrees: [mainMetadata],
   path: '/test/repository', name: 'repository', branch: 'main', hasHead: true, operation: null,
+  remote: { remotes: [], upstream: null, upstreamRemote: null, upstreamBranch: null, defaultRemote: null, ahead: null, behind: null },
   files: [
     { path: 'first.ts', originalPath: null, statusIndex: ' ', statusWorktree: 'M', conflicted: false },
     { path: 'second.ts', originalPath: null, statusIndex: 'M', statusWorktree: 'M', conflicted: false },

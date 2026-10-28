@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ChangeFileTree } from './ChangeFileTree';
+import { FileIcon } from './FileIcon';
 import { CodeDiff } from './CodeDiff';
 import { buildChangeTree } from '../lib/change-tree';
 import { historyDateGroup, historyTime } from '../lib/history-display';
@@ -77,7 +78,7 @@ export function HistoryView({ worktree }: { worktree: Worktree }) {
     const selected = file.path === session?.selectedPath;
     return <div key={file.id} className={`file-row tree-file-row ${selected ? 'selected' : ''}`} style={{ '--file-depth': depth } as CSSProperties}>
       <button className="file-select" disabled={!selectionReady} aria-label={`历史文件：${file.path}`} aria-pressed={selected} title={file.git?.originalPath ? `${file.git.originalPath} → ${file.path}` : file.path} onClick={() => void state.selectFile(worktree, file.path)}>
-        <Icon name="file-code" /><span className="file-copy"><span className="file-name">{file.path.split('/').pop()}</span></span><span className={`file-status status-${file.git?.statusIndex}`}>{file.git?.statusIndex}</span>
+        <FileIcon path={file.path} language={file.language} /><span className="file-copy"><span className="file-name">{file.path.split('/').pop()}</span></span><span className={`file-status status-${file.git?.statusIndex}`}>{file.git?.statusIndex}</span>
       </button>
     </div>;
   }

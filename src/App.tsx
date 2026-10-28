@@ -20,7 +20,9 @@ import { useHistory } from './lib/history-store';
 import { BranchPickerDialog } from './components/BranchPickerDialog';
 import { MergeBranchDialog } from './components/MergeBranchDialog';
 import { MergeStatusBanner } from './components/MergeStatusBanner';
+import { RemoteActions } from './components/RemoteActions';
 import { ChangeFileTree } from './components/ChangeFileTree';
+import { FileIcon } from './components/FileIcon';
 import { buildChangeTree } from './lib/change-tree';
 import { findWorktree, getMergeMessage, usePreferences, useWorkbench } from './lib/store';
 import { commitBlockReason, mergeStartBlockReason } from './lib/merge-view';
@@ -93,7 +95,7 @@ function WorkbenchToolbar({ worktree, onBranchOpen, onMergeOpen }: { worktree: W
       {real && <Hint label={mergeBlocked ?? `将其他分支合并到 ${worktree.branch}`}><span><Button variant="ghost" size="sm" className="merge-trigger" disabled={busy || refreshing || Boolean(mergeBlocked)} onClick={onMergeOpen}><Icon name="git-merge" />合并</Button></span></Hint>}
       <Separator orientation="vertical" className="toolbar-separator" />
       {(real || view === 'history') && <Button variant="ghost" size="sm" disabled={busy || refreshingView} onClick={() => void (view === 'history' ? useHistory.getState().refresh(worktree) : refresh()).catch(error => toast.error(errorMessage(error)))}><Icon name="refresh" className={refreshingView ? 'spin' : ''} />{refreshingView ? '刷新中' : '刷新'}</Button>}
-      {([['获取', 'cloud-download'], ['拉取', 'arrow-down'], ['推送', 'arrow-up']] as const).map(([label, icon]) => <Hint key={label} label="远程操作将在后续版本提供"><span><Button variant="ghost" size="sm" className="remote-action" disabled><Icon name={icon} />{label}</Button></span></Hint>)}
+      <RemoteActions key={`${worktree.id}:${worktree.branch}`} worktree={worktree} />
     </div>
   </div>;
 }
@@ -120,7 +122,7 @@ function FileGroup({ worktree, area, disabled, conflictsOnly = false }: { worktr
     const path = file.git?.originalPath ? `${file.git.originalPath} → ${file.path}` : file.path;
     return <div key={file.id} className={`file-row ${fileView === 'tree' ? 'tree-file-row' : ''} ${selected ? 'selected' : ''}`} style={{ '--file-depth': depth } as CSSProperties}>
       <button className="file-select" onClick={() => selectFile(file.id, area)} aria-pressed={selected} aria-label={`${label}：${file.path}`} title={path}>
-        <Icon name="file-code" className={file.language === 'scss' || file.language === 'css' ? 'file-icon-style' : 'file-icon-code'} />
+        <FileIcon path={file.path} language={file.language} />
         <span className="file-copy"><span className="file-name">{fileName(file)}</span>{fileView === 'list' && <span className="file-path">{file.git?.originalPath ? path : directory(file)}</span>}</span>
         <span className={`file-status status-${status}`}>{status}</span>
       </button>

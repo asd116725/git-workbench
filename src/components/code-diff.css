@@ -23,7 +23,6 @@
 .code-diff-root button:disabled { cursor: default; opacity: .35; }
 .code-diff-tabs { display: flex; flex-shrink: 0; align-items: stretch; height: 40px; background: var(--sidebar); border-bottom: 1px solid var(--border); }
 .code-diff-tab { display: flex; align-items: center; gap: 8px; min-width: 170px; max-width: 360px; padding: 0 10px 0 14px; border-top: 2px solid var(--ring); border-right: 1px solid var(--border); color: var(--foreground-strong); background: var(--background); }
-.code-diff-file-icon { display: inline-flex; color: var(--blue); }
 .code-diff-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .code-diff-close { margin-left: 12px; }
 .code-diff-readonly { display: inline-flex; align-items: center; gap: 5px; align-self: center; margin-left: auto; margin-right: 17px; color: var(--subtle-foreground); font-size: 11px; }

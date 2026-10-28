@@ -1,0 +1,58 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { RemoteActions } from './RemoteActions';
+import { remoteBlockReason } from '../lib/remote-view';
+import type { Worktree } from '../lib/types';
+
+const hooks = vi.hoisted(() => ({ workbench: vi.fn() }));
+vi.mock('../lib/store', () => ({ useWorkbench: hooks.workbench }));
+
+const worktree: Worktree = {
+  id: 'current', name: 'remote', path: '/test/remote', branch: 'main', source: 'native', hasHead: true,
+  files: [], commits: [], remote: { remotes: ['origin'], upstream: 'origin/main', upstreamRemote: 'origin', upstreamBranch: 'main', defaultRemote: 'origin', ahead: 3, behind: 0 },
+};
+
+function render(target = worktree) { return renderToStaticMarkup(<TooltipProvider><RemoteActions worktree={target} /></TooltipProvider>); }
+
+beforeEach(() => { hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteOperation: null, runRemote: vi.fn() }); });
+
+describe('远程工具栏', () => {
+  it('三个按钮可操作，待上传数字紧邻推送图标并提供可读名称', () => {
+    const html = render();
+    expect(html).toContain('aria-label="获取"');
+    expect(html).toContain('aria-label="拉取"');
+    expect(html).toContain('aria-label="推送，3 个待上传提交"');
+    expect(html).toMatch(/codicon-arrow-up[^]*?remote-count[^]*?>3<\/span><\/span>推送/);
+    expect(html).not.toContain('disabled=""');
+  });
+
+  it.each([0, null])('待上传数量为 %s 时不显示数字', ahead => {
+    const html = render({ ...worktree, remote: { ...worktree.remote!, ahead } });
+    expect(html).not.toContain('remote-count');
+    expect(html).toContain('aria-label="推送"');
+  });
+
+  it('执行中只有当前图标旋转，所有远程按钮禁用', () => {
+    hooks.workbench.mockReturnValue({ busy: true, refreshing: false, remoteOperation: 'push', runRemote: vi.fn() });
+    const html = render();
+    expect(html).toContain('aria-label="推送中"');
+    expect(html.match(/codicon-loading spin/g)).toHaveLength(1);
+    expect(html.match(/disabled=""/g)).toHaveLength(3);
+  });
+
+  it('演示模式和无远程禁用全部操作，无上游只禁用拉取', () => {
+    expect(render({ ...worktree, source: undefined }).match(/disabled=""/g)).toHaveLength(3);
+    expect(render({ ...worktree, remote: { ...worktree.remote!, remotes: [] } }).match(/disabled=""/g)).toHaveLength(3);
+    expect(render({ ...worktree, remote: { ...worktree.remote!, upstream: null, upstreamRemote: null, upstreamBranch: null } }).match(/disabled=""/g)).toHaveLength(1);
+  });
+
+  it('分离 HEAD 和未完成合并阻止写分支，仍允许获取', () => {
+    for (const target of [{ ...worktree, detached: true }, { ...worktree, operation: { kind: 'merge' as const, head: 'a', mergeHeads: ['b'], message: 'merge', source: 'topic' } }]) {
+      expect(remoteBlockReason(target, 'fetch')).toBeNull();
+      expect(remoteBlockReason(target, 'pull')).not.toBeNull();
+      expect(remoteBlockReason(target, 'push')).not.toBeNull();
+    }
+    expect(remoteBlockReason({ ...worktree, remote: { ...worktree.remote!, upstreamRemote: '.' } }, 'push')).toContain('本地分支');
+  });
+});

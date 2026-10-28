@@ -23,6 +23,7 @@ pub mod watch;
 pub use watch::GitWatchState;
 pub mod history;
 pub mod merge;
+pub mod remote;
 use merge::{GitOperation, operation};
 
 #[cfg(target_os = "macos")]
@@ -41,6 +42,7 @@ pub struct GitRepository {
     pub has_head: bool,
     pub files: Vec<GitChange>,
     pub operation: Option<GitOperation>,
+    pub remote: remote::GitRemoteStatus,
 }
 
 /// 保留索引区和工作区的独立状态，避免部分暂存的文件被错误合并。
@@ -242,6 +244,7 @@ fn status(repo: &Path) -> GitResult<GitRepository> {
         has_head,
         files: changes(repo)?,
         operation: operation(repo)?,
+        remote: remote::remote_status(repo)?,
     })
 }
 

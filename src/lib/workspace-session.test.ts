@@ -12,6 +12,7 @@ const linked = { ...main, path: '/test/editor-preview', name: 'preview', branch:
 const editor: NativeRepository = {
   commonDir: '/test/editor/.git', repositoryName: 'editor', worktrees: [main, linked],
   path: main.path, name: main.name, branch: main.branch, hasHead: true, operation: null,
+  remote: { remotes: [], upstream: null, upstreamRemote: null, upstreamBranch: null, defaultRemote: null, ahead: null, behind: null },
   files: [{ path: 'first.ts', originalPath: null, statusIndex: ' ', statusWorktree: 'M', conflicted: false }],
 };
 const preview = { ...editor, path: linked.path, name: linked.name, branch: linked.branch };

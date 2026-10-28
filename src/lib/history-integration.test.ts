@@ -10,6 +10,7 @@ const linked: NativeWorktree = { ...main, path: '/test/history-feature', name: '
 const mainRepository: NativeRepository = {
   commonDir: '/test/history/.git', repositoryName: 'history', path: main.path, name: main.name, branch: main.branch,
   worktrees: [main, linked], hasHead: true, operation: null,
+  remote: { remotes: [], upstream: null, upstreamRemote: null, upstreamBranch: null, defaultRemote: null, ahead: null, behind: null },
   files: [{ path: 'working.ts', originalPath: null, statusIndex: ' ', statusWorktree: 'M', conflicted: false }],
 };
 const linkedRepository: NativeRepository = { ...mainRepository, path: linked.path, name: linked.name, branch: linked.branch };

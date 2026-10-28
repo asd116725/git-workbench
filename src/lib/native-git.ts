@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitFileStatus, GitMergePreview, GitMergeResult, GitOperation, Repository, Worktree } from './types';
+import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitFileStatus, GitMergePreview, GitMergeResult, GitOperation, GitRemoteResult, GitRemoteStatus, Repository, Worktree } from './types';
 
 /** 工作目录元数据不携带文件正文，未选中的目录保持懒加载。 */
 export interface NativeWorktree {
@@ -24,6 +24,7 @@ export interface NativeRepository {
   branch: string;
   hasHead: boolean;
   operation: GitOperation | null;
+  remote: GitRemoteStatus;
   files: Array<GitFileStatus & { path: string }>;
 }
 
@@ -59,6 +60,7 @@ export function toWorktree(repository: NativeRepository): Worktree {
     source: 'native',
     hasHead: repository.hasHead,
     operation: repository.operation,
+    remote: repository.remote,
     commits: [],
     files: repository.files.map(({ path, ...git }): FileSnapshot => ({
       id: path,
@@ -99,6 +101,9 @@ export const nativeGit = {
   watch: (repoPath: string | null) => invoke<void>('git_watch', { repoPath }),
   open: (path: string) => invoke<NativeRepository>('git_open', { path }),
   status: (repoPath: string) => invoke<NativeRepository>('git_status', { repoPath }),
+  fetch: (repoPath: string) => invoke<GitRemoteResult>('git_fetch', { repoPath }),
+  pull: (repoPath: string) => invoke<GitRemoteResult>('git_pull', { repoPath }),
+  push: (repoPath: string, remote?: string) => invoke<GitRemoteResult>('git_push', { repoPath, remote: remote ?? null }),
   branches: (repoPath: string) => invoke<GitBranch[]>('git_branches', { repoPath }),
   checkout: (repoPath: string, fullName: string) => invoke<GitCheckoutResult>('git_checkout', { repoPath, fullName }),
   createBranch: (repoPath: string, name: string, startRef: string, checkout: boolean) => invoke<GitCreateBranchResult>('git_create_branch', { repoPath, name, startRef, checkout }),

@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { ChangeTreeNode } from '../lib/change-tree';
 import type { FileSnapshot } from '../lib/types';
+import { FolderIcon } from './FileIcon';
 
 /** 目录展开状态由稳定路径保留，文件选择和暂存操作复用列表视图的同一行。 */
 export function ChangeFileTree({ nodes, selectedFileId, renderFile, renderDirectoryAction }: {
@@ -19,8 +20,8 @@ export function ChangeFileTree({ nodes, selectedFileId, renderFile, renderDirect
         <Collapsible defaultOpen className="change-directory">
           <div className="change-directory-heading"><CollapsibleTrigger className="change-directory-row" title={`${node.path} · ${node.fileCount} 个变更文件`} aria-label={`文件夹 ${node.path}`}>
             <i className="codicon codicon-chevron-down directory-chevron" aria-hidden="true" />
-            <i className="codicon codicon-folder directory-icon-closed" aria-hidden="true" />
-            <i className="codicon codicon-folder-opened directory-icon-open" aria-hidden="true" />
+            <FolderIcon path={node.path} expanded={false} className="directory-icon-closed" />
+            <FolderIcon path={node.path} expanded className="directory-icon-open" />
             <span>{node.name}</span><small>{node.fileCount}</small>
           </CollapsibleTrigger>{renderDirectoryAction?.(node.path)}</div>
           <CollapsibleContent><ul className={`change-tree-children${hasSelectedFile ? ' active-indent-guide' : ''}`}>{renderNodes(node.children, depth + 1)}</ul></CollapsibleContent>

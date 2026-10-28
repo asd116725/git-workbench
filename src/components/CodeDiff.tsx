@@ -6,6 +6,7 @@ import type { ChangeArea, FileSnapshot } from '../lib/types';
 import { monaco } from '../lib/monaco';
 import { getEditorLanguage } from '../lib/syntax-highlighter';
 import { createDiffContentUpdater } from '../lib/diff-content';
+import { FileIcon } from './FileIcon';
 import './code-diff.css';
 
 /** 差异面板只负责展示与选择，暂存操作交给仓库业务层。 */
@@ -186,7 +187,7 @@ function ActiveCodeDiff({
     <section className="code-diff-root" aria-label={`${fileName} 的代码差异`}>
       <div className="code-diff-tabs">
         <div className="code-diff-tab">
-          <span className="code-diff-file-icon"><CodeIcon name="file-code" /></span>
+          <FileIcon path={file.path} language={file.language} />
           <span className="code-diff-tab-name">{fileName}</span>
           <button className="code-diff-icon-button code-diff-close" onClick={onClose} title="关闭文件" aria-label="关闭文件">
             <CodeIcon name="close" />
