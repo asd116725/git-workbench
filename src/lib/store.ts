@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { createDemoRepositories } from './demo-data';
 import { commitWorktree, getChanges, stageFile, stageHunk, unstageFile } from './demo-git';
-import { createDemoBranch, createDemoBranchState, deleteDemoBranch, listDemoBranches, previewDemoBranchDeletion, recordDemoBranchCommit, switchDemoBranch, type DemoBranchState } from './demo-branches';
+import { createDemoBranch, createDemoBranchState, deleteDemoBranch, listDemoBranches, previewDemoBranchDeletion, recordDemoBranchCommit, switchDemoBranch, withDemoBranchSync, type DemoBranchState } from './demo-branches';
 import { nativeGit, toRepository, toWorktree } from './native-git';
 import { commitBlockReason } from './merge-view';
 import { remoteBlockReason } from './remote-view';
@@ -168,12 +168,35 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   /** 演示分支按共享仓库保存于内存，切换工作区仍能看到刚创建的分支。 */
   function demoBranches(worktree: Worktree) {
     const repository = get().repositories.find(item => item.worktrees.some(item => item.id === worktree.id))!;
+    return { id: repository.id, state: demoState(repository) };
+  }
+
+  function demoState(repository: Repository) {
     let state = demoBranchStates.get(repository.id);
     if (!state) {
       state = createDemoBranchState(repository);
       demoBranchStates.set(repository.id, state);
     }
-    return { id: repository.id, state };
+    return state;
+  }
+
+  function freshState() {
+    const state = initialState();
+    state.repositories = state.repositories.map(repository => withDemoBranchSync(repository, demoState(repository)));
+    return state;
+  }
+
+  function refreshDemoSync() {
+    set(state => ({ repositories: state.repositories.map(repository => repository.worktrees[0]?.source === 'native'
+      ? repository : withDemoBranchSync(repository, demoState(repository))) }));
+  }
+
+  /** 仓库状态读取失败后失效同组快照，避免共享引用更新后仍显示旧数字。 */
+  function invalidateBranchSync(worktree: Worktree) {
+    const repository = get().repositories.find(item => item.worktrees.some(item => item.id === worktree.id));
+    if (!repository?.worktrees.some(item => item.branchSync)) return;
+    set(state => ({ repositories: state.repositories.map(repository => repository.worktrees.some(item => item.id === worktree.id)
+      ? { ...repository, worktrees: repository.worktrees.map(item => ({ ...item, branchSync: null })) } : repository) }));
   }
 
   /** 以主工作区作为稳定入口；不可用路径保留在记录中，避免一次恢复失败就丢失。 */
@@ -241,6 +264,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       })),
       selection,
     });
+    if (worktree.source !== 'native') refreshDemoSync();
     void loadDiff(worktree, selection);
   }
 
@@ -337,6 +361,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     try {
       void applyNativeRepository(await nativeGit.status(worktree.path), get().selection);
     } catch (error) {
+      invalidateBranchSync(worktree);
       set(state => ({
         error: `${failurePrefix}：${errorMessage(error)}`, diff: emptyDiff,
         repositories: state.repositories.map(repository => ({
@@ -351,7 +376,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   async function applyBranchSwitch(worktree: Worktree, branch: string) {
     ++diffVersion;
     const real = worktree.source === 'native';
-    const updated = { ...worktree, branch, detached: false, hasHead: true, remote: undefined, files: real ? [] : worktree.files };
+    const updated = { ...worktree, branch, detached: false, hasHead: true, remote: undefined, branchSync: null, files: real ? [] : worktree.files };
     set(state => ({
       repositories: state.repositories.map(repository => ({
         ...repository,
@@ -363,6 +388,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       view: 'changes',
     }));
     if (real) await refreshAfterMutation(worktree);
+    else refreshDemoSync();
   }
 
   /** 仅修改引用时保留阅读状态；已完成的写入不因随后刷新失败而变成操作失败。 */
@@ -372,6 +398,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     try {
       const result = await action();
       if (result.switched) await applyBranchSwitch(worktree, result.branch);
+      else if (worktree.source !== 'native') refreshDemoSync();
       await loadBranches(currentWorktree());
       const warning = [result.warning, get().error, get().branches.error && `操作已完成，但分支列表刷新失败：${get().branches.error}`].filter(Boolean).join('\n') || null;
       return { ...result, warning };
@@ -447,7 +474,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   }
 
   return {
-    ...initialState(),
+    ...freshState(),
     runRemote: async (action, remote) => {
       const worktree = currentWorktree();
       const blocked = remoteBlockReason(worktree, action);
@@ -503,7 +530,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       const worktree = findWorktree(get().repositories, get().activeWorktreeId);
       if (!worktree || get().busy) return;
       if (silent && (get().refreshing || get().autoRefreshing)) return;
-      if (worktree.source !== 'native') { void loadDiff(worktree, get().selection); return; }
+      if (worktree.source !== 'native') { refreshDemoSync(); void loadDiff(worktree, get().selection); return; }
       const version = ++statusVersion;
       const autoVersion = silent ? ++autoRefreshVersion : autoRefreshVersion;
       set(silent ? { autoRefreshing: true, autoRefreshError: null } : { refreshing: true, error: null, autoRefreshError: null });
@@ -513,9 +540,12 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
           await applyNativeRepository(result, get().selection, silent);
         }
       } catch (error) {
-        if (version === statusVersion) set(silent
-          ? { autoRefreshError: `自动刷新失败，可点击「刷新」重试：${errorMessage(error)}` }
-          : { error: errorMessage(error) });
+        if (version === statusVersion) {
+          invalidateBranchSync(worktree);
+          set(silent
+            ? { autoRefreshError: `自动刷新失败，可点击「刷新」重试：${errorMessage(error)}` }
+            : { error: errorMessage(error) });
+        }
       } finally {
         if (silent && autoVersion === autoRefreshVersion) set({ autoRefreshing: false });
         if (!silent && version === statusVersion) set({ refreshing: false });
@@ -700,7 +730,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       ++autoRefreshVersion;
       restorePromise = undefined;
       demoBranchStates.clear();
-      set(initialState());
+      set(freshState());
     },
   };
 });

@@ -6,6 +6,19 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-29
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#150---2026-10-29)
+
+- Show each worktree's incoming and outgoing commit counts beside its branch in the repository sidebar, with upstream details on hover and support for narrow sidebars.
+- Compare each branch with its own upstream, including worktree-specific and conditional Git configuration. Counts use locally fetched refs; displaying them does not trigger a fetch. Hide numbers when synchronized, without an upstream, or unknown, and clear stale counts when refresh fails.
+- Keep complete counts and truncated branch names in narrow sidebars, and provide synchronization explanations in Simplified Chinese, Traditional Chinese, and English. Explanatory tooltips do not block clicks on adjacent worktrees.
+- Remove the duplicate branch name and shortcut hint below the commit button.
+
+This release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md). Browser interface flows and real temporary Git repositories have been tested; native-window interaction remains pending verification.
+
+Save commit drafts and quit the previous version completely with `⌘Q` before upgrading. Verify `GitWorkbench_1.5.0_macos_arm64.dmg` against `SHA256SUMS.txt` from the same release before installing.
+
 ## [1.4.0] - 2026-10-28
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#140---2026-10-28)

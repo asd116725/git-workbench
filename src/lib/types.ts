@@ -48,6 +48,15 @@ export interface Worktree {
   prunable?: string | null;
   operation?: GitOperation | null;
   remote?: GitRemoteStatus;
+  /** 各工作区自身分支的同步快照；缺失时不能沿用旧分支数字。 */
+  branchSync?: GitBranchSync | null;
+}
+
+/** 分支相对自身上游的本地引用差异；null 计数表示未知。 */
+export interface GitBranchSync {
+  upstream: string | null;
+  ahead: number | null;
+  behind: number | null;
 }
 
 /** 计数来自本地已获取的远程引用；null 表示当前无法确定，不能按零展示。 */
@@ -75,17 +84,13 @@ export interface Repository {
 }
 
 /** fullName 是原生命令的精确引用；远程分支切换后创建对应的本地跟踪分支。 */
-export interface GitBranch {
+export interface GitBranch extends GitBranchSync {
   fullName: string;
   name: string;
   kind: 'local' | 'remote';
   current: boolean;
   worktreePath: string | null;
-  upstream: string | null;
   localName: string | null;
-  /** 相对自身上游的提交差异；未配置或无法读取上游时为 null，不能视为同步。 */
-  ahead: number | null;
-  behind: number | null;
   lastCommit: {
     shortHash: string;
     author: string;

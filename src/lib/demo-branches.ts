@@ -72,6 +72,19 @@ function demoSyncCounts(state: DemoBranchState, branch: DemoBranch): Pick<GitBra
   };
 }
 
+/** 侧栏与分支列表共享演示引用，提交与切换后重新投影各工作区状态。 */
+export function withDemoBranchSync(repository: Repository, state: DemoBranchState): Repository {
+  return {
+    ...repository,
+    worktrees: repository.worktrees.map(worktree => {
+      const branch = state.branches[`refs/heads/${worktree.branch}`];
+      const branchSync = branch && !worktree.detached && !worktree.bare && worktree.available !== false && worktree.hasHead !== false
+        ? { upstream: branch.upstream, ...demoSyncCounts(state, branch) } : null;
+      return { ...worktree, branchSync };
+    }),
+  };
+}
+
 /** 当前工作区的实时分支覆盖缓存，其余占用随演示切换同步。 */
 function occupiedWorktree(state: DemoBranchState, worktree: Worktree, name: string) {
   return state.worktrees.map(item => item.id === worktree.id ? worktree : item)

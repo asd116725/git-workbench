@@ -1,6 +1,6 @@
 import { getLanguage, t } from '../lib/i18n';
 import { translateMessage } from '../lib/i18n-system';
-import type { GitBranch, Worktree } from '../lib/types';
+import type { GitBranch, GitBranchSync, Worktree } from '../lib/types';
 
 /** 提交时间为 Unix 秒，保留未来时间语义，避免系统时钟差异显示成负数。 */
 export function commitAge(committedAt: number) {
@@ -23,8 +23,21 @@ export function branchLabel(worktree: Worktree): string {
 
 /** 分支差异始终相对该分支的上游，不代表服务器刚刚获取到的最新状态。 */
 export function branchSyncDescription(branch: GitBranch): string | null {
-  if (branch.kind !== 'local' || !branch.upstream) return null;
+  return branch.kind === 'local' && branch.upstream ? syncDescription(branch) : null;
+}
+
+/** 侧栏和分支选择器使用同一套差异文案，名称参数保持原文。 */
+function syncDescription(branch: GitBranchSync): string {
+  if (!branch.upstream) return t('未设置上游分支。');
   if (branch.ahead == null || branch.behind == null) return t('无法确定与上游 {upstream} 的提交差异；请先获取远程更新。', { upstream: branch.upstream });
   if (branch.ahead === 0 && branch.behind === 0) return t('已与上游 {upstream} 同步。数量基于最近获取的引用。', { upstream: branch.upstream });
   return t('相对上游 {upstream}：待拉取 {behind} 个提交，待推送 {ahead} 个提交。数量基于最近获取的引用。', { upstream: branch.upstream, behind: branch.behind, ahead: branch.ahead });
+}
+
+/** 工作区无法比较时隐藏数字，并把缺少上游与尚未读取分开说明。 */
+export function worktreeSyncDescription(worktree: Worktree): string | null {
+  if (worktree.detached || worktree.bare || worktree.available === false) return null;
+  const sync = worktree.branchSync;
+  if (!sync) return t('尚未获得同步状态，请刷新或获取远程更新后重试。');
+  return syncDescription(sync);
 }

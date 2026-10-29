@@ -1,5 +1,7 @@
 /** 应用界面文案；分支、路径、提交信息与文件内容始终保留原文。 */
 export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
+  "未设置上游分支。": { "en": "No upstream branch is configured.", "zh-TW": "未設定上游分支。" },
+  "尚未获得同步状态，请刷新或获取远程更新后重试。": { "en": "Sync status is unavailable. Refresh or fetch remote updates and try again.", "zh-TW": "尚未取得同步狀態，請重新整理或取得遠端更新後重試。" },
   "无法确定与上游 {upstream} 的提交差异；请先获取远程更新。": {
     "en": "Commit differences from upstream {upstream} are unavailable. Fetch remote updates first.",
     "zh-TW": "無法確定與上游 {upstream} 的提交差異；請先擷取遠端更新。"

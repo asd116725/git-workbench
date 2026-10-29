@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitFileStatus, GitMergePreview, GitMergeResult, GitOperation, GitRemoteResult, GitRemoteStatus, Repository, Worktree } from './types';
+import type { ChangeArea, FileSnapshot, GitBranch, GitBranchSync, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitFileStatus, GitMergePreview, GitMergeResult, GitOperation, GitRemoteResult, GitRemoteStatus, Repository, Worktree } from './types';
 
 /** 工作目录元数据不携带文件正文，未选中的目录保持懒加载。 */
 export interface NativeWorktree {
@@ -12,6 +12,7 @@ export interface NativeWorktree {
   locked: string | null;
   prunable: string | null;
   available: boolean;
+  branchSync?: GitBranchSync | null;
 }
 
 /** 原生命令只返回当前工作目录的状态，同时列出共享仓库的全部 worktree。 */
@@ -53,6 +54,7 @@ export function toWorktree(repository: NativeRepository): Worktree {
   const metadata = repository.worktrees.find(worktree => worktree.path === repository.path);
   return {
     ...metadata,
+    branchSync: metadata?.branch === repository.branch ? metadata.branchSync ?? null : null,
     id: `native:${repository.path}`,
     name: metadata?.name ?? repository.name,
     branch: repository.branch,
@@ -88,6 +90,7 @@ export function toRepository(result: NativeRepository, previous?: Repository): R
         commits: [],
         ...cached,
         ...metadata,
+        branchSync: metadata.branchSync ?? null,
         id: `native:${metadata.path}`,
         source: 'native',
       };

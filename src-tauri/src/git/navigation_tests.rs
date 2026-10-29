@@ -194,3 +194,243 @@ fn porcelain_preserves_paths_and_optional_reasons() {
     assert!(parsed[1].detached && !parsed[1].available);
     assert_eq!(parsed[2].locked.as_deref(), Some(""));
 }
+
+#[test]
+fn worktree_counts_follow_each_branch_without_fetching_or_touching_files() {
+    let fixture = TrackingFixture::new();
+    let repo = &fixture.local;
+    let root = repo.parent().unwrap();
+    git(repo, &["branch", "topic", "--track", "origin/main"]).unwrap();
+    git(
+        repo,
+        &["worktree", "add", fixture.linked.to_str().unwrap(), "topic"],
+    )
+    .unwrap();
+    commit_empty(&fixture.linked, "topic one");
+    commit_empty(&fixture.linked, "topic two");
+    commit_empty(&fixture.peer, "remote one");
+    git(&fixture.peer, &["push", "origin", "main"]).unwrap();
+
+    let fetched_before = git_line(repo, &["rev-parse", "origin/main"]).unwrap();
+    let before = worktrees(repo).unwrap();
+    let before_main = before
+        .iter()
+        .find(|item| item.is_main)
+        .unwrap()
+        .branch_sync
+        .as_ref()
+        .unwrap();
+    let before_topic = before
+        .iter()
+        .find(|item| item.branch == "topic")
+        .unwrap()
+        .branch_sync
+        .as_ref()
+        .unwrap();
+    assert_eq!((before_main.ahead, before_main.behind), (Some(0), Some(0)));
+    assert_eq!(
+        (before_topic.ahead, before_topic.behind),
+        (Some(2), Some(0))
+    );
+    assert_eq!(
+        git_line(repo, &["rev-parse", "origin/main"]).unwrap(),
+        fetched_before
+    );
+
+    git(repo, &["fetch", "origin"]).unwrap();
+    for (name, start, tracking) in [
+        ("synced", "origin/main", "--track"),
+        ("local-only", "main", "--no-track"),
+        ("missing-dir", "origin/main", "--track"),
+    ] {
+        git(repo, &["branch", name, tracking, start]).unwrap();
+        git(
+            repo,
+            &["worktree", "add", root.join(name).to_str().unwrap(), name],
+        )
+        .unwrap();
+    }
+    git(
+        repo,
+        &[
+            "worktree",
+            "add",
+            "--detach",
+            root.join("detached").to_str().unwrap(),
+            "HEAD",
+        ],
+    )
+    .unwrap();
+    fs::remove_dir_all(root.join("missing-dir")).unwrap();
+    fs::write(repo.join("dirty.txt"), "staged\n").unwrap();
+    git(repo, &["add", "dirty.txt"]).unwrap();
+    fs::write(repo.join("dirty.txt"), "working\n").unwrap();
+    let index_before = fs::read(repo.join(".git/index")).unwrap();
+    let head_before = git_line(repo, &["rev-parse", "HEAD"]).unwrap();
+
+    for entry in [repo, &fixture.linked] {
+        let rows = worktrees(entry).unwrap();
+        for (name, expected) in [
+            ("main", (Some(0), Some(1))),
+            ("topic", (Some(2), Some(1))),
+            ("synced", (Some(0), Some(0))),
+            ("local-only", (None, None)),
+        ] {
+            let row = rows.iter().find(|row| row.branch == name).unwrap();
+            let sync = row.branch_sync.as_ref().unwrap();
+            assert_eq!((sync.ahead, sync.behind), expected, "{name}");
+            assert_eq!(
+                sync.upstream.as_deref(),
+                (name != "local-only").then_some("refs/remotes/origin/main")
+            );
+        }
+        assert!(
+            rows.iter()
+                .find(|row| row.detached)
+                .unwrap()
+                .branch_sync
+                .is_none()
+        );
+        assert!(
+            rows.iter()
+                .find(|row| row.branch == "missing-dir")
+                .unwrap()
+                .branch_sync
+                .is_none()
+        );
+    }
+    assert_eq!(fs::read(repo.join(".git/index")).unwrap(), index_before);
+    assert_eq!(git_line(repo, &["rev-parse", "HEAD"]).unwrap(), head_before);
+    assert_eq!(fs::read(repo.join("dirty.txt")).unwrap(), b"working\n");
+}
+
+#[test]
+fn worktree_sync_preserves_unknown_upstream_and_serializes_ipc_fields() {
+    let fixture = TrackingFixture::new();
+    let repo = &fixture.local;
+    git(repo, &["update-ref", "-d", "refs/remotes/origin/main"]).unwrap();
+    let rows = worktrees(repo).unwrap();
+    let sync = rows[0].branch_sync.as_ref().unwrap();
+    assert_eq!(sync.upstream.as_deref(), Some("refs/remotes/origin/main"));
+    assert_eq!((sync.ahead, sync.behind), (None, None));
+    let tauri::ipc::InvokeResponseBody::Json(json) =
+        tauri::ipc::IpcResponse::body(&rows[0]).unwrap()
+    else {
+        panic!("工作区元数据应序列化为 JSON");
+    };
+    assert!(json.contains(
+        "\"branchSync\":{\"upstream\":\"refs/remotes/origin/main\",\"ahead\":null,\"behind\":null}"
+    ));
+}
+
+#[test]
+fn worktree_sync_read_failure_does_not_hide_worktrees() {
+    let fixture = TrackingFixture::new();
+    let repo = &fixture.local;
+    // Git 保留配置里的原始字节；同步列表无法解码时，正常工作区仍须可用。
+    git(repo, &["config", "--unset-all", "branch.main.merge"]).unwrap();
+    let config_path = repo.join(".git/config");
+    let mut config = fs::read(&config_path).unwrap();
+    config
+        .extend_from_slice(b"\n[branch \"main\"]\nremote = .\nmerge = refs/heads/upstream-\xff\n");
+    fs::write(config_path, config).unwrap();
+    assert!(worktree_branch_sync(repo, "refs/heads/").is_err());
+    let rows = worktrees(repo).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert!(rows[0].available);
+    assert_eq!(rows[0].branch, "main");
+    assert!(rows[0].branch_sync.is_none());
+}
+
+#[test]
+fn unborn_worktree_has_no_sync_status() {
+    let directory = tempfile::tempdir().unwrap();
+    let repo = fs::canonicalize(directory.path()).unwrap();
+    git(&repo, &["init", "-b", "main"]).unwrap();
+    let rows = worktrees(&repo).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].branch, "main");
+    assert!(rows[0].branch_sync.is_none());
+}
+
+#[test]
+fn worktree_upstream_configuration_is_resolved_in_each_worktree_context() {
+    for mode in ["worktree", "onbranch", "gitdir"] {
+        let fixture = TrackingFixture::new();
+        let repo = &fixture.local;
+        git(repo, &["branch", "--no-track", "topic", "main"]).unwrap();
+        git(
+            repo,
+            &["worktree", "add", fixture.linked.to_str().unwrap(), "topic"],
+        )
+        .unwrap();
+        commit_empty(repo, "advance main");
+        if mode == "worktree" {
+            git(repo, &["config", "extensions.worktreeConfig", "true"]).unwrap();
+            git(
+                &fixture.linked,
+                &["config", "--worktree", "branch.topic.remote", "."],
+            )
+            .unwrap();
+            git(
+                &fixture.linked,
+                &[
+                    "config",
+                    "--worktree",
+                    "branch.topic.merge",
+                    "refs/heads/main",
+                ],
+            )
+            .unwrap();
+        } else {
+            let included = repo.parent().unwrap().join("topic.config");
+            fs::write(
+                &included,
+                "[branch \"topic\"]\nremote = .\nmerge = refs/heads/main\n",
+            )
+            .unwrap();
+            let condition = if mode == "onbranch" {
+                "onbranch:topic".into()
+            } else {
+                format!(
+                    "gitdir:{}",
+                    git_line(&fixture.linked, &["rev-parse", "--absolute-git-dir"]).unwrap()
+                )
+            };
+            git(
+                repo,
+                &[
+                    "config",
+                    &format!("includeIf.{condition}.path"),
+                    included.to_str().unwrap(),
+                ],
+            )
+            .unwrap();
+        }
+        for entry in [repo, &fixture.linked] {
+            let rows = worktrees(entry).unwrap();
+            let main = rows
+                .iter()
+                .find(|row| row.is_main)
+                .unwrap()
+                .branch_sync
+                .as_ref()
+                .unwrap();
+            let topic = rows
+                .iter()
+                .find(|row| row.branch == "topic")
+                .unwrap()
+                .branch_sync
+                .as_ref()
+                .unwrap();
+            assert_eq!(
+                main.upstream.as_deref(),
+                Some("refs/remotes/origin/main"),
+                "{mode}"
+            );
+            assert_eq!((main.ahead, main.behind), (Some(1), Some(0)), "{mode}");
+            assert_eq!(topic.upstream.as_deref(), Some("refs/heads/main"), "{mode}");
+            assert_eq!((topic.ahead, topic.behind), (Some(0), Some(1)), "{mode}");
+        }
+    }
+}

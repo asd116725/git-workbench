@@ -13,6 +13,17 @@ pub struct GitWorktreeInfo {
     pub locked: Option<String>,
     pub prunable: Option<String>,
     pub available: bool,
+    /// null 表示尚无法读取；对象中的空上游表示已确认此分支未配置跟踪关系。
+    pub branch_sync: Option<GitBranchSync>,
+}
+
+/// 计数只比较当前分支与本地已获取的上游引用，不触发网络访问。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitBranchSync {
+    pub upstream: Option<String>,
+    pub ahead: Option<u64>,
+    pub behind: Option<u64>,
 }
 
 /// fullName 是切换操作的唯一标识；远程分支的 localName 按实际 remote 名称去除前缀。
@@ -81,6 +92,7 @@ fn parse_worktrees(bytes: &[u8]) -> GitResult<Vec<GitWorktreeInfo>> {
             locked: None,
             prunable: None,
             available: canonical.is_some_and(|path| path.is_dir()),
+            branch_sync: None,
         };
         let mut head = "";
         for field in fields {
@@ -131,8 +143,81 @@ fn parse_worktrees(bytes: &[u8]) -> GitResult<Vec<GitWorktreeInfo>> {
     Ok(result)
 }
 
-pub(super) fn worktrees(repo: &Path) -> GitResult<Vec<GitWorktreeInfo>> {
+fn worktree_metadata(repo: &Path) -> GitResult<Vec<GitWorktreeInfo>> {
     parse_worktrees(&git(repo, &["worktree", "list", "--porcelain", "-z"])?)
+}
+
+pub(super) fn worktrees(repo: &Path) -> GitResult<Vec<GitWorktreeInfo>> {
+    let mut worktrees = worktree_metadata(repo)?;
+    // worktree 配置和条件 include 可改变上游；此时须在各目录中让 Git 求值。
+    let contextual = git_line(
+        repo,
+        &[
+            "config",
+            "--get-regexp",
+            r"^(extensions\.worktreeconfig|includeif\..*\.path)$",
+        ],
+    )
+    .is_ok();
+    let shared_sync = (!contextual)
+        .then(|| worktree_branch_sync(repo, "refs/heads/").ok())
+        .flatten();
+    // 同步状态属于附加信息，读取失败不应阻止展示或切换工作区。
+    for worktree in &mut worktrees {
+        if worktree.available && !worktree.detached && !worktree.bare {
+            worktree.branch_sync = if contextual {
+                worktree_branch_sync(
+                    Path::new(&worktree.path),
+                    &format!("refs/heads/{}", worktree.branch),
+                )
+                .ok()
+                .and_then(|mut sync| sync.remove(&worktree.branch))
+            } else {
+                shared_sync
+                    .as_ref()
+                    .and_then(|sync| sync.get(&worktree.branch))
+                    .cloned()
+            };
+        }
+    }
+    Ok(worktrees)
+}
+
+/// 仅批量读取所选本地分支的跟踪信息，不加载工作区文件状态。
+fn worktree_branch_sync(repo: &Path, reference: &str) -> GitResult<HashMap<String, GitBranchSync>> {
+    let output = command(repo)
+        .env("LC_ALL", "C")
+        .args([
+            "for-each-ref",
+            "--format=%(refname)%00%(upstream)%00%(upstream:track,nobracket)%00%(upstream:trackshort)%00",
+            reference,
+        ])
+        .output()
+        .map_err(|error| format!("无法运行 Git，请确认已安装 Git：{error}"))?;
+    let output = utf8(checked(output)?)?;
+    let mut result = HashMap::new();
+    for line in output.lines() {
+        let mut fields = line.split('\0');
+        let name = fields
+            .next()
+            .and_then(|name| name.strip_prefix("refs/heads/"))
+            .ok_or("无法解析 Git 分支列表。")?;
+        let upstream = fields.next().ok_or("Git 分支记录不完整。")?;
+        let tracking = fields.next().ok_or("Git 分支记录不完整。")?;
+        let short = fields.next().ok_or("Git 分支记录不完整。")?;
+        let counts = (!upstream.is_empty())
+            .then(|| tracking_counts(tracking, short))
+            .flatten();
+        result.insert(
+            name.into(),
+            GitBranchSync {
+                upstream: (!upstream.is_empty()).then(|| upstream.into()),
+                ahead: counts.map(|counts| counts.0),
+                behind: counts.map(|counts| counts.1),
+            },
+        );
+    }
+    Ok(result)
 }
 
 /// 只有 Git 明确给出同步状态时才返回零，未知跟踪状态不能伪装成已同步。
@@ -150,7 +235,7 @@ fn tracking_counts(tracking: &str, short: &str) -> Option<(u64, u64)> {
 }
 
 pub(super) fn branches(repo: &Path) -> GitResult<Vec<GitBranch>> {
-    let worktrees = worktrees(repo)?;
+    let worktrees = worktree_metadata(repo)?;
     let current = worktrees
         .iter()
         .find(|worktree| Path::new(&worktree.path) == repo);

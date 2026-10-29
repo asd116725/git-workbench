@@ -20,12 +20,13 @@ import { CodeDiff } from './components/CodeDiff';
 import { HistoryView } from './components/HistoryView';
 import { useHistory } from './lib/history-store';
 import { BranchPickerDialog } from './components/BranchPickerDialog';
+import { BranchSyncCounts } from './components/BranchSyncStatus';
 import { MergeBranchDialog } from './components/MergeBranchDialog';
 import { MergeStatusBanner } from './components/MergeStatusBanner';
 import { RemoteActions } from './components/RemoteActions';
 import { ChangeFileTree } from './components/ChangeFileTree';
 import { FileIcon } from './components/FileIcon';
-import { branchLabel, worktreeLabel } from './components/branch-display';
+import { branchLabel, worktreeLabel, worktreeSyncDescription } from './components/branch-display';
 import { buildChangeTree } from './lib/change-tree';
 import { findWorktree, getMergeMessage, usePreferences, useWorkbench } from './lib/store';
 import { commitBlockReason, mergeStartBlockReason } from './lib/merge-view';
@@ -66,14 +67,16 @@ function RepositorySidebar({ onOpen, onSettings }: { onOpen: () => void; onSetti
             if (!active && first) selectWorktree(first.id);
             setExpanded(value => ({ ...value, [repository.id]: active ? !open : true }));
           }}><Icon name={open ? 'chevron-down' : 'chevron-right'} /><Icon name="repo" /><span>{repository.name}</span><small className="repository-worktree-count" title={t("{value1} 个工作区", { value1: repository.worktrees.length })}>{repository.worktrees.length}</small></button>
-          {open && <div className="worktree-list">{repository.worktrees.map(worktree => <button
-            key={worktree.id}
+          {open && <div className="worktree-list">{repository.worktrees.map(worktree => {
+            const syncDescription = worktreeSyncDescription(worktree);
+            const details = [branchLabel(worktree), worktree.path, syncDescription, worktree.locked !== undefined && worktree.locked !== null ? t("锁定：{value1}", { value1: worktree.locked || t("已锁定") }) : '', worktree.prunable ? t("可清理：{value1}", { value1: worktree.prunable }) : ''].filter(Boolean).join('\n');
+            return <Tooltip key={worktree.id}><TooltipTrigger asChild><button
             disabled={busy || worktree.available === false || worktree.bare}
             className={`worktree-row ${activeWorktreeId === worktree.id ? 'selected' : ''}`}
             aria-current={activeWorktreeId === worktree.id ? 'page' : undefined}
             onClick={() => selectWorktree(worktree.id)}
-            title={[worktree.path, worktree.locked !== undefined && worktree.locked !== null ? t("锁定：{value1}", { value1: worktree.locked || t("已锁定") }) : '', worktree.prunable ? t("可清理：{value1}", { value1: worktree.prunable }) : ''].filter(Boolean).join('\n')}
-          ><Icon name={worktree.isMain ? 'repo' : 'worktree'} /><span className="worktree-copy"><span>{worktreeLabel(worktree)}</span><span className="worktree-branch"><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} />{worktree.bare ? t("裸仓库") : worktree.available === false ? t("目录不可用") : branchLabel(worktree)}</span></span>{worktree.locked !== undefined && worktree.locked !== null && <Icon name="lock" className="worktree-lock" />}</button>)}</div>}
+          ><Icon name={worktree.isMain ? 'repo' : 'worktree'} /><span className="worktree-copy"><span>{worktreeLabel(worktree)}</span><span className="worktree-branch"><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="worktree-branch-name">{worktree.bare ? t("裸仓库") : worktree.available === false ? t("目录不可用") : branchLabel(worktree)}</span>{syncDescription && <BranchSyncCounts sync={worktree.branchSync} />}</span></span>{syncDescription && <span className="sr-only">{syncDescription}</span>}{worktree.locked !== undefined && worktree.locked !== null && <Icon name="lock" className="worktree-lock" />}</button></TooltipTrigger><TooltipContent className="worktree-tooltip">{details}</TooltipContent></Tooltip>;
+          })}</div>}
         </div>;
       })}
     </nav>
@@ -158,7 +161,6 @@ function CommitComposer({ worktree, busy, onCommit }: { worktree: Worktree; busy
     </FieldGroup>
     {blocked && (worktree.operation || worktree.files.some(file => file.git?.conflicted)) && <p className="commit-warning">{translateMessage(blocked)}</p>}
     <Button type="submit" className="commit-button" disabled={!ready} title={blocked ? translateMessage(blocked) : undefined}><Icon name={busy ? 'loading' : merging ? 'git-merge' : 'check'} className={busy ? 'spin' : ''} />{busy ? t("正在处理…") : merging ? t("完成合并") : t("提交 {value1} 个文件", { value1: stagedCount })}</Button>
-    <div className="commit-target"><Icon name="git-branch" /><span className="truncate">{branchLabel(worktree)}</span><kbd>⌘ ↵</kbd></div>
   </form>;
 }
 

@@ -2,7 +2,7 @@
 
 **English** | [简体中文](zh-CN/user-manual.md)
 
-This manual covers the stable `1.4.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.4.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.4.0). The browser uses separate demo data and does not access real repositories.
+This manual covers the stable `1.5.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.5.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.5.0). The browser uses separate demo data and does not access real repositories.
 
 Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-refreshing-and-settings). Screenshots show the English interface with fictional demo data.
 
@@ -34,6 +34,8 @@ If opening fails, check that the directory exists, your account can access it, a
 ## 3. Worktrees
 
 When a repository opens, the app reads the linked worktrees registered with Git and lists them under the same repository. Each entry shows its name and branch; click one to change the operation target.
+
+**Available since 1.5.0:** the sidebar shows `↓` incoming and `↑` outgoing commit counts beside each worktree's branch. Each branch is compared with its own upstream. Both counts appear when either is nonzero, for example `↓0 ↑3`; synchronized branches, branches without an upstream, and unknown counts show no numbers. Narrow sidebars preserve the counts and truncate the branch name; hover to read the full name and synchronization details. Counts use the most recently fetched local refs and displaying them does not contact the remote. Select the relevant worktree and click **Fetch** when you need updated remote refs.
 
 Each worktree has its own files, index, and commit draft for the current session. Staging and committing affect only the selected worktree. Check the path in the bottom bar before switching targets.
 

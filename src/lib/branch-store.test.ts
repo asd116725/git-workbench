@@ -51,6 +51,41 @@ beforeEach(() => {
 });
 
 describe('分支管理写入与阅读状态', () => {
+  it('状态读取失败清空同仓库各工作区同步数字，恢复读取后重新展示', async () => {
+    const sync = { upstream: 'refs/remotes/origin/main', ahead: 2, behind: 0 };
+    repository = { ...initial, worktrees: [
+      { ...metadata, branchSync: sync },
+      { ...metadata, path: '/test/linked', branch: 'feature', isMain: false, branchSync: { ...sync, ahead: 0, behind: 5 } },
+    ] };
+    await useWorkbench.getState().openRepository(repository.path);
+    useWorkbench.getState().setDraft({ message: '保留草稿' });
+    const before = currentWorktree();
+    mockedInvoke.mockRejectedValueOnce(new Error('状态读取失败'));
+    await useWorkbench.getState().refresh({ silent: true });
+    expect(useWorkbench.getState().repositories[0].worktrees.map(item => item.branchSync)).toEqual([null, null]);
+    expect(currentWorktree().files).toBe(before.files);
+    expect(useWorkbench.getState().drafts[before.id].message).toBe('保留草稿');
+    await useWorkbench.getState().refresh();
+    expect(useWorkbench.getState().repositories[0].worktrees.map(item => item.branchSync)).toEqual(repository.worktrees.map(item => item.branchSync));
+  });
+
+  it('演示侧栏初次展示各工作区计数，提交、切换、重置后同步更新', async () => {
+    vi.mocked(isTauri).mockReturnValue(false);
+    useWorkbench.getState().reset();
+    expect(currentWorktree().branchSync).toMatchObject({ ahead: 2, behind: 0 });
+    const sibling = useWorkbench.getState().repositories[0].worktrees[1];
+    expect(sibling.branchSync).toMatchObject({ ahead: 0, behind: 1 });
+    useWorkbench.getState().setDraft({ message: '演示同步计数提交' });
+    await useWorkbench.getState().commit();
+    expect(currentWorktree().branchSync).toMatchObject({ ahead: 3, behind: 0 });
+    expect(useWorkbench.getState().repositories[0].worktrees[1].branchSync).toEqual(sibling.branchSync);
+    await useWorkbench.getState().checkoutBranch('refs/heads/feature/search');
+    expect(currentWorktree().branchSync).toMatchObject({ ahead: 2, behind: 1 });
+    useWorkbench.getState().reset();
+    expect(currentWorktree().branchSync).toMatchObject({ ahead: 2, behind: 0 });
+    expect(mockedInvoke).not.toHaveBeenCalled();
+  });
+
   it('仅创建传递精确起点，保留历史页、文件选择和草稿，不重新读取正文', async () => {
     await useWorkbench.getState().openRepository(repository.path);
     useWorkbench.getState().setDraft({ message: '待提交\n\n说明' });
