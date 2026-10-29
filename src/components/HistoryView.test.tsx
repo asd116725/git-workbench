@@ -19,7 +19,7 @@ const detail: HistoryCommitDetail = { commit, message: `${commit.subject}\n\n支
 
 function session(patch: Partial<HistorySession> = {}): HistorySession {
   return {
-    initialized: true, reference: null, query: '', searchInput: '', snapshot: commit.oid, commits: [commit], nextCursor: null,
+    initialized: true, reference: null, query: '', searchInput: '', snapshot: commit.oid, outgoing: null, commits: [commit], nextCursor: null,
     selectedOid: commit.oid, parentIndex: 0, selectedPath: file.path, detail,
     diff: { file, notice: null, error: null, loading: false }, loading: false, loadingMore: false,
     detailLoading: false, error: null, detailError: null, updated: false, checkError: null, ...patch,
@@ -38,6 +38,18 @@ beforeEach(() => {
 });
 
 describe('提交历史三栏展示', () => {
+  it('按完整提交ID标记待推送记录，保留合并图标并说明所比较的上游', () => {
+    const pending = { ...commit, oid: 'c'.repeat(40), subject: '待同步合并', parents: [commit.oid, 'd'.repeat(40)] };
+    const current = session({ commits: [commit, pending], outgoing: { upstream: 'refs/remotes/origin/main', oids: [pending.oid] } });
+    const html = renderHistory(current);
+    expect(html).toContain(`aria-label="查看提交：${commit.subject}"`);
+    expect(html).toContain('aria-label="查看提交：待同步合并 · 待推送"');
+    expect(html).toContain('codicon-git-merge');
+    expect(html).toContain('codicon-arrow-up');
+    expect(html).toContain('此提交尚未包含在上游 refs/remotes/origin/main 中');
+    expect(renderHistory({ ...current, outgoing: null })).not.toContain('history-outgoing');
+  });
+
   it('展示提交、文件树与只读 Diff，沿用全局字号及独立历史模式', () => {
     const html = renderHistory(session());
     expect(html).toContain('aria-label="提交列表"');

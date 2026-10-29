@@ -6,7 +6,7 @@ import type { Worktree } from './types';
 const emptyDiff: HistorySession['diff'] = { file: null, loading: false, notice: null, error: null };
 /** 未打开历史页时使用稳定空值，避免订阅 selector 创建新对象。 */
 export const emptyHistorySession: HistorySession = {
-  initialized: false, reference: null, searchInput: '', query: '', snapshot: null, commits: [], nextCursor: null,
+  initialized: false, reference: null, searchInput: '', query: '', snapshot: null, outgoing: null, commits: [], nextCursor: null,
   selectedOid: null, parentIndex: 0, selectedPath: null, detail: null, diff: emptyDiff,
   loading: false, loadingMore: false, detailLoading: false, error: null, detailError: null,
   updated: false, checkError: null,
@@ -75,7 +75,7 @@ export const useHistory = create<HistoryState>((set, get) => {
     },
     async setReference(worktree, reference) {
       if (session(worktree).reference === reference) return;
-      update(worktree, { reference, nextCursor: null });
+      update(worktree, { reference, nextCursor: null, outgoing: null });
       await get().refresh(worktree);
     },
     setSearchInput(worktree, searchInput) {
@@ -136,11 +136,11 @@ export const useHistory = create<HistoryState>((set, get) => {
       const previous = session(worktree);
       update(worktree, { loading: true, loadingMore: false, error: null, checkError: null });
       try {
-        const { oid: snapshot } = await historyGit.ref(worktree, previous.reference);
+        const { oid: snapshot, outgoing } = await historyGit.ref(worktree, previous.reference);
         if (!current()) return;
         const page = snapshot ? await historyGit.page(worktree, snapshot, previous.query, null) : { commits: [], nextCursor: null };
         if (!current()) return;
-        update(worktree, { snapshot, commits: page.commits, nextCursor: page.nextCursor, loading: false, initialized: true, updated: false });
+        update(worktree, { snapshot, outgoing: outgoing ?? null, commits: page.commits, nextCursor: page.nextCursor, loading: false, initialized: true, updated: false });
         const selectedOid = page.commits.find(commit => commit.oid === session(worktree).selectedOid)?.oid ?? page.commits[0]?.oid ?? null;
         if (selectedOid) await get().selectCommit(worktree, selectedOid);
         else {
@@ -149,7 +149,7 @@ export const useHistory = create<HistoryState>((set, get) => {
           update(worktree, { selectedOid: null, selectedPath: null, parentIndex: 0, detail: null, detailLoading: false, detailError: null, diff: emptyDiff });
         }
       } catch (error) {
-        if (current()) update(worktree, { loading: false, error: errorMessage(error) });
+        if (current()) update(worktree, { loading: false, outgoing: null, error: errorMessage(error) });
       }
     },
     async checkForUpdates(worktree) {
@@ -157,10 +157,10 @@ export const useHistory = create<HistoryState>((set, get) => {
       if (!previous.initialized || previous.loading) return;
       const current = begin(worktree, 'probe');
       try {
-        const { oid } = await historyGit.ref(worktree, previous.reference);
-        if (current()) update(worktree, { updated: oid !== previous.snapshot, checkError: null });
+        const { oid, outgoing } = await historyGit.ref(worktree, previous.reference);
+        if (current()) update(worktree, { updated: oid !== previous.snapshot, outgoing: outgoing ?? null, checkError: null });
       } catch (error) {
-        if (current()) update(worktree, { checkError: errorMessage(error) });
+        if (current()) update(worktree, { outgoing: null, checkError: errorMessage(error) });
       }
     },
     reset() {

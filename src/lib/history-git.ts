@@ -3,7 +3,7 @@ import { getFileStatus } from './demo-git';
 import { fileLanguage } from './native-git';
 import { useWorkbench } from './store';
 import type { Commit, FileSnapshot, Worktree } from './types';
-import type { HistoryChangedFile, HistoryCommitDetail, HistoryCommitSummary, HistoryDiff, HistoryPage } from './history-types';
+import type { HistoryChangedFile, HistoryCommitDetail, HistoryCommitSummary, HistoryDiff, HistoryPage, HistoryReference } from './history-types';
 
 /** 将历史前后版本适配为只读 staged Diff，不参与任何真实暂存操作。 */
 export function historyFileSnapshot(file: HistoryChangedFile, content?: HistoryDiff): FileSnapshot {
@@ -54,12 +54,16 @@ function demoCommit(worktree: Worktree, oid: string) {
 
 /** 原生与演示共用历史读取协议，演示数据不会进入真实 Git 命令。 */
 export const historyGit = {
-  async ref(worktree: Worktree, reference: string | null): Promise<{ oid: string | null }> {
+  async ref(worktree: Worktree, reference: string | null): Promise<HistoryReference> {
     if (worktree.source === 'native') return invoke('git_history_ref', { repoPath: worktree.path, reference });
     const target = demoTarget(worktree, reference);
     const oid = target.commits[0] ? demoOid(target.commits[0], target.id) : null;
     if (oid) demoSnapshots.set(snapshotKey(worktree, oid), { owner: target.id, commits: target.commits });
-    return { oid };
+    const sync = target.branchSync;
+    /** 演示提交链是线性的；先固定完整集合再分页，真实提交使用 Git 可达性判断。 */
+    const outgoing = !target.detached && sync?.upstream && sync.ahead != null
+      ? { upstream: sync.upstream, oids: target.commits.slice(0, sync.ahead).map(commit => demoOid(commit, target.id)) } : null;
+    return { oid, outgoing };
   },
   async page(worktree: Worktree, snapshot: string, query: string, cursor: string | null): Promise<HistoryPage> {
     if (worktree.source === 'native') return invoke('git_history', { repoPath: worktree.path, snapshot, query, cursor });

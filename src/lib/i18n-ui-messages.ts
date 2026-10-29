@@ -1,5 +1,7 @@
 /** 应用界面文案；分支、路径、提交信息与文件内容始终保留原文。 */
 export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
+  "待推送": { "en": "Unpushed", "zh-TW": "待推送" },
+  "此提交尚未包含在上游 {upstream} 中；状态基于本地最近获取的引用。": { "en": "This commit is not yet in upstream {upstream}. Status uses the most recently fetched local refs.", "zh-TW": "此提交尚未包含在上游 {upstream} 中；狀態以本機最近擷取的引用為準。" },
   "未设置上游分支。": { "en": "No upstream branch is configured.", "zh-TW": "未設定上游分支。" },
   "尚未获得同步状态，请刷新或获取远程更新后重试。": { "en": "Sync status is unavailable. Refresh or fetch remote updates and try again.", "zh-TW": "尚未取得同步狀態，請重新整理或取得遠端更新後重試。" },
   "无法确定与上游 {upstream} 的提交差异；请先获取远程更新。": {

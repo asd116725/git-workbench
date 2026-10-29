@@ -7,6 +7,14 @@ const COMMIT_FORMAT: &str = "%H%x00%h%x00%s%x00%an%x00%ae%x00%ct%x00%P%x00%B";
 #[derive(Debug, Serialize)]
 pub struct HistoryRef {
     pub oid: Option<String>,
+    pub outgoing: Option<HistoryOutgoing>,
+}
+
+/// 可达提交集合独立于搜索和分页；缺少可靠上游时不生成待推送标识。
+#[derive(Debug, Serialize)]
+pub struct HistoryOutgoing {
+    pub upstream: String,
+    pub oids: Vec<String>,
 }
 
 /// 历史列表只携带提交元数据，文件和正文在选中后读取。
@@ -77,6 +85,7 @@ fn resolve_reference(repo: &Path, reference: Option<&str>) -> GitResult<HistoryR
     if output.status.success() {
         return Ok(HistoryRef {
             oid: Some(utf8(output.stdout)?.trim().into()),
+            outgoing: None,
         });
     }
     // 只有尚无提交的 HEAD 是正常空态，失效的筛选分支不能悄悄退回当前分支。
@@ -86,9 +95,55 @@ fn resolve_reference(repo: &Path, reference: Option<&str>) -> GitResult<HistoryR
             .success()
         && !has_head(repo)?
     {
-        return Ok(HistoryRef { oid: None });
+        return Ok(HistoryRef {
+            oid: None,
+            outgoing: None,
+        });
     }
     Err("历史分支不存在或没有可读取的提交，请重新选择分支。".into())
+}
+
+/// 在仓库锁内固定本地和上游 tip，耗时的可达性扫描在锁外进行，不访问远程。
+fn history_reference(repo_path: &str, reference: Option<&str>) -> GitResult<HistoryRef> {
+    let (repo, mut resolved, upstream) = with_repository(repo_path, |repo| {
+        let resolved = resolve_reference(repo, reference)?;
+        let reference = reference.unwrap_or("HEAD");
+        let upstream = if resolved.oid.is_some()
+            && (reference == "HEAD" || reference.starts_with("refs/heads/"))
+        {
+            // detached、无上游或上游已删除时，历史仍可读，只隐藏附加标识。
+            let local = if reference == "HEAD" {
+                git_line(repo, &["symbolic-ref", "--quiet", "HEAD"])
+            } else {
+                Ok(reference.to_owned())
+            };
+            local
+                .and_then(|local| git_line(repo, &["for-each-ref", "--format=%(upstream)", &local]))
+                .and_then(|name| {
+                    if name.is_empty() {
+                        return Err("未设置上游分支。".into());
+                    }
+                    let oid = git_line(
+                        repo,
+                        &["rev-parse", "--verify", &format!("{name}^{{commit}}")],
+                    )?;
+                    Ok((name, oid))
+                })
+                .ok()
+        } else {
+            None
+        };
+        Ok((repo.to_owned(), resolved, upstream))
+    })?;
+    if let (Some(snapshot), Some((upstream, upstream_oid))) = (&resolved.oid, upstream) {
+        resolved.outgoing = git_line(&repo, &["rev-list", snapshot, "--not", &upstream_oid, "--"])
+            .ok()
+            .map(|output| HistoryOutgoing {
+                upstream,
+                oids: output.lines().map(str::to_owned).collect(),
+            });
+    }
+    Ok(resolved)
 }
 
 /// 后续请求只能使用完整对象 ID，避免分支移动或删除改变正在浏览的历史。
@@ -425,18 +480,13 @@ fn historical_diff(repo: &Path, oid: &str, parent_index: usize, path: &str) -> G
     })
 }
 
-/// 引用解析很短，可与仓库写操作串行；之后的历史扫描不持有公共仓库锁。
+/// 读取历史快照及待推送集合，引用固定后不再持有公共仓库锁。
 #[tauri::command]
 pub async fn git_history_ref(
     repo_path: String,
     reference: Option<String>,
 ) -> GitResult<HistoryRef> {
-    blocking(move || {
-        with_repository(&repo_path, |repo| {
-            resolve_reference(repo, reference.as_deref())
-        })
-    })
-    .await
+    blocking(move || history_reference(&repo_path, reference.as_deref())).await
 }
 
 /// 使用固定提交快照分页，不访问工作区或索引内容。

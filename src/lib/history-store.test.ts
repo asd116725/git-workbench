@@ -190,6 +190,39 @@ describe('历史请求竞态与工作区隔离', () => {
 });
 
 describe('历史分页、静默检测与错误恢复', () => {
+  it('推送后仅上游改变也更新标识，不重置正在阅读的提交和 Diff', async () => {
+    const original = mockedInvoke.getMockImplementation()!;
+    let oids = [first.oid];
+    mockedInvoke.mockImplementation(async (command, args) => command === 'git_history_ref'
+      ? { oid: first.oid, outgoing: { upstream: 'refs/remotes/origin/main', oids } } : original(command, args));
+    await useHistory.getState().ensure(worktree);
+    expect(state().outgoing?.oids).toEqual([first.oid]);
+    const before = state().diff;
+    oids = [];
+    await useHistory.getState().checkForUpdates(worktree);
+    expect(state().outgoing?.oids).toEqual([]);
+    expect(state().updated).toBe(false);
+    expect(state().diff).toBe(before);
+    expect(calls('git_history')).toHaveLength(1);
+  });
+
+  it('筛选和分页保留完整待推送集合，失败时只移除标识并保留历史', async () => {
+    const original = mockedInvoke.getMockImplementation()!;
+    const outgoing = { upstream: 'refs/remotes/origin/main', oids: [second.oid] };
+    mockedInvoke.mockImplementation(async (command, args) => command === 'git_history_ref'
+      ? { oid: first.oid, outgoing } : command === 'git_history'
+        ? { commits: [first], nextCursor: 'more' } : original(command, args));
+    await useHistory.getState().ensure(worktree);
+    expect(state().outgoing).toEqual(outgoing);
+    mockedInvoke.mockResolvedValue({ commits: [second], nextCursor: null });
+    await useHistory.getState().loadMore(worktree);
+    expect(state().outgoing?.oids).toEqual([second.oid]);
+    mockedInvoke.mockRejectedValue('读取失败');
+    await useHistory.getState().checkForUpdates(worktree);
+    expect(state().outgoing).toBeNull();
+    expect(state().commits).toEqual([first, second]);
+  });
+
   it('分页沿用固定快照并追加，当前阅读状态不变', async () => {
     mockedInvoke.mockImplementation(async command => {
       if (command === 'git_history_ref') return { oid: first.oid };

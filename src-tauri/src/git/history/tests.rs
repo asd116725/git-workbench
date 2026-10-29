@@ -6,6 +6,155 @@ struct Repo {
     root: PathBuf,
 }
 
+fn track(repo: &Path, branch: &str, upstream: &str) {
+    git(repo, &["config", "remote.origin.url", "."]).unwrap();
+    git(
+        repo,
+        &[
+            "config",
+            "remote.origin.fetch",
+            "+refs/heads/*:refs/remotes/origin/*",
+        ],
+    )
+    .unwrap();
+    git(
+        repo,
+        &["branch", &format!("--set-upstream-to={upstream}"), branch],
+    )
+    .unwrap();
+}
+
+#[test]
+fn outgoing_history_uses_reachability_for_merges_and_updates_after_push() {
+    let repo = Repo::new();
+    repo.initial();
+    git(&repo.root, &["branch", "topic"]).unwrap();
+    let local = repo.commit("local-only");
+    git(&repo.root, &["checkout", "topic"]).unwrap();
+    let shared = repo.commit("already-upstream");
+    git(
+        &repo.root,
+        &["update-ref", "refs/remotes/origin/main", &shared],
+    )
+    .unwrap();
+    track(&repo.root, "main", "origin/main");
+    git(&repo.root, &["checkout", "main"]).unwrap();
+    git(
+        &repo.root,
+        &["merge", "--no-ff", "topic", "-m", "merge-pending"],
+    )
+    .unwrap();
+    let head = repo.head();
+    let path = repo.root.to_str().unwrap();
+    let outgoing = history_reference(path, None).unwrap().outgoing.unwrap();
+    assert_eq!(outgoing.upstream, "refs/remotes/origin/main");
+    assert_eq!(
+        outgoing.oids.iter().collect::<HashSet<_>>(),
+        [&head, &local].into_iter().collect()
+    );
+    let shared_result = history(&repo.root, &head, "already-upstream", None).unwrap();
+    assert_eq!(shared_result.commits[0].oid, shared);
+    assert!(!outgoing.oids.contains(&shared_result.commits[0].oid));
+
+    repo.save("dirty.txt", "staged\n");
+    fs::write(repo.root.join("dirty.txt"), "unstaged\n").unwrap();
+    let dirty = git(&repo.root, &["status", "--porcelain=v1", "-z"]).unwrap();
+    // 模拟推送后更新本地跟踪引用，HEAD 不变也应立即取消待推送标识。
+    git(
+        &repo.root,
+        &["update-ref", "refs/remotes/origin/main", &head],
+    )
+    .unwrap();
+    assert!(
+        history_reference(path, None)
+            .unwrap()
+            .outgoing
+            .unwrap()
+            .oids
+            .is_empty()
+    );
+    assert_eq!(
+        git(&repo.root, &["status", "--porcelain=v1", "-z"]).unwrap(),
+        dirty
+    );
+    assert_eq!(
+        git(&repo.root, &["show", ":dirty.txt"]).unwrap(),
+        b"staged\n"
+    );
+}
+
+#[test]
+fn outgoing_history_is_independent_of_pages_search_and_selected_branch() {
+    let repo = Repo::new();
+    let commits = repo.chain(60);
+    git(
+        &repo.root,
+        &["update-ref", "refs/remotes/origin/main", &commits[0]],
+    )
+    .unwrap();
+    track(&repo.root, "main", "origin/main");
+    git(&repo.root, &["branch", "other", &commits[10]]).unwrap();
+    git(
+        &repo.root,
+        &["update-ref", "refs/remotes/origin/other", &commits[9]],
+    )
+    .unwrap();
+    track(&repo.root, "other", "origin/other");
+    let snapshot = history_reference(repo.root.to_str().unwrap(), None).unwrap();
+    let outgoing = snapshot.outgoing.unwrap();
+    assert_eq!(outgoing.oids.len(), 60);
+    let first = history(&repo.root, snapshot.oid.as_ref().unwrap(), "", None).unwrap();
+    let next = history(
+        &repo.root,
+        snapshot.oid.as_ref().unwrap(),
+        "",
+        first.next_cursor.as_deref(),
+    )
+    .unwrap();
+    assert!(
+        next.commits
+            .iter()
+            .any(|item| outgoing.oids.contains(&item.oid))
+    );
+    assert!(!outgoing.oids.contains(&commits[0]));
+    let selected =
+        history_reference(repo.root.to_str().unwrap(), Some("refs/heads/other")).unwrap();
+    assert_eq!(selected.outgoing.unwrap().oids, vec![commits[10].clone()]);
+    assert_eq!(repo.head(), commits[60]);
+}
+
+#[test]
+fn outgoing_history_hides_unknown_detached_remote_and_unborn_states() {
+    let repo = Repo::new();
+    let path = repo.root.to_str().unwrap();
+    assert!(history_reference(path, None).unwrap().outgoing.is_none());
+    let head = repo.initial();
+    assert!(history_reference(path, None).unwrap().outgoing.is_none());
+    git(
+        &repo.root,
+        &["update-ref", "refs/remotes/origin/main", &head],
+    )
+    .unwrap();
+    track(&repo.root, "main", "origin/main");
+    assert!(
+        history_reference(path, Some("refs/remotes/origin/main"))
+            .unwrap()
+            .outgoing
+            .is_none()
+    );
+    git(&repo.root, &["checkout", "--detach"]).unwrap();
+    assert!(history_reference(path, None).unwrap().outgoing.is_none());
+    git(&repo.root, &["checkout", "main"]).unwrap();
+    git(
+        &repo.root,
+        &["update-ref", "-d", "refs/remotes/origin/main"],
+    )
+    .unwrap();
+    let missing = history_reference(path, None).unwrap();
+    assert_eq!(missing.oid, Some(head));
+    assert!(missing.outgoing.is_none());
+}
+
 impl Repo {
     fn new() -> Self {
         let directory = tempfile::tempdir().unwrap();

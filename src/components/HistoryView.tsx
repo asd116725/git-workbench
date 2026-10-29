@@ -66,13 +66,15 @@ export function HistoryView({ worktree }: { worktree: Worktree }) {
   useEffect(() => {
     const current = findWorktree(useWorkbench.getState().repositories, worktree.id);
     if (current) void checkForUpdates(current);
-  }, [checkForUpdates, worktree.id]);
+  }, [checkForUpdates, worktree]);
   useEffect(() => {
     const timer = setTimeout(() => { void setQuery(worktree, search); }, 300);
     return () => clearTimeout(timer);
   }, [search, setQuery, worktree]);
 
   const detail = session?.detail;
+  const outgoingOids = useMemo(() => new Set(session?.outgoing?.oids), [session?.outgoing]);
+  const outgoingDescription = session?.outgoing ? t('此提交尚未包含在上游 {upstream} 中；状态基于本地最近获取的引用。', { upstream: session.outgoing.upstream }) : '';
   const files = useMemo(() => (detail?.files ?? []).map(file => historyFileSnapshot(file)), [detail]);
   const nodes = useMemo(() => buildChangeTree(files, language), [files, language]);
   const selectedFile = detail?.files.find(file => file.path === session?.selectedPath);
@@ -102,14 +104,15 @@ export function HistoryView({ worktree }: { worktree: Worktree }) {
           <div className="history-list" aria-label={t("提交记录")} aria-busy={session?.loading}>
             {session?.loading && <div className="history-progress" role="status"><Icon name="loading spin" />{t("正在读取提交…")}</div>}
             {session?.commits.map((commit, index, commits) => {
+              const outgoing = outgoingOids.has(commit.oid);
               const group = historyDateGroup(commit.committedAt);
               const showGroup = index === 0 || historyDateGroup(commits[index - 1].committedAt) !== group;
               return <Fragment key={commit.oid}>
                 {showGroup && <div className="history-date">{group}</div>}
-                <div className={`history-row ${session.selectedOid === commit.oid ? 'selected' : ''}`}>
-                  <button className="history-select" aria-label={t("查看提交：{value1}", { value1: commit.subject })} aria-pressed={session.selectedOid === commit.oid} title={`${commit.subject}\n${commit.authorName} <${commit.authorEmail}>\n${commit.oid}`} onClick={() => void state.selectCommit(worktree, commit.oid)}>
+                <div className={`history-row ${session.selectedOid === commit.oid ? 'selected' : ''} ${outgoing ? 'outgoing' : ''}`}>
+                  <button className="history-select" aria-label={`${t("查看提交：{value1}", { value1: commit.subject })}${outgoing ? ` · ${t('待推送')}` : ''}`} aria-pressed={session.selectedOid === commit.oid} title={`${commit.subject}\n${commit.authorName} <${commit.authorEmail}>\n${commit.oid}${outgoing ? `\n${outgoingDescription}` : ''}`} onClick={() => void state.selectCommit(worktree, commit.oid)}>
                     <Icon name={commit.parents.length > 1 ? 'git-merge' : 'git-commit'} />
-                    <span className="history-row-copy"><strong>{commit.subject || t("（无提交说明）")}</strong><span><span className="history-author">{commit.authorName}</span><time dateTime={new Date(commit.committedAt * 1000).toISOString()}>{historyTime(commit.committedAt)}</time><code>{commit.shortHash}</code></span></span>
+                    <span className="history-row-copy"><span className="history-row-title"><strong>{commit.subject || t("（无提交说明）")}</strong>{outgoing && <Badge variant="outline" className="history-outgoing" title={outgoingDescription}><Icon name="arrow-up" />{t('待推送')}</Badge>}</span><span><span className="history-author">{commit.authorName}</span><time dateTime={new Date(commit.committedAt * 1000).toISOString()}>{historyTime(commit.committedAt)}</time><code>{commit.shortHash}</code></span></span>
                   </button><CopyHash oid={commit.oid} />
                 </div>
               </Fragment>;

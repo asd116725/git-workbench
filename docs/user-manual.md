@@ -2,7 +2,7 @@
 
 **English** | [简体中文](zh-CN/user-manual.md)
 
-This manual covers the stable `1.5.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.5.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.5.0). The browser uses separate demo data and does not access real repositories.
+This manual covers the stable `1.6.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.6.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.0). The browser uses separate demo data and does not access real repositories.
 
 Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-refreshing-and-settings). Screenshots show the English interface with fictional demo data.
 
@@ -170,6 +170,8 @@ If a hook, signing step, or other Git check fails, the app shows the error and k
 On macOS, the first Git operation reads PATH from a login and interactive shell in the user's home directory and caches it for the app process. Git and hooks can then find Node, npm, and npx installed through tools such as nvm or Homebrew. The app does not automatically select a Node version from a repository's `.nvmrc` or skip Husky checks. After installing tools or changing shell configuration, quit completely with `⌘Q` and reopen the app; hiding the window does not reload the environment. If shell initialization fails or takes longer than 10 seconds, the app keeps its original environment.
 
 ## 8.1 Commit history
+
+**Available since 1.6.0:** commits not yet contained in the selected local branch's upstream have a green arrow and an **Unpushed** badge. Markers follow each commit across searches and pages, including merges. Hover for the upstream explanation. Counts and markers use locally fetched refs; reading history does not fetch. Branches without a usable upstream, remote branch filters, and detached HEAD do not show these markers. Refresh or fetch to read updated refs; pushing also refreshes history and its markers.
 
 Click **Commit history** (提交历史) at the top. The repository sidebar stays in place. From left to right, the main area shows commits, the selected commit's changed-file tree, and its historical diff. On first entry, the newest commit and its first changed file are selected. Appropriate empty states appear when there are no commits or no changed files.
 

@@ -6,6 +6,18 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-29
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#160---2026-10-29)
+
+- Mark commits not yet contained in the selected local branch's upstream with a green arrow and an “Unpushed” badge in history. Preserve the correct markers across search, pagination, and upstream updates using locally fetched refs.
+- Determine outgoing commits by Git reachability, including merge commits, and retain the existing commit and merge icons, selection styling, and historical diffs. Hide markers when the branch has no upstream, the upstream is unavailable, or a remote branch or detached HEAD is selected.
+- Provide Simplified Chinese, Traditional Chinese, and English explanations, and keep badges visible in narrow commit lists. Reading history does not fetch or modify the repository.
+
+This release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md). Browser interface flows and real temporary Git repositories have been tested; native-window interaction remains pending verification.
+
+Save commit drafts and quit the previous version completely with `⌘Q` before upgrading. Verify `GitWorkbench_1.6.0_macos_arm64.dmg` against `SHA256SUMS.txt` from the same release before installing.
+
 ## [1.5.0] - 2026-10-29
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#150---2026-10-29)

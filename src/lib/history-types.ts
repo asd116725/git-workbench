@@ -35,6 +35,18 @@ export interface HistoryPage {
   nextCursor: string | null;
 }
 
+/** 固定分支与上游 tip 后求得的待推送集合，不按列表位置或搜索结果猜测。 */
+export interface HistoryOutgoing {
+  upstream: string;
+  oids: string[];
+}
+
+/** 引用与同步状态一起读取；outgoing 为 null 时不能判定任何记录待推送。 */
+export interface HistoryReference {
+  oid: string | null;
+  outgoing: HistoryOutgoing | null;
+}
+
 export interface HistoryDiff {
   original: string | null;
   modified: string | null;
@@ -49,6 +61,7 @@ export interface HistorySession {
   searchInput: string;
   query: string;
   snapshot: string | null;
+  outgoing: HistoryOutgoing | null;
   commits: HistoryCommitSummary[];
   nextCursor: string | null;
   selectedOid: string | null;
