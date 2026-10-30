@@ -171,13 +171,6 @@ pub(super) fn remote_status(repo: &Path) -> GitResult<GitRemoteStatus> {
                 .ok_or("无法读取待拉取提交数。")?
                 .map_err(|_| "无法读取待拉取提交数。")?,
         );
-    } else if result.upstream.is_none() {
-        result.ahead = Some(
-            git_line(repo, &["rev-list", "--count", "HEAD", "--"])?
-                .parse()
-                .map_err(|_| "无法读取首次推送的提交数。")?,
-        );
-        result.behind = Some(0);
     }
     Ok(result)
 }

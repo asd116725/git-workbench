@@ -4,9 +4,9 @@
 
 一个面向本地仓库的 Git 桌面工具。使用 Tauri 2、React 和 TypeScript 构建，将 worktree、分支、文件变更与 Diff 放在同一个窗口中。
 
-[下载 v1.6.0 安装包](https://github.com/asd116725/git-workbench/releases/tag/v1.6.0) · [中文操作手册](docs/zh-CN/user-manual.md) · [安装说明](docs/zh-CN/installation.md) · [更新日志](CHANGELOG.zh-CN.md)
+[下载 v1.6.1 安装包](https://github.com/asd116725/git-workbench/releases/tag/v1.6.1) · [中文操作手册](docs/zh-CN/user-manual.md) · [安装说明](docs/zh-CN/installation.md) · [更新日志](CHANGELOG.zh-CN.md)
 
-当前正式版本为 **1.6.0**，提供 `GitWorkbench_1.6.0_macos_arm64.dmg` 和同一 Release 的 `SHA256SUMS.txt`，请校验后安装。
+当前正式版本为 **1.6.1**，提供 `GitWorkbench_1.6.1_macos_arm64.dmg` 和同一 Release 的 `SHA256SUMS.txt`，请校验后安装。
 
 ![Git Workbench 本地变更界面，使用虚构示例数据](docs/screenshots/workbench.png)
 
@@ -14,7 +14,7 @@
 
 - 打开已有的本地 Git 仓库，自动列出关联 worktree，并在工作区之间切换。
 - 搜索本地和已获取的远程分支，按最近提交排序，查看作者、短哈希和提交摘要。
-- 获取远程更新、快进拉取和推送当前分支，推送图标旁显示待上传提交数，首次推送可建立上游跟踪。
+- 获取远程更新、快进拉取和推送当前分支；未配置上游时显示「发布分支」，已跟踪分支在推送图标旁显示待上传提交数。
 - 1.2.0 支持创建与删除本地分支，可选创建后切换；删除前核对未合入提交和 Worktree 占用，详见[分支管理](docs/zh-CN/user-manual.md#42-创建与删除本地分支)。
 - 用目录树或列表查看文件变更，阅读只读的并排或内联 Diff。
 - 文件与目录使用 vscode-icons 图标，列表、历史和 Diff 标签页按文件名与类型一致匹配，离线可用。
@@ -38,12 +38,12 @@
 
 当前版本提供 **macOS Apple Silicon（arm64）** 安装包。Intel Mac、Windows、Linux 暂无官方构建。
 
-1. 从 [v1.6.0 Release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.0) 下载 [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.6.0/GitWorkbench_1.6.0_macos_arm64.dmg) 和 `SHA256SUMS.txt`。
+1. 从 [v1.6.1 Release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.1) 下载 [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.6.1/GitWorkbench_1.6.1_macos_arm64.dmg) 和 `SHA256SUMS.txt`。
 2. 按[安装说明](docs/zh-CN/installation.md)校验文件，将「代码管理」拖入 Applications 后打开。
 3. 点击「打开本地仓库」，选择已有仓库的目录。应用使用本机 Git，请先确认 `git --version` 可以运行。
 4. 选择文件阅读 Diff，在行末点击 `+` 暂存；在提交框中填写信息，点击提交按钮。
 
-v1.6.0 为正式版本，安装包仍采用 **ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证**。正式版本标记不代表已经获得 Apple 身份签名或公证。macOS 可能要求确认来源；处理方式见[首次打开](docs/zh-CN/installation.md#首次打开)。
+v1.6.1 为正式版本，安装包仍采用 **ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证**。正式版本标记不代表已经获得 Apple 身份签名或公证。macOS 可能要求确认来源；处理方式见[首次打开](docs/zh-CN/installation.md#首次打开)。
 
 ## 支持范围与限制
 
@@ -88,7 +88,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.6.0
+pnpm release:check --tag v1.6.1
 ```
 
 ```sh

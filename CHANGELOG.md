@@ -6,6 +6,18 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-10-30
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#161---2026-10-30)
+
+- Show **Publish branch** when the current branch has no upstream, and hide the outgoing commit count until upstream tracking is configured.
+- Stop counting a branch's full commit history as outgoing when it has no comparison ref. Keep the existing ahead count for tracked branches, relative to their locally fetched upstream refs.
+- Provide the publication action and explanations in Simplified Chinese, Traditional Chinese, and English, while preserving the existing remote selection and first-push tracking flow.
+
+This release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
+Save commit drafts and quit the previous version completely with `⌘Q` before upgrading. Verify `GitWorkbench_1.6.1_macos_arm64.dmg` against `SHA256SUMS.txt` from the same release before installing.
+
 ## [1.6.0] - 2026-10-29
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#160---2026-10-29)

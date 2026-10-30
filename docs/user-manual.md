@@ -2,7 +2,7 @@
 
 **English** | [简体中文](zh-CN/user-manual.md)
 
-This manual covers the stable `1.6.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.6.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.0). The browser uses separate demo data and does not access real repositories.
+This manual covers the stable `1.6.1` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.6.1 release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.1). The browser uses separate demo data and does not access real repositories.
 
 Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-refreshing-and-settings). Screenshots show the English interface with fictional demo data.
 
@@ -106,9 +106,9 @@ These features are available starting with 1.3.0. Configure a remote for the rep
 
 - **Fetch** (获取): update refs from all configured remotes and prune records of deleted remote branches. This does not merge into the current branch or change worktree files.
 - **Pull** (拉取): fetch the current branch's upstream and update with fast-forward only. If there is no upstream, push first to set tracking. If both sides have new commits, fetch, then use **Merge** to merge the upstream branch. The app does not automatically rebase, stash, or force files to be overwritten.
-- **Push** (推送): upload only the current branch to its configured upstream branch. It does not push other branches in bulk or force-push. On first publication, it prefers `origin`, otherwise the only available remote. If multiple remotes exist without a default target, choose a remote in the dialog and set upstream tracking.
+- **Push** (推送): upload only the current branch to its configured upstream branch. It does not push other branches in bulk or force-push. When no upstream is configured, the action is labeled **Publish branch** (发布分支). On first publication, it prefers `origin`, otherwise the only available remote. If multiple remotes exist without a default target, choose a remote in the dialog and set upstream tracking.
 
-The number beside the upload arrow is the outgoing commit count calculated from locally fetched remote refs. It appears only when greater than zero. Remote refs can lag behind the server; click **Fetch** to update them. No number is shown when the count is unknown. The app rereads the count after commits, branch switches, and fetch, pull, or push operations.
+The number beside the upload arrow is the outgoing commit count relative to the current branch's locally fetched upstream ref. It appears only when greater than zero. Branches without an upstream show **Publish branch** without a count; their full commit history is not treated as outgoing. Remote refs can lag behind the server; click **Fetch** to update them. No number is shown when the count is unknown. The app rereads the count after commits, branch switches, and fetch, pull, or push operations.
 
 During execution, the buttons show progress and other Git write operations are temporarily disabled. Git errors are displayed on failure; for authentication errors, check your local credentials or SSH configuration first. If an operation succeeds but refreshing the state fails, refresh to confirm the actual state.
 

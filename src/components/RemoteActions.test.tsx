@@ -14,6 +14,11 @@ const worktree: Worktree = {
   files: [], commits: [], remote: { remotes: ['origin'], upstream: 'origin/main', upstreamRemote: 'origin', upstreamBranch: 'main', defaultRemote: 'origin', ahead: 3, behind: 0 },
 };
 
+const unpublished: Worktree = {
+  ...worktree,
+  remote: { ...worktree.remote!, upstream: null, upstreamRemote: null, upstreamBranch: null },
+};
+
 function render(target = worktree) { return renderToStaticMarkup(<TooltipProvider><RemoteActions worktree={target} /></TooltipProvider>); }
 
 beforeEach(() => { hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteOperation: null, runRemote: vi.fn() }); });
@@ -43,6 +48,35 @@ describe('远程工具栏', () => {
     const html = render({ ...worktree, remote: { ...worktree.remote!, ahead } });
     expect(html).not.toContain('remote-count');
     expect(html).toContain('aria-label="推送"');
+  });
+
+  it.each([null, 0, 3, 842])('无上游时显示发布分支，不把 %s 当作待上传数', ahead => {
+    const html = render({ ...unpublished, remote: { ...unpublished.remote!, ahead } });
+    expect(html).toContain('aria-label="发布分支"');
+    expect(html).not.toContain('remote-count');
+    expect(html.match(/disabled=""/g)).toHaveLength(1);
+  });
+
+  it.each([
+    ['zh-CN', '发布分支', '发布中…'],
+    ['zh-TW', '發佈分支', '發佈中…'],
+    ['en', 'Publish branch', 'Publishing…'],
+  ] as const)('%s 的发布入口和运行态使用对应文案', (language, label, progress) => {
+    setLanguage(language);
+    expect(render(unpublished)).toContain(`aria-label="${label}"`);
+    hooks.workbench.mockReturnValue({ busy: true, refreshing: false, remoteOperation: 'push', runRemote: vi.fn() });
+    const html = render(unpublished);
+    expect(html).toContain(`aria-label="${progress}"`);
+    expect(html.match(/codicon-loading spin/g)).toHaveLength(1);
+    expect(html.match(/disabled=""/g)).toHaveLength(3);
+    expect(html).not.toContain('remote-count');
+  });
+
+  it('上游配置不完整时保留推送，不误判为首次发布', () => {
+    const html = render({ ...worktree, remote: { ...worktree.remote!, upstream: null, upstreamBranch: null, ahead: 842 } });
+    expect(html).toContain('aria-label="推送"');
+    expect(html).not.toContain('发布分支');
+    expect(html).not.toContain('remote-count');
   });
 
   it('执行中只有当前图标旋转，所有远程按钮禁用', () => {

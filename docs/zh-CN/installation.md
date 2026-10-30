@@ -4,15 +4,15 @@
 
 ## 下载和校验
 
-当前正式版本 `1.6.0` 为 Apple Silicon（M 系列芯片）构建，文件名为 `GitWorkbench_1.6.0_macos_arm64.dmg`。可在「关于本机」查看芯片类型；此安装包不支持 Intel Mac。
+当前正式版本 `1.6.1` 为 Apple Silicon（M 系列芯片）构建，文件名为 `GitWorkbench_1.6.1_macos_arm64.dmg`。可在「关于本机」查看芯片类型；此安装包不支持 Intel Mac。
 
-从 [v1.6.0 Release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.0) 下载 DMG 和 `SHA256SUMS.txt`，不要混用不同版本的校验文件。在安装包和对应校验文件所在目录打开终端：
+从 [v1.6.1 Release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.1) 下载 DMG 和 `SHA256SUMS.txt`，不要混用不同版本的校验文件。在安装包和对应校验文件所在目录打开终端：
 
 ```sh
 shasum -a 256 -c SHA256SUMS.txt
 ```
 
-输出 `GitWorkbench_1.6.0_macos_arm64.dmg: OK` 后继续。如校验失败，请重新下载同一 Release 的安装包和校验文件，不要使用损坏的文件。
+输出 `GitWorkbench_1.6.1_macos_arm64.dmg: OK` 后继续。如校验失败，请重新下载同一 Release 的安装包和校验文件，不要使用损坏的文件。
 
 ## 安装
 
@@ -25,7 +25,7 @@ shasum -a 256 -c SHA256SUMS.txt
 
 ## 首次打开
 
-此安装包使用 **ad-hoc 签名**，用于本地可执行文件的完整性封装。它不包含 Apple Developer ID 身份签名，也未经过 Apple 公证，不能消除 Gatekeeper 的来源确认提示。`1.6.0` 的正式版本号不代表 Apple 签名或公证状态。
+此安装包使用 **ad-hoc 签名**，用于本地可执行文件的完整性封装。它不包含 Apple Developer ID 身份签名，也未经过 Apple 公证，不能消除 Gatekeeper 的来源确认提示。`1.6.1` 的正式版本号不代表 Apple 签名或公证状态。
 
 如果 macOS 提示无法验证开发者：
 
@@ -45,6 +45,6 @@ shasum -a 256 -c SHA256SUMS.txt
 
 ## 兼容范围
 
-最低系统构建配置为 macOS 12，当前版本提供 arm64 包。自动化测试覆盖真实临时 Git 仓库操作；1.6.0 的原生界面交互尚待补验。旧版 macOS 的兼容性尚未全面验证，遇到兼容性问题请反馈系统版本与复现步骤。
+最低系统构建配置为 macOS 12，当前版本提供 arm64 包。1.6.1 已在维护者当前 macOS 上使用独立桌面实例和临时仓库，验证首次发布、失败重试、建立上游及后续待推送计数。旧版 macOS 的兼容性尚未全面验证，遇到兼容性问题请反馈系统版本与复现步骤。
 
 更多操作见[中文操作手册](user-manual.md)。签名机制可参考 [Tauri 官方 macOS 签名文档](https://v2.tauri.app/distribute/sign/macos/)。

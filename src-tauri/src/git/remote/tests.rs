@@ -62,7 +62,8 @@ fn first_push_establishes_tracking_and_refreshes_pending_count() {
     assert_eq!(unborn.remote.ahead, None);
     assert!(push(repo, None).unwrap_err().contains("尚无提交"));
     commit_file(repo, "base.txt", "base\n");
-    assert_eq!(remote_status(repo).unwrap().ahead, Some(1));
+    let unpublished = remote_status(repo).unwrap();
+    assert_eq!((unpublished.ahead, unpublished.behind), (None, None));
     push(repo, None).unwrap();
     let synced = status(repo).unwrap().remote;
     assert_eq!(synced.upstream.as_deref(), Some("origin/main"));
@@ -497,10 +498,16 @@ fn linked_worktree_push_counts_its_own_branch() {
         &["worktree", "add", "-b", "feature", linked.to_str().unwrap()],
     )
     .unwrap();
+    let unpublished = remote_status(&linked).unwrap();
+    assert_eq!(unpublished.upstream, None);
+    assert_eq!((unpublished.ahead, unpublished.behind), (None, None));
     commit_file(&linked, "feature.txt", "feature\n");
-    assert_eq!(remote_status(&linked).unwrap().ahead, Some(2));
+    assert_eq!(remote_status(&linked).unwrap().ahead, None);
     push(&linked, None).unwrap();
     assert_eq!(status(&linked).unwrap().remote.ahead, Some(0));
+    commit_file(&linked, "next.txt", "next\n");
+    assert_eq!(remote_status(&linked).unwrap().ahead, Some(1));
+    push(&linked, None).unwrap();
     assert_eq!(
         status(&fixture.local).unwrap().remote.upstream.as_deref(),
         Some("origin/main")

@@ -1064,6 +1064,38 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
     "en": "Push",
     "zh-TW": "推送"
   },
+  "发布分支": {
+    "en": "Publish branch",
+    "zh-TW": "發佈分支"
+  },
+  "发布中…": {
+    "en": "Publishing…",
+    "zh-TW": "發佈中…"
+  },
+  "发布中，请稍候…": {
+    "en": "Publishing, please wait…",
+    "zh-TW": "發佈中，請稍候…"
+  },
+  "发布到 {destination}，并建立上游跟踪。": {
+    "en": "Publish to {destination} and set up upstream tracking.",
+    "zh-TW": "發佈至 {destination}，並建立上游追蹤。"
+  },
+  "选择远程仓库发布当前分支，并建立上游跟踪。": {
+    "en": "Choose a remote to publish the current branch and set up upstream tracking.",
+    "zh-TW": "選擇遠端儲存庫發佈目前分支，並建立上游追蹤。"
+  },
+  "分支发布成功": {
+    "en": "Branch published",
+    "zh-TW": "分支發佈成功"
+  },
+  "分支发布失败": {
+    "en": "Branch publishing failed",
+    "zh-TW": "分支發佈失敗"
+  },
+  "分支已推送，请查看仓库状态中的警告": {
+    "en": "Branch pushed. Check the repository status for warnings",
+    "zh-TW": "分支已推送，請查看儲存庫狀態中的警告"
+  },
   "获取所有远程仓库的最新引用": {
     "en": "Fetch the latest references from all remotes",
     "zh-TW": "擷取所有遠端儲存庫的最新參照"
@@ -1091,10 +1123,6 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
   "选择远程仓库并推送当前分支": {
     "en": "Choose a remote and push the current branch",
     "zh-TW": "選擇遠端儲存庫並推送目前分支"
-  },
-  "首次推送将建立上游跟踪": {
-    "en": "The first push sets up upstream tracking",
-    "zh-TW": "首次推送將建立上游追蹤"
   },
   "数量基于最近获取的远程引用": {
     "en": "Count based on the most recently fetched references",
@@ -1124,21 +1152,9 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
     "en": "{value1} in progress, please wait…",
     "zh-TW": "{value1}中，請稍候…"
   },
-  "推送当前分支": {
-    "en": "Push current branch",
-    "zh-TW": "推送目前分支"
-  },
   "远程仓库": {
     "en": "Remote",
     "zh-TW": "遠端儲存庫"
-  },
-  "推送中…": {
-    "en": "Pushing…",
-    "zh-TW": "推送中…"
-  },
-  "推送并设置上游": {
-    "en": "Push and set upstream",
-    "zh-TW": "推送並設定上游"
   },
   "刚刚": {
     "en": "Just now",
@@ -1175,10 +1191,6 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
   "选择接收 {branch} 的远程仓库。": {
     "en": "Choose the remote repository to receive {branch}.",
     "zh-TW": "選擇接收 {branch} 的遠端儲存庫。"
-  },
-  "推送到 {destination} 并设置为上游分支。": {
-    "en": "Push to {destination} and set it as the upstream branch.",
-    "zh-TW": "推送至 {destination} 並設為上游分支。"
   },
   "将中止 {source} → {target}，撤销此次合并及冲突解决过程中的修改。需要保留的内容请先另行保存。": {
     "en": "Abort {source} → {target} and discard changes made during this merge and conflict resolution. Save anything you need elsewhere first.",

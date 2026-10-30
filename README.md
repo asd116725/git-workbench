@@ -4,9 +4,9 @@
 
 A desktop Git client for local repositories, built with Tauri 2, React, and TypeScript. Work with worktrees, branches, file changes, and diffs in one window.
 
-[Download v1.6.0](https://github.com/asd116725/git-workbench/releases/tag/v1.6.0) · [User manual](docs/user-manual.md) · [Installation](docs/installation.md) · [Changelog](CHANGELOG.md)
+[Download v1.6.1](https://github.com/asd116725/git-workbench/releases/tag/v1.6.1) · [User manual](docs/user-manual.md) · [Installation](docs/installation.md) · [Changelog](CHANGELOG.md)
 
-The current stable release is **1.6.0**. Download `GitWorkbench_1.6.0_macos_arm64.dmg` and `SHA256SUMS.txt` from the same release, then verify the checksum before installing.
+The current stable release is **1.6.1**. Download `GitWorkbench_1.6.1_macos_arm64.dmg` and `SHA256SUMS.txt` from the same release, then verify the checksum before installing.
 
 *Screenshots use the English interface and fictional demo data. Choose your language in Settings.*
 
@@ -16,7 +16,7 @@ The current stable release is **1.6.0**. Download `GitWorkbench_1.6.0_macos_arm6
 
 - Open an existing local Git repository, discover its linked worktrees, and switch between them.
 - Search local and fetched remote branches, sorted by latest commit, with author, short hash, and commit summary.
-- Fetch remote updates, pull with fast-forward only, and push the current branch. See the outgoing commit count beside the push icon and set an upstream on the first push.
+- Fetch remote updates, pull with fast-forward only, and push the current branch. Use **Publish branch** when no upstream is configured; tracked branches show their outgoing commit count beside the push icon.
 - Create and delete local branches, with an option to switch after creation. Deletion checks for unmerged commits and worktree usage. Available since 1.2.0; see [branch management](docs/user-manual.md#42-creating-and-deleting-local-branches).
 - Browse changes as a tree or flat list and read side-by-side or inline diffs.
 - Recognize files and folders with bundled vscode-icons, consistently matched by name and type across changes, history, and diff tabs. No network connection required.
@@ -40,12 +40,12 @@ Version `1.1.0` introduced **branch merging, completing or aborting a conflicted
 
 The current release provides a **macOS Apple Silicon (arm64)** installer. Official builds for Intel Mac, Windows, and Linux are not available yet.
 
-1. Download the [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.6.0/GitWorkbench_1.6.0_macos_arm64.dmg) and `SHA256SUMS.txt` from the [v1.6.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.0).
+1. Download the [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.6.1/GitWorkbench_1.6.1_macos_arm64.dmg) and `SHA256SUMS.txt` from the [v1.6.1 release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.1).
 2. Follow the [installation guide](docs/installation.md) to verify the download, drag **代码管理** into Applications, and open it.
 3. Click **Open local repository** and choose an existing repository. The app uses your installed Git; make sure `git --version` works first.
 4. Select a file to read its diff, click `+` at the end of the row to stage it, enter a commit message, and commit.
 
-Version 1.6.0 is a stable release, but its installer is **ad-hoc signed, without Apple Developer ID signing or notarization**. The stable release designation does not change its signing status. macOS may ask you to confirm its source; see [first launch](docs/installation.md#first-launch).
+Version 1.6.1 is a stable release, but its installer is **ad-hoc signed, without Apple Developer ID signing or notarization**. The stable release designation does not change its signing status. macOS may ask you to confirm its source; see [first launch](docs/installation.md#first-launch).
 
 ## Support and limitations
 
@@ -90,7 +90,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.6.0
+pnpm release:check --tag v1.6.1
 ```
 
 ```sh
