@@ -80,6 +80,32 @@ fn first_push_establishes_tracking_and_refreshes_pending_count() {
 }
 
 #[test]
+fn first_push_warns_when_git_succeeds_without_writing_upstream_configuration() {
+    let fixture = Fixture::new();
+    let repo = &fixture.local;
+    commit_file(repo, "base.txt", "base\n");
+    fs::write(repo.join(".git/config.lock"), "").unwrap();
+
+    let result = push(repo, None).unwrap();
+    assert_eq!(
+        result.warning.as_deref(),
+        Some("提交已推送，但后续设置未完成：\n上游跟踪未建立，请检查 Git 配置后重试。")
+    );
+    assert_eq!(remote_status(repo).unwrap().upstream, None);
+    assert_eq!(
+        git_line(&fixture.remote, &["rev-parse", "main"]).unwrap(),
+        git_line(repo, &["rev-parse", "HEAD"]).unwrap()
+    );
+
+    fs::remove_file(repo.join(".git/config.lock")).unwrap();
+    assert!(push(repo, None).unwrap().warning.is_none());
+    assert_eq!(
+        remote_status(repo).unwrap().upstream.as_deref(),
+        Some("origin/main")
+    );
+}
+
+#[test]
 fn fetch_only_updates_refs_and_preserves_dirty_index_and_worktree() {
     let fixture = Fixture::new();
     fixture.seed();

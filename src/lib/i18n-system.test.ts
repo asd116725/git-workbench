@@ -6,6 +6,13 @@ beforeEach(() => setLanguage('en'));
 afterEach(() => setLanguage('zh-CN'));
 
 describe('应用业务提示国际化', () => {
+  it('首次发布的上游配置警告完整翻译，保留已推送的事实', () => {
+    const warning = '提交已推送，但后续设置未完成：\n上游跟踪未建立，请检查 Git 配置后重试。';
+    expect(translateMessage(warning)).toBe('Commits were pushed, but upstream tracking was not established. Check your Git configuration and retry.');
+    setLanguage('zh-TW');
+    expect(translateMessage(warning)).toBe('提交已推送，但上游追蹤未建立。請檢查 Git 設定後重試。');
+  });
+
   it('保存的简体错误在三种语言间双向切换，不修改源消息', () => {
     const saved = '当前分支尚未设置上游，请先推送并建立跟踪关系。';
     expect(translateMessage(saved)).toBe('The current branch has no upstream. Push it and set up tracking first.');

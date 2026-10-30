@@ -126,6 +126,7 @@ export const systemMessages: Record<string, { en: string; 'zh-TW': string }> = {
   "当前分支尚未设置上游，请先推送并建立跟踪关系。": { en: "The current branch has no upstream. Push it and set up tracking first.", 'zh-TW': "目前分支尚未設定上游，請先推送並建立追蹤關係。" },
   "当前分支没有唯一的远程上游分支，请先调整跟踪配置。": { en: "The current branch does not have a unique remote upstream. Adjust its tracking configuration first.", 'zh-TW': "目前分支沒有唯一的遠端上游分支，請先調整追蹤設定。" },
   "当前分支的上游已变化，请刷新后重新推送。": { en: "The branch upstream has changed. Refresh and push again.", 'zh-TW': "目前分支的上游已變更，請重新整理後再次推送。" },
+  "提交已推送，但后续设置未完成：\n上游跟踪未建立，请检查 Git 配置后重试。": { en: "Commits were pushed, but upstream tracking was not established. Check your Git configuration and retry.", 'zh-TW': "提交已推送，但上游追蹤未建立。請檢查 Git 設定後重試。" },
   "上游没有对应的远程仓库，请先设置有效的远程上游分支。": { en: "The upstream has no matching remote. Set a valid remote upstream branch first.", 'zh-TW': "上游沒有對應的遠端儲存庫，請先設定有效的遠端上游分支。" },
   "推送目标没有对应的远程仓库，请先设置有效的远程上游分支。": { en: "The push target has no matching remote. Set a valid remote upstream branch first.", 'zh-TW': "推送目標沒有對應的遠端儲存庫，請先設定有效的遠端上游分支。" },
   "请选择用于首次推送的远程仓库。": { en: "Select a remote for the first push.", 'zh-TW': "請選擇用於首次推送的遠端儲存庫。" },

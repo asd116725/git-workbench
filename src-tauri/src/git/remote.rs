@@ -331,6 +331,23 @@ fn pull(repo: &Path) -> GitResult<GitRemoteResult> {
     }
 }
 
+/// Git 写上游配置失败时仍可能返回成功，必须核对原分支的实际跟踪目标。
+fn verify_published_upstream(
+    repo: &Path,
+    branch: &str,
+    remote: &str,
+    target: &str,
+) -> GitResult<()> {
+    let configured_remote = config_values(repo, &format!("branch.{branch}.remote"))?.pop();
+    let configured_branches = config_values(repo, &format!("branch.{branch}.merge"))?;
+    if configured_remote.as_deref() != Some(remote)
+        || configured_branches != [format!("refs/heads/{target}")]
+    {
+        return Err("上游跟踪未建立，请检查 Git 配置后重试。".into());
+    }
+    Ok(())
+}
+
 fn push(repo: &Path, selected_remote: Option<&str>) -> GitResult<GitRemoteResult> {
     let branch = ensure_branch_ready(repo)?;
     let state = remote_status(repo)?;
@@ -377,7 +394,15 @@ fn push(repo: &Path, selected_remote: Option<&str>) -> GitResult<GitRemoteResult
         })
     });
     match checked(output) {
-        Ok(_) => Ok(GitRemoteResult { warning: None }),
+        Ok(_) => Ok(GitRemoteResult {
+            warning: if set_upstream {
+                verify_published_upstream(repo, &branch, remote, target)
+                    .err()
+                    .map(|error| format!("提交已推送，但后续设置未完成：\n{error}"))
+            } else {
+                None
+            },
+        }),
         Err(error) if accepted => Ok(GitRemoteResult {
             warning: Some(format!("提交已推送，但后续设置未完成：\n{error}")),
         }),
