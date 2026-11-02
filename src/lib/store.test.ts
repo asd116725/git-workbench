@@ -456,7 +456,7 @@ describe('真实分支列表与切换', () => {
     await expect(useWorkbench.getState().checkoutBranch('refs/heads/feature')).resolves.toEqual({ branch: 'feature', warning });
     expect(currentWorktree().branch).toBe('feature');
     expect(currentWorktree().files).toEqual([]);
-    expect(useWorkbench.getState().error).toBe(`已切换到 feature，但 ${warning}`);
+    expect(useWorkbench.getState().error).toBe(warning);
     expect(useWorkbench.getState().busy).toBe(false);
   });
 

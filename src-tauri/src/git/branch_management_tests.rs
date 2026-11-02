@@ -69,6 +69,19 @@ fn create_remote_branch_uses_selected_tracking_ref_and_switches() {
     let fixture = committed_fixture();
     let repo = fixture.path();
     remote_ref(repo, "topic", "HEAD");
+    let remote = tempfile::tempdir().unwrap();
+    git(remote.path(), &["init", "--bare"]).unwrap();
+    git(
+        repo,
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            remote.path().to_str().unwrap(),
+        ],
+    )
+    .unwrap();
+    git(repo, &["push", "origin", "HEAD:refs/heads/topic"]).unwrap();
     git(repo, &["config", "branch.autoSetupMerge", "false"]).unwrap();
     let result = create_branch(repo, "local-topic", "refs/remotes/origin/topic", true).unwrap();
     assert!(result.switched && result.warning.is_none());

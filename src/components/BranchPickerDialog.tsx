@@ -233,7 +233,7 @@ export function BranchPickerDialog({ worktree, open, onOpenChange }: {
         {!hasStart && !branches.loading && !branches.error && <p className="branch-operation-note">{t("没有可用起点，请先完成首次提交。")}</p>}
         {(error || branches.error) && <pre className="inline-error" role="alert">{translateMessage(error || branches.error || '')}</pre>}
         <div className="branch-results" ref={listRef} onKeyDown={navigate} aria-label={t("分支列表")} aria-busy={branches.loading || locked}>
-          {branches.loading ? <div className="branch-placeholder" role="status"><i className="codicon codicon-loading spin" aria-hidden="true" />{t("正在读取分支…")}</div> : branches.error ? <div className="branch-placeholder"><Button variant="outline" onClick={() => void loadBranches()}>{t("重新读取分支")}</Button></div> : filtered.length === 0 ? <div className="branch-placeholder">{query ? t("没有匹配“{value1}”的分支", { value1: search }) : t("暂无分支记录，完成首次提交后可在此查看。")}</div> : (['local', 'remote'] as const).map(kind => {
+          {switchingRef || branches.loading ? <div className="branch-placeholder" role="status"><i className="codicon codicon-loading spin" aria-hidden="true" />{switchingRef ? t("正在切换并检查远程更新，落后时自动快进拉取…") : t("正在读取分支…")}</div> : branches.error ? <div className="branch-placeholder"><Button variant="outline" onClick={() => void loadBranches()}>{t("重新读取分支")}</Button></div> : filtered.length === 0 ? <div className="branch-placeholder">{query ? t("没有匹配“{value1}”的分支", { value1: search }) : t("暂无分支记录，完成首次提交后可在此查看。")}</div> : (['local', 'remote'] as const).map(kind => {
             const items = filtered.filter(branch => branch.kind === kind);
             if (!items.length) return null;
             return <section key={kind} className="branch-section" aria-label={kind === 'local' ? t("本地分支") : t("远程分支")}>
@@ -242,7 +242,7 @@ export function BranchPickerDialog({ worktree, open, onOpenChange }: {
             </section>;
           })}
         </div>
-        <p className="branch-footer">{t("远程分支来自本地已获取的记录，选择后会建立或使用对应的本地跟踪分支。")}</p>
+        <p className="branch-footer">{t("远程分支来自本地已获取的记录；切换后会检查远程上游并自动快进拉取。")}</p>
       </>}
       {view === 'create' && <>
         {error && <pre className="inline-error" role="alert">{translateMessage(error)}</pre>}

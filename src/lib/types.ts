@@ -100,7 +100,7 @@ export interface GitBranch extends GitBranchSync {
   };
 }
 
-/** 分支已切换成功时，hook 后续失败仅作为警告返回，避免误报为未切换。 */
+/** 分支已切换成功时，hook 或自动拉取失败仅作为警告返回，避免误报为未切换。 */
 export interface GitCheckoutResult {
   branch: string;
   warning: string | null;

@@ -26,6 +26,29 @@ beforeEach(() => { hooks.workbench.mockReturnValue({ busy: false, refreshing: fa
 afterEach(() => setLanguage('zh-CN'));
 
 describe('远程工具栏', () => {
+  it.each([
+    ['zh-CN', '拉取，24 个待拉取提交'],
+    ['en', 'Pull, commits to pull: 24'],
+    ['zh-TW', '拉取，24 個待拉取提交'],
+  ] as const)('%s 同时显示拉取和推送各自的提交数量', (language, label) => {
+    setLanguage(language);
+    const html = render({ ...worktree, remote: { ...worktree.remote!, behind: 24 } });
+    expect(html).toContain(`aria-label="${label}"`);
+    expect(html).toMatch(/codicon-arrow-down[^]*?remote-count[^]*?>24<\/span>/);
+    expect(html).toMatch(/codicon-arrow-up[^]*?remote-count[^]*?>3<\/span>/);
+  });
+
+  it.each([0, null])('待拉取数量为 %s 时隐藏角标', behind => {
+    const html = render({ ...worktree, remote: { ...worktree.remote!, ahead: 0, behind } });
+    expect(html).not.toContain('remote-count');
+    expect(html).toContain('aria-label="拉取"');
+  });
+
+  it('没有上游时不将同名远程的差异显示为待拉取数量', () => {
+    const html = render({ ...unpublished, remote: { ...unpublished.remote!, behind: 24 } });
+    expect(html).not.toContain('remote-count');
+    expect(html).toContain('aria-label="发布分支"');
+  });
   it.each([['en', 'Fetch', 'Pull', 'Push, commits to push: 3'], ['zh-TW', '擷取', '拉取', '推送，3 個待上傳提交']] as const)('%s 更新三个操作及动态数量的无障碍名称', (language, fetch, pull, push) => {
     setLanguage(language);
     const html = render();

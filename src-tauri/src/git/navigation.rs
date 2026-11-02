@@ -429,7 +429,11 @@ pub(super) fn checkout(repo: &Path, full_name: &str) -> GitResult<CheckoutResult
         };
         (local_name.into(), warning)
     };
-    // switch 已成功后不再读取状态，避免读取失败让用户误以为分支没有切换。
+    // 切换已完成，后续拉取失败只能作为警告；hook 已报错时不继续自动操作。
+    let warning = warning.or_else(|| match remote::pull_after_checkout(repo, &branch) {
+        Ok(result) => result.warning,
+        Err(error) => Some(format!("分支已切换，但自动拉取未完成：\n{error}")),
+    });
     Ok(CheckoutResult { branch, warning })
 }
 

@@ -6,6 +6,18 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-11-02
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#162---2026-11-02)
+
+- After switching branches, check the configured remote upstream and pull fast-forward updates automatically, including commits not previously fetched. Preserve the completed switch and show a warning if synchronization fails.
+- Show incoming commit counts beside Pull, alongside the existing outgoing counts. Hide counts when zero, unknown, or without an upstream.
+- Preserve local changes and reject diverged history without automatic rebasing or stashing. Provide switching progress and incoming-count messages in Simplified Chinese, Traditional Chinese, and English.
+
+This release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
+Save commit drafts and quit the previous version completely with `⌘Q` before upgrading. Verify `GitWorkbench_1.6.2_macos_arm64.dmg` against `SHA256SUMS.txt` from the same release before installing.
+
 ## [1.6.1] - 2026-10-30
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#161---2026-10-30)

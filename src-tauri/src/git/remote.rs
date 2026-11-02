@@ -331,6 +331,21 @@ fn pull(repo: &Path) -> GitResult<GitRemoteResult> {
     }
 }
 
+/// 切换后重新联系远端，避免缓存计数为零时漏掉更新；仅对远程上游执行快进拉取。
+pub(super) fn pull_after_checkout(
+    repo: &Path,
+    expected_branch: &str,
+) -> GitResult<GitRemoteResult> {
+    if current_branch(repo)?.as_deref() != Some(expected_branch) {
+        return Err("当前分支在切换后发生变化，请检查后手动拉取。".into());
+    }
+    let state = remote_status(repo)?;
+    if state.upstream_remote.is_none() || state.upstream_remote.as_deref() == Some(".") {
+        return Ok(GitRemoteResult { warning: None });
+    }
+    pull(repo)
+}
+
 /// Git 写上游配置失败时仍可能返回成功，必须核对原分支的实际跟踪目标。
 fn verify_published_upstream(
     repo: &Path,

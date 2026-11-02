@@ -608,9 +608,13 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
     "en": "Latest commits first",
     "zh-TW": "最近提交優先"
   },
-  "远程分支来自本地已获取的记录，选择后会建立或使用对应的本地跟踪分支。": {
-    "en": "Remote branches use locally fetched references. Selecting one creates or uses its local tracking branch.",
-    "zh-TW": "遠端分支來自本機已擷取的記錄，選擇後會建立或使用對應的本機追蹤分支。"
+  "远程分支来自本地已获取的记录；切换后会检查远程上游并自动快进拉取。": {
+    "en": "Remote branches use fetched references. Switching checks the remote upstream and pulls fast-forward updates automatically.",
+    "zh-TW": "遠端分支來自本機已擷取的記錄；切換後會檢查遠端上游並自動快進拉取。"
+  },
+  "正在切换并检查远程更新，落后时自动快进拉取…": {
+    "en": "Switching and checking remote updates; pulling fast-forward updates when behind…",
+    "zh-TW": "正在切換並檢查遠端更新，落後時自動快進拉取…"
   },
   "正在检查分支…": {
     "en": "Checking branch…",
@@ -1103,6 +1107,22 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
   "从 {value1} 拉取，只允许快进；分叉时请先合并": {
     "en": "Pull from {value1} using fast-forward only; merge diverged branches first",
     "zh-TW": "從 {value1} 拉取，僅允許快進；分歧時請先合併"
+  },
+  "待拉取数量未知": {
+    "en": "Incoming commit count unknown",
+    "zh-TW": "待拉取數量未知"
+  },
+  "{value1} 个待拉取提交": {
+    "en": "Commits to pull: {value1}",
+    "zh-TW": "{value1} 個待拉取提交"
+  },
+  "没有待拉取提交": {
+    "en": "No commits to pull",
+    "zh-TW": "沒有待拉取提交"
+  },
+  "{value1}，{value2} 个待拉取提交": {
+    "en": "{value1}, commits to pull: {value2}",
+    "zh-TW": "{value1}，{value2} 個待拉取提交"
   },
   "待上传数量未知": {
     "en": "Pending commit count unknown",

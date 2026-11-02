@@ -4,9 +4,9 @@
 
 一个面向本地仓库的 Git 桌面工具。使用 Tauri 2、React 和 TypeScript 构建，将 worktree、分支、文件变更与 Diff 放在同一个窗口中。
 
-[下载 v1.6.1 安装包](https://github.com/asd116725/git-workbench/releases/tag/v1.6.1) · [中文操作手册](docs/zh-CN/user-manual.md) · [安装说明](docs/zh-CN/installation.md) · [更新日志](CHANGELOG.zh-CN.md)
+[下载 v1.6.2 安装包](https://github.com/asd116725/git-workbench/releases/tag/v1.6.2) · [中文操作手册](docs/zh-CN/user-manual.md) · [安装说明](docs/zh-CN/installation.md) · [更新日志](CHANGELOG.zh-CN.md)
 
-当前正式版本为 **1.6.1**，提供 `GitWorkbench_1.6.1_macos_arm64.dmg` 和同一 Release 的 `SHA256SUMS.txt`，请校验后安装。
+当前正式版本为 **1.6.2**，提供 `GitWorkbench_1.6.2_macos_arm64.dmg` 和同一 Release 的 `SHA256SUMS.txt`，请校验后安装。
 
 ![Git Workbench 本地变更界面，使用虚构示例数据](docs/screenshots/workbench.png)
 
@@ -38,12 +38,12 @@
 
 当前版本提供 **macOS Apple Silicon（arm64）** 安装包。Intel Mac、Windows、Linux 暂无官方构建。
 
-1. 从 [v1.6.1 Release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.1) 下载 [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.6.1/GitWorkbench_1.6.1_macos_arm64.dmg) 和 `SHA256SUMS.txt`。
+1. 从 [v1.6.2 Release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.2) 下载 [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.6.2/GitWorkbench_1.6.2_macos_arm64.dmg) 和 `SHA256SUMS.txt`。
 2. 按[安装说明](docs/zh-CN/installation.md)校验文件，将「代码管理」拖入 Applications 后打开。
 3. 点击「打开本地仓库」，选择已有仓库的目录。应用使用本机 Git，请先确认 `git --version` 可以运行。
 4. 选择文件阅读 Diff，在行末点击 `+` 暂存；在提交框中填写信息，点击提交按钮。
 
-v1.6.1 为正式版本，安装包仍采用 **ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证**。正式版本标记不代表已经获得 Apple 身份签名或公证。macOS 可能要求确认来源；处理方式见[首次打开](docs/zh-CN/installation.md#首次打开)。
+v1.6.2 为正式版本，安装包仍采用 **ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证**。正式版本标记不代表已经获得 Apple 身份签名或公证。macOS 可能要求确认来源；处理方式见[首次打开](docs/zh-CN/installation.md#首次打开)。
 
 ## 支持范围与限制
 
@@ -88,7 +88,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.6.1
+pnpm release:check --tag v1.6.2
 ```
 
 ```sh

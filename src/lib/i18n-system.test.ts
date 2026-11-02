@@ -6,6 +6,12 @@ beforeEach(() => setLanguage('en'));
 afterEach(() => setLanguage('zh-CN'));
 
 describe('应用业务提示国际化', () => {
+  it('自动拉取失败翻译完整业务提示并保留 Git 原始输出', () => {
+    const warning = '分支已切换，但自动拉取未完成：\n拉取失败：仅支持快进更新；分支分叉时请先获取，再通过「合并」整合上游分支。\nGit: fatal: Not possible to fast-forward';
+    expect(translateMessage(warning)).toBe('The branch was switched, but automatic pull did not complete. Only fast-forward updates are supported; fetch and merge the upstream if the branches have diverged.\nGit: fatal: Not possible to fast-forward');
+    setLanguage('zh-TW');
+    expect(translateMessage(warning)).toBe('分支已切換，但自動拉取未完成。僅支援快進更新；分支分歧時請先擷取，再透過「合併」整合上游分支。\nGit: fatal: Not possible to fast-forward');
+  });
   it('首次发布的上游配置警告完整翻译，保留已推送的事实', () => {
     const warning = '提交已推送，但后续设置未完成：\n上游跟踪未建立，请检查 Git 配置后重试。';
     expect(translateMessage(warning)).toBe('Commits were pushed, but upstream tracking was not established. Check your Git configuration and retry.');

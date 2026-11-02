@@ -18,11 +18,15 @@ const actions = [
   { action: 'push', label: "推送", icon: 'arrow-up' },
 ] as const;
 
-/** 发布只说明目标与跟踪关系，提交差异仅用于已有上游的推送。 */
+/** 发布只说明目标与跟踪关系，已有上游时展示拉取或推送的提交差异。 */
 function actionDescription(worktree: Worktree, action: GitRemoteAction, needsPublish: boolean) {
   const remote = worktree.remote;
   if (action === 'fetch') return t("获取所有远程仓库的最新引用");
-  if (action === 'pull') return t("从 {value1} 拉取，只允许快进；分叉时请先合并", { value1: remote?.upstream ?? '' });
+  if (action === 'pull') {
+    const count = remote?.upstream ? remote.behind : null;
+    const pending = count == null ? t("待拉取数量未知") : count > 0 ? t("{value1} 个待拉取提交", { value1: count }) : t("没有待拉取提交");
+    return [t("从 {value1} 拉取，只允许快进；分叉时请先合并", { value1: remote?.upstream ?? '' }), pending, t("数量基于最近获取的远程引用")].join(' · ');
+  }
   const destination = remote?.upstream ?? (remote?.defaultRemote ? `${remote.defaultRemote}/${worktree.branch}` : null);
   if (needsPublish) return destination
     ? t("发布到 {destination}，并建立上游跟踪。", { destination })
@@ -44,7 +48,6 @@ export function RemoteActions({ worktree }: { worktree: Worktree }) {
   const remote = worktree.remote;
   /** 残缺的上游配置仍由推送流程报错，不能当作首次发布。 */
   const needsPublish = Boolean(remote && !remote.upstream && !remote.upstreamRemote);
-  const count = remote?.upstream ? remote.ahead : null;
   const pushBlocked = remoteBlockReason(worktree, 'push');
   const locked = busy || refreshing;
 
@@ -79,8 +82,10 @@ export function RemoteActions({ worktree }: { worktree: Worktree }) {
       const progressLabel = publishing ? t("发布中…") : t("{value1}中", { value1: label });
       const running = remoteOperation === action;
       const blocked = remoteBlockReason(worktree, action);
-      const pending = action === 'push' && count != null && count > 0;
-      const ariaLabel = running ? progressLabel : pending ? t("{value1}，{value2} 个待上传提交", { value1: label, value2: count }) : label;
+      const count = remote?.upstream ? action === 'pull' ? remote.behind : action === 'push' ? remote.ahead : null : null;
+      const pending = count != null && count > 0;
+      const ariaLabel = running ? progressLabel : pending
+        ? t(action === 'pull' ? "{value1}，{value2} 个待拉取提交" : "{value1}，{value2} 个待上传提交", { value1: label, value2: count }) : label;
       const description = running
         ? (publishing ? t("发布中，请稍候…") : t("{value1}中，请稍候…", { value1: label }))
         : actionDescription(worktree, action, needsPublish);

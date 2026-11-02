@@ -72,6 +72,144 @@ fn counts(repo: &Path, name: &str) -> (Option<u64>, Option<u64>) {
 }
 
 #[test]
+fn checkout_fetches_unseen_commits_and_fast_forwards_the_selected_branch() {
+    for (target, new_tracking_branch) in [
+        ("refs/heads/main", false),
+        ("refs/remotes/origin/main", false),
+        ("refs/remotes/origin/main", true),
+    ] {
+        let fixture = TrackingFixture::new();
+        let repo = &fixture.local;
+        git(repo, &["switch", "--no-track", "-c", "other"]).unwrap();
+        let source_head = git_line(repo, &["rev-parse", "HEAD"]).unwrap();
+        commit_empty(&fixture.peer, "new remote commit");
+        git(&fixture.peer, &["push", "origin", "main"]).unwrap();
+        assert_eq!(counts(repo, "main"), (Some(0), Some(0)));
+        if new_tracking_branch {
+            git(repo, &["branch", "-D", "main"]).unwrap();
+        }
+
+        let result = checkout(repo, target).unwrap();
+        assert_eq!(result.branch, "main");
+        assert!(result.warning.is_none(), "{:?}", result.warning);
+        assert_eq!(
+            git_line(repo, &["rev-parse", "HEAD"]).unwrap(),
+            git_line(&fixture.peer, &["rev-parse", "HEAD"]).unwrap()
+        );
+        assert_eq!(
+            git_line(repo, &["rev-parse", "other"]).unwrap(),
+            source_head
+        );
+        assert_eq!(counts(repo, "main"), (Some(0), Some(0)));
+    }
+}
+
+#[test]
+fn checkout_keeps_selected_branch_and_warns_when_pull_cannot_fast_forward() {
+    let fixture = TrackingFixture::new();
+    let repo = &fixture.local;
+    commit_empty(repo, "local commit");
+    let local_head = git_line(repo, &["rev-parse", "HEAD"]).unwrap();
+    git(repo, &["switch", "--no-track", "-c", "other"]).unwrap();
+    commit_empty(&fixture.peer, "remote commit");
+    git(&fixture.peer, &["push", "origin", "main"]).unwrap();
+    git(repo, &["config", "pull.rebase", "true"]).unwrap();
+
+    let result = checkout(repo, "refs/heads/main").unwrap();
+    assert_eq!(result.branch, "main");
+    assert!(result.warning.unwrap().contains("自动拉取未完成"));
+    assert_eq!(
+        git_line(repo, &["branch", "--show-current"]).unwrap(),
+        "main"
+    );
+    assert_eq!(git_line(repo, &["rev-parse", "HEAD"]).unwrap(), local_head);
+    assert_eq!(counts(repo, "main"), (Some(1), Some(1)));
+    assert!(operation(repo).unwrap().is_none());
+}
+
+#[test]
+fn checkout_preserves_local_files_when_remote_updates_overlap() {
+    let fixture = TrackingFixture::new();
+    let repo = &fixture.local;
+    git(repo, &["switch", "--no-track", "-c", "other"]).unwrap();
+    fs::write(repo.join("overlap.txt"), "local draft").unwrap();
+    git(repo, &["add", "overlap.txt"]).unwrap();
+    fs::write(repo.join("overlap.txt"), "working draft").unwrap();
+    fs::write(fixture.peer.join("overlap.txt"), "remote version").unwrap();
+    git(&fixture.peer, &["add", "overlap.txt"]).unwrap();
+    git(&fixture.peer, &["commit", "-m", "remote file"]).unwrap();
+    git(&fixture.peer, &["push", "origin", "main"]).unwrap();
+    git(repo, &["config", "merge.autoStash", "true"]).unwrap();
+
+    let result = checkout(repo, "refs/heads/main").unwrap();
+    assert!(result.warning.unwrap().contains("自动拉取未完成"));
+    assert_eq!(
+        git_line(repo, &["branch", "--show-current"]).unwrap(),
+        "main"
+    );
+    assert_eq!(
+        git(repo, &["show", ":overlap.txt"]).unwrap(),
+        b"local draft"
+    );
+    assert_eq!(
+        fs::read(repo.join("overlap.txt")).unwrap(),
+        b"working draft"
+    );
+    assert_eq!(counts(repo, "main"), (Some(0), Some(1)));
+    assert!(operation(repo).unwrap().is_none());
+}
+
+#[test]
+fn checkout_reports_offline_pull_without_undoing_switch() {
+    let fixture = TrackingFixture::new();
+    let repo = &fixture.local;
+    git(repo, &["switch", "--no-track", "-c", "other"]).unwrap();
+    git(
+        repo,
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            "/missing/git-workbench-remote.git",
+        ],
+    )
+    .unwrap();
+    let result = checkout(repo, "refs/heads/main").unwrap();
+    assert!(result.warning.unwrap().contains("自动拉取未完成"));
+    assert_eq!(
+        git_line(repo, &["branch", "--show-current"]).unwrap(),
+        "main"
+    );
+}
+
+#[test]
+fn checkout_does_not_pull_untracked_or_local_upstream_branches() {
+    let fixture = TrackingFixture::new();
+    let repo = &fixture.local;
+    git(repo, &["branch", "--no-track", "untracked"]).unwrap();
+    git(
+        repo,
+        &["branch", "--track=direct", "local-tracking", "main"],
+    )
+    .unwrap();
+    commit_empty(repo, "local upstream only");
+    git(
+        repo,
+        &[
+            "remote",
+            "set-url",
+            "origin",
+            "/missing/git-workbench-remote.git",
+        ],
+    )
+    .unwrap();
+    for target in ["refs/heads/untracked", "refs/heads/local-tracking"] {
+        assert!(checkout(repo, target).unwrap().warning.is_none());
+    }
+    assert_eq!(counts(repo, "local-tracking"), (Some(0), Some(1)));
+}
+
+#[test]
 fn branch_counts_follow_each_upstream_and_only_locally_fetched_refs() {
     let fixture = TrackingFixture::new();
     let repo = &fixture.local;

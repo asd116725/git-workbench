@@ -590,7 +590,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
         await applyBranchSwitch(worktree, branch);
         await loadBranches(currentWorktree());
         if (warning) {
-          set(state => ({ error: [`已切换到 ${branch}，但 ${warning}`, state.error].filter(Boolean).join('\n') }));
+          set(state => ({ error: [warning, state.error].filter(Boolean).join('\n') }));
         }
         return { branch, warning };
       } catch (error) {

@@ -4,9 +4,9 @@
 
 A desktop Git client for local repositories, built with Tauri 2, React, and TypeScript. Work with worktrees, branches, file changes, and diffs in one window.
 
-[Download v1.6.1](https://github.com/asd116725/git-workbench/releases/tag/v1.6.1) · [User manual](docs/user-manual.md) · [Installation](docs/installation.md) · [Changelog](CHANGELOG.md)
+[Download v1.6.2](https://github.com/asd116725/git-workbench/releases/tag/v1.6.2) · [User manual](docs/user-manual.md) · [Installation](docs/installation.md) · [Changelog](CHANGELOG.md)
 
-The current stable release is **1.6.1**. Download `GitWorkbench_1.6.1_macos_arm64.dmg` and `SHA256SUMS.txt` from the same release, then verify the checksum before installing.
+The current stable release is **1.6.2**. Download `GitWorkbench_1.6.2_macos_arm64.dmg` and `SHA256SUMS.txt` from the same release, then verify the checksum before installing.
 
 *Screenshots use the English interface and fictional demo data. Choose your language in Settings.*
 
@@ -40,12 +40,12 @@ Version `1.1.0` introduced **branch merging, completing or aborting a conflicted
 
 The current release provides a **macOS Apple Silicon (arm64)** installer. Official builds for Intel Mac, Windows, and Linux are not available yet.
 
-1. Download the [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.6.1/GitWorkbench_1.6.1_macos_arm64.dmg) and `SHA256SUMS.txt` from the [v1.6.1 release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.1).
+1. Download the [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.6.2/GitWorkbench_1.6.2_macos_arm64.dmg) and `SHA256SUMS.txt` from the [v1.6.2 release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.2).
 2. Follow the [installation guide](docs/installation.md) to verify the download, drag **代码管理** into Applications, and open it.
 3. Click **Open local repository** and choose an existing repository. The app uses your installed Git; make sure `git --version` works first.
 4. Select a file to read its diff, click `+` at the end of the row to stage it, enter a commit message, and commit.
 
-Version 1.6.1 is a stable release, but its installer is **ad-hoc signed, without Apple Developer ID signing or notarization**. The stable release designation does not change its signing status. macOS may ask you to confirm its source; see [first launch](docs/installation.md#first-launch).
+Version 1.6.2 is a stable release, but its installer is **ad-hoc signed, without Apple Developer ID signing or notarization**. The stable release designation does not change its signing status. macOS may ask you to confirm its source; see [first launch](docs/installation.md#first-launch).
 
 ## Support and limitations
 
@@ -90,7 +90,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.6.1
+pnpm release:check --tag v1.6.2
 ```
 
 ```sh
