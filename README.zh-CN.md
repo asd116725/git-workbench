@@ -1,75 +1,132 @@
-# Git Workbench · 代码管理
+<p align="center">
+  <img src="src-tauri/icons/128x128@2x.png" width="112" height="112" alt="Git Workbench 应用图标">
+</p>
 
-[English](README.md) | **简体中文**
+<h1 align="center">Git Workbench · 代码管理</h1>
 
-一个面向本地仓库的 Git 桌面工具。使用 Tauri 2、React 和 TypeScript 构建，将 worktree、分支、文件变更与 Diff 放在同一个窗口中。
+<p align="center">
+  <strong>把本地 Git 工作，集中在一个桌面工作台。</strong><br>
+  查看修改、管理 worktree、准备提交，在同一个窗口中完成。
+</p>
 
-[下载 v1.7.0 安装包](https://github.com/asd116725/git-workbench/releases/tag/v1.7.0) · [中文操作手册](docs/zh-CN/user-manual.md) · [安装说明](docs/zh-CN/installation.md) · [更新日志](CHANGELOG.zh-CN.md)
+<p align="center">
+  <a href="https://github.com/asd116725/git-workbench/releases/latest"><img src="https://img.shields.io/github/v/release/asd116725/git-workbench?style=flat-square&amp;color=e8663a" alt="最新版本"></a>
+  <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-30363d?style=flat-square" alt="macOS Apple Silicon">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-3572a5?style=flat-square" alt="MIT 许可证"></a>
+</p>
 
-当前正式版本为 **1.7.0**，提供 `GitWorkbench_1.7.0_macos_arm64.dmg` 和同一 Release 的 `SHA256SUMS.txt`，请校验后安装。
+<p align="center">
+  <a href="https://github.com/asd116725/git-workbench/releases/latest"><strong>下载 macOS 版</strong></a> ·
+  <a href="docs/zh-CN/user-manual.md">操作手册</a> ·
+  <a href="CHANGELOG.zh-CN.md">版本更新</a> ·
+  <a href="https://github.com/asd116725/git-workbench/issues">问题反馈</a>
+</p>
 
-![Git Workbench 本地变更界面，使用虚构示例数据](docs/screenshots/workbench.png)
+<p align="center"><a href="README.md">English</a> · <strong>简体中文</strong></p>
 
-## 可以做什么
+Git Workbench 将本地仓库、关联 worktree、分支、Diff 和提交历史放在同一个桌面应用中。适合同时维护多个项目、并行处理功能分支，并希望在提交前逐项核对修改的开发者。
 
-- 打开已有的本地 Git 仓库，自动列出关联 worktree，并在工作区之间切换。
-- 搜索本地和已获取的远程分支，按最近提交排序，查看作者、短哈希和提交摘要。
-- 获取远程更新、快进拉取和推送当前分支；未配置上游时显示「发布分支」，已跟踪分支在推送图标旁显示待上传提交数。
-- 1.2.0 支持创建与删除本地分支，可选创建后切换；删除前核对未合入提交和 Worktree 占用，详见[分支管理](docs/zh-CN/user-manual.md#42-创建与删除本地分支)。
-- 用目录树或列表查看文件变更，阅读只读的并排或内联 Diff。
-- 文件与目录使用 vscode-icons 图标，列表、历史和 Diff 标签页按文件名与类型一致匹配，离线可用。
-- 将单个文件、整个目录或整组变更加入暂存区，或取消暂存。
-- 在同一个多行输入框填写提交信息，首行作为标题、后续内容作为说明；提交暂存区内容，保留未暂存修改。
-- 使用 DeepSeek 根据暂存区生成中文 Conventional Commit，预览编辑后明确填入草稿，再手动提交；密钥从本机 `DEEPSEEK_API_KEY` 读取，详见[AI 提交信息](docs/zh-CN/user-manual.md#ai-生成提交信息170)。
-- 监听当前工作区变化，自动更新文件列表和 Diff，保留阅读位置与本次会话的提交草稿。
-- 以提交列表、变更文件树、Diff 三栏浏览真实历史，筛选分支、搜索完整历史，并切换合并提交的比较父提交。
-- 调整分栏宽度、代码字号和 Diff 模式；使用 Atom One Dark 配色。
-- 支持中文简体、中文繁體和 English 界面语言，在设置中即时切换并保存选择（1.4.0）。
-- 在各本地分支旁显示相对自身上游的待拉取（`↓`）和待推送（`↑`）提交数（1.4.0）；基于本地最近获取的引用，打开列表不自动获取远程。
-- 侧栏显示各工作区自身分支的待拉取、待推送数量，悬停查看完整同步说明，并适配窄侧栏（1.5.0）。
-- 提交历史使用绿色上箭头及「待推送」标签标出尚未包含在所选分支上游中的记录，搜索和分页保持对应（1.6.0）。
+应用沿用本机 Git 的作者信息、签名、hooks 和远程凭据配置。你也可以选择接入 DeepSeek，根据暂存修改生成中文提交草稿，检查后再使用。
 
-截图中的仓库、路径、作者和提交记录均为虚构演示数据。
+![本地变更、关联 worktree 与并排 Diff](docs/screenshots/workbench.png)
 
-`v1.1.0` 新增了**合并分支、冲突后的完成合并和中止合并，以及只读提交历史**。操作步骤见[合并分支](docs/zh-CN/user-manual.md#41-合并分支)和[提交历史](docs/zh-CN/user-manual.md#81-提交历史)。
+*界面预览使用虚构演示数据。截图中的按变更块暂存属于浏览器演示，桌面应用当前支持文件、目录与整组暂存，详见[支持范围与限制](#支持范围与限制)。*
 
-![提交列表、变更文件树与历史 Diff，使用虚构示例数据](docs/screenshots/history.png)
+## 日常 Git 工作，在这里完成
+
+| 工作场景 | 可以做什么 |
+| --- | --- |
+| **仓库与 worktree** | 打开已有本地仓库，发现关联 worktree，从侧栏切换并行工作区；重新打开应用时恢复仓库与上次选中的工作区。 |
+| **Diff 与暂存** | 用目录树或列表浏览修改，查看并排或内联 Diff，暂存或取消暂存文件、目录及整组变更；提交暂存内容，保留未暂存修改。 |
+| **分支与远程同步** | 搜索、创建、删除及合并分支，获取、拉取、推送或首次发布分支；在侧栏、分支列表与工具栏查看待拉取、待推送数量。 |
+| **提交历史** | 同时浏览提交列表、变更文件与历史 Diff，搜索所选分支的完整可达历史，切换合并父提交，识别尚未推送的记录。 |
+| **AI 提交草稿** | 使用 DeepSeek 根据暂存修改生成中文 Conventional Commit；先预览编辑，再明确填入提交草稿。 |
+| **阅读与操作体验** | 调整分栏宽度、字号和 Diff 模式，使用 Atom One Dark 配色与文件类型图标；支持 English、简体中文、繁體中文。 |
+
+切换到有远程上游的分支时，应用会检查更新并尝试快进拉取。如果本地修改、分支分叉或网络错误阻止同步，会保留已经完成的切换并说明原因。合并冲突需在外部编辑器中解决，再回到应用完成合并；也可以在应用中中止合并。
+
+### 从一条提交，追到具体修改
+
+选中提交即可查看完整信息、变更文件与 Diff。历史中的分支筛选只改变浏览范围，不切换当前工作分支。
+
+![提交列表、变更文件树与历史 Diff](docs/screenshots/history.png)
+
+*预览中的仓库、路径、作者和提交记录均为虚构数据。*
+
+## AI 提交信息，先检查再使用
+
+**1.7.0** 新增可选的 AI 文案功能，使用 DeepSeek 与内置的 `staged-commit-message-zh` 写作规则。无论界面语言如何设置，生成的提交信息均为中文。
+
+1. **暂存本次修改**，明确希望纳入提交的内容。
+2. 点击 **AI 生成**，在弹窗中检查并编辑候选文案。
+3. 点击 **使用此文案** 或 **替换草稿**，回到提交框再次确认，再手动提交。
+
+生成过程不会暂存文件、提交或推送。取消或失败时保留原草稿；暂存内容、HEAD 或分支变化后，旧候选会失效。
+
+**配置与数据范围：**在本地环境中配置 `DEEPSEEK_API_KEY`，由原生进程读取，不保存到前端偏好或安装包中。发起生成时，暂存差异、必要的索引上下文、提交规范与近期提交标题会发送至 DeepSeek；未暂存修改和无关未跟踪文件不会发送。AI 功能需要 DeepSeek 账户与网络，手写提交流程始终可用。
+
+[查看 AI 配置、支持范围与排错说明 →](docs/zh-CN/user-manual.md#ai-生成提交信息170)
 
 ## 安装与快速上手
 
-当前版本提供 **macOS Apple Silicon（arm64）** 安装包。Intel Mac、Windows、Linux 暂无官方构建。
+当前正式版本为 **1.7.0**，提供 **macOS Apple Silicon（arm64）** 安装包。
 
-1. 从 [v1.7.0 Release](https://github.com/asd116725/git-workbench/releases/tag/v1.7.0) 下载 [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.7.0/GitWorkbench_1.7.0_macos_arm64.dmg) 和 `SHA256SUMS.txt`。
-2. 按[安装说明](docs/zh-CN/installation.md)校验文件，将「代码管理」拖入 Applications 后打开。
-3. 点击「打开本地仓库」，选择已有仓库的目录。应用使用本机 Git，请先确认 `git --version` 可以运行。
-4. 选择文件阅读 Diff，在行末点击 `+` 暂存；在提交框中填写信息，点击提交按钮。
+| 下载内容 | 链接 |
+| --- | --- |
+| macOS 安装包 | [GitWorkbench_1.7.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.7.0/GitWorkbench_1.7.0_macos_arm64.dmg) |
+| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.7.0/SHA256SUMS.txt) |
+| 版本说明 | [v1.7.0 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.7.0) |
 
-v1.7.0 为正式版本，安装包仍采用 **ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证**。正式版本标记不代表已经获得 Apple 身份签名或公证。macOS 可能要求确认来源；处理方式见[首次打开](docs/zh-CN/installation.md#首次打开)。
+1. **安装应用：**使用同一 Release 的校验文件核对 DMG，将「代码管理」拖入 Applications。详见[安装说明](docs/zh-CN/installation.md)。
+2. **打开仓库：**先确认 `git --version` 可以运行，再点击应用中的「打开仓库」，选择已有的本地仓库。
+3. **查看并暂存：**选择文件阅读 Diff，通过行末或分组操作暂存本次需要提交的修改。
+4. **提交并同步：**手写提交信息或选择 AI 草稿，确认提交后，再按需获取、拉取或推送。
+
+安装包采用 **ad-hoc 签名，未进行 Apple Developer ID 签名或公证**。macOS 提示处理见[首次打开](docs/zh-CN/installation.md#首次打开)。Intel Mac、Windows、Linux 暂无官方安装包；构建目标为 macOS 12 及以上，尚未覆盖所有旧系统版本的兼容性验证。
 
 ## 支持范围与限制
 
+- **已有仓库：**打开本机已经存在的仓库；克隆与初始化在应用之外完成。
+- **桌面暂存：**支持文件、目录及整组暂存，暂不支持按变更块暂存或在应用内编辑冲突；请在编辑器中解决冲突。
+- **提交草稿：**仅保留在当前应用会话中，使用 `⌘Q` 退出或升级前请先保存。仓库路径、布局与语言偏好会在下次启动时恢复。
+- **远程状态：**数量基于本地已获取的上游引用，点击「获取」可更新。没有上游时显示「发布分支」，不会把整段提交历史算作待推送。
+- **Diff 范围：**二进制文件、非 UTF-8 文本、超过 2 MiB 的文件、子模块及未解决冲突可能显示说明，而不是普通文本 Diff。
+- **更新方式：**从 [GitHub Releases](https://github.com/asd116725/git-workbench/releases) 手动下载新版本，暂不提供自动更新。
+
+<details>
+<summary>桌面应用与浏览器演示的功能对照</summary>
+
 | 功能 | 桌面应用 | 浏览器演示 |
 | --- | --- | --- |
-| 本地仓库、worktree、分支切换 | 支持 | 虚构数据 |
-| 创建与删除本地分支（1.2.0） | 支持真实 Git | 仅内存演示 |
-| 文件 Diff、文件/目录/整组暂存和提交 | 支持真实 Git | 仅内存演示 |
-| 提交历史、分支历史筛选及历史 Diff | 支持真实 Git | 虚构数据 |
-| 合并分支、完成及中止合并 | 支持真实 Git | 暂未提供 |
+| 本地仓库、worktree 与分支切换 | 真实 Git 操作 | 虚构数据 |
+| 创建与删除分支 | 真实 Git 操作 | 内存演示 |
+| 文件 Diff、暂存与提交 | 真实 Git 操作 | 内存演示 |
+| 提交历史、分支筛选与历史 Diff | 真实 Git 数据 | 虚构数据 |
+| 获取、拉取、推送与分支合并 | 真实 Git 操作 | 暂未提供 |
+| DeepSeek 提交文案生成 | 可选，使用本机 API Key | 暂未提供 |
 | 按变更块暂存 | 暂未提供 | 仅演示 |
-| Fetch、Pull、Push（1.3.0） | 支持真实 Git | 暂未提供 |
 | 冲突编辑 | 暂未提供 | 暂未提供 |
 
-- 当前工作区通过文件监听自动刷新：最后一次变化后等待 1 秒，前台空闲时读取；每次自动刷新结束后至少间隔 5 秒。后台变化回到前台后合并处理，没有变化时不刷新。仍可点击「刷新」立即读取。
-- 已打开的本地仓库与上次选中的工作区会自动保存，重启后恢复并读取最新 Git 状态；不可用路径会提示错误，其余仓库继续恢复。提交草稿仅保留在当前会话中；字号和布局偏好会保存。
-- 二进制文件、非 UTF-8 文本、超过 2 MiB 的文件、子模块或未解决冲突可能只显示说明，不能作为普通文本 Diff 展示。
-- 分支列表仅包含本地已有引用；点击「获取」更新远程分支。远程操作及首次推送说明见[操作手册](docs/zh-CN/user-manual.md#43-获取拉取与推送)。
-- 历史视图只读取 Git 提交对象，不修改工作区；分支筛选不执行切换。每页 50 条，搜索覆盖所选分支的完整可达历史。检测到新提交时提示手动刷新，保留正在阅读的 Diff。
-- 构建配置最低系统为 macOS 12，当前版本仅在维护者当前的 arm64 macOS 环境验收，旧系统兼容性仍需反馈。
-- 更新方式为手动下载 GitHub Release，应用不包含自动更新服务。
+</details>
 
-## 源码启动
+<details>
+<summary>刷新与会话行为</summary>
 
-需要 Node.js **22.14+**（同一主版本）、pnpm **11.17.0**、Rust **1.99.0**（仓库工具链文件自动选择）及系统 Git。macOS 桌面构建还需要 Xcode Command Line Tools：`xcode-select --install`。
+当前工作区通过文件监听自动刷新：最后一次变化后等待 1 秒，前台空闲时读取；每次自动刷新结束后至少间隔 5 秒。后台变化回到前台后合并处理，刷新会保留阅读位置与当前提交草稿，也可点击「刷新」立即读取。
+
+macOS 红色关闭按钮只隐藏窗口，进程仍在运行，点击 Dock 图标即可恢复。完全退出会结束会话并清除提交草稿。不可用的仓库路径会提示错误，不会阻止其他仓库恢复。
+
+提交历史每页 50 条，搜索覆盖所选分支的完整可达历史。发现新提交后会提示手动刷新，保留正在阅读的 Diff。
+
+</details>
+
+## 技术构成
+
+使用 **Tauri 2 + Rust** 构建桌面壳与 Git 集成，使用 **React + TypeScript** 构建界面，通过 **Monaco Editor + Shiki** 展示 Diff 与语法高亮。仓库操作由本机安装的 Git 执行。
+
+### 从源码启动
+
+需要 Node.js **22.14+（同一主版本 22）**、pnpm **11.17.0**、Rust **1.99.0**（仓库工具链自动选择）及 Git。macOS 桌面构建还需要 Xcode Command Line Tools：`xcode-select --install`。
 
 ```sh
 git clone https://github.com/asd116725/git-workbench.git
@@ -78,9 +135,10 @@ pnpm install --frozen-lockfile
 pnpm desktop
 ```
 
-只看界面可运行 `pnpm dev`，访问终端给出的本地地址。浏览器使用独立的演示数据，不会操作本机仓库。
+只预览界面可运行 `pnpm dev`，访问终端给出的本地地址。浏览器模式使用独立演示数据，不会操作本机仓库。
 
-## 检查与构建
+<details>
+<summary>开发检查与打包命令</summary>
 
 ```sh
 pnpm typecheck
@@ -93,20 +151,28 @@ pnpm release:check --tag v1.7.0
 ```
 
 ```sh
-# 只生成 .app，保持原有构建方式
+# 仅生成 .app
 pnpm desktop:build
 
-# 生成 arm64 DMG、SHA-256 校验文件和发布说明（需要 macOS）
+# 生成 arm64 DMG、校验文件与发布说明（需要 macOS）
 pnpm desktop:package
 ```
 
-`.app` 位于 `src-tauri/target/release/bundle/macos/`；标准化发布文件位于 `release-artifacts/`。版本维护及 GitHub Actions 发布步骤见[维护者发布指南](docs/zh-CN/releasing.md)。
+`.app` 位于 `src-tauri/target/release/bundle/macos/`，标准化发布文件位于 `release-artifacts/`。版本维护和 GitHub Actions 流程见[发布指南](docs/zh-CN/releasing.md)。
+
+</details>
 
 ## 文档与参与
 
-- [操作手册](docs/zh-CN/user-manual.md)：仓库、worktree、分支、Diff、暂存、提交、合并及历史浏览。
-- [安装说明与常见系统提示](docs/zh-CN/installation.md)。
-- [贡献指南](CONTRIBUTING.zh-CN.md)和[问题反馈](https://github.com/asd116725/git-workbench/issues)。
-- [版本更新日志](CHANGELOG.zh-CN.md)与[发布指南](docs/zh-CN/releasing.md)。
+| 想了解什么 | 从这里开始 |
+| --- | --- |
+| 日常 Git 操作流程 | [操作手册](docs/zh-CN/user-manual.md) |
+| 安装、更新与 macOS 提示 | [安装说明](docs/zh-CN/installation.md) |
+| 各版本更新内容 | [更新日志](CHANGELOG.zh-CN.md) |
+| Bug 与功能建议 | [GitHub Issues](https://github.com/asd116725/git-workbench/issues) |
+| 贡献代码或文档 | [贡献指南](CONTRIBUTING.zh-CN.md) |
+| 准备发布版本 | [维护者发布指南](docs/zh-CN/releasing.md) |
 
-项目代码采用 [MIT](LICENSE) 许可证。Codicons、vscode-icons 图标、Geist 字体、Atom One Dark 主题及第三方软件保留各自许可证，详见 [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES.zh-CN.md)。应用包中附带许可副本。
+## 许可证
+
+项目代码采用 [MIT](LICENSE) 许可证。Codicons、vscode-icons、Geist 字体、Atom One Dark 主题及第三方软件保留各自许可证，详见[第三方许可说明](THIRD-PARTY-NOTICES.zh-CN.md)。应用包中附带许可副本。
