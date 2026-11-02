@@ -2,7 +2,7 @@
 
 **English** | [简体中文](zh-CN/user-manual.md)
 
-This manual covers the stable `1.6.2` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.6.2 release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.2). The browser uses separate demo data and does not access real repositories.
+This manual covers the stable `1.7.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.7.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.7.0). The browser uses separate demo data and does not access real repositories.
 
 Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-refreshing-and-settings). Screenshots show the English interface with fictional demo data.
 
@@ -170,6 +170,18 @@ git config user.email "Your email"
 If a hook, signing step, or other Git check fails, the app shows the error and keeps the draft. Fix the issue and retry. After success, the draft clears and the change list refreshes. Commit drafts last only for the current app session and are lost on relaunch.
 
 On macOS, the first Git operation reads PATH from a login and interactive shell in the user's home directory and caches it for the app process. Git and hooks can then find Node, npm, and npx installed through tools such as nvm or Homebrew. The app does not automatically select a Node version from a repository's `.nvmrc` or skip Husky checks. After installing tools or changing shell configuration, quit completely with `⌘Q` and reopen the app; hiding the window does not reload the environment. If shell initialization fails or takes longer than 10 seconds, the app keeps its original environment.
+
+### AI-generated commit messages (1.7.0)
+
+With a local repository open and files staged, use **AI generate** beside the commit-message label. The app sends the complete staged diff and necessary index context, commit conventions, and recent subject lines to DeepSeek. Unstaged edits and unrelated untracked files are excluded. Generation uses the `staged-commit-message-zh` rules to produce a Chinese Conventional Commit regardless of the interface language.
+
+Review and edit the candidate in the dialog, then explicitly apply it to the draft. If a draft already exists, the action clearly replaces it. Canceling, retrying, or encountering an error preserves the original draft. Applying a message does not stage files, commit, or push; use the existing commit button afterward. If the index, HEAD, branch, or selected worktree changes, regenerate instead of applying an outdated result.
+
+Set `DEEPSEEK_API_KEY` in the environment used to launch the app. On macOS, when the inherited variable is absent, the app also checks the user's login and interactive shell in the home directory, so Finder/Dock launches can read a persistent shell setting. A variable exported only in an unrelated terminal is not automatically available to a desktop app. After changing an inherited key, quit completely and reopen. The key is handled only by the native process, never saved in frontend preferences or bundled with the app. Detecting a variable does not verify authentication or account balance.
+
+The installed local Skill is preferred at `$CODEX_HOME/skills/staged-commit-message-zh/SKILL.md`, or `~/.codex/skills/staged-commit-message-zh/SKILL.md` when `CODEX_HOME` is unset; the app includes a versioned fallback for machines without that Skill. Rules guide writing only: the model cannot run commands, and the app does not execute repository configuration scripts.
+
+AI generation is optional and requires network access and a DeepSeek account. Empty staged changes, unresolved conflicts, and ongoing merge/rebase operations are not supported. Oversized input is rejected explicitly rather than silently truncated; reduce the staged scope and retry. Binary content is not inferred. Missing credentials, authentication failures, insufficient balance, rate limits, and network errors show recovery guidance; manual commits remain available. See the [DeepSeek API documentation](https://api-docs.deepseek.com/) for the service.
 
 ## 8.1 Commit history
 

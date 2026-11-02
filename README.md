@@ -4,9 +4,9 @@
 
 A desktop Git client for local repositories, built with Tauri 2, React, and TypeScript. Work with worktrees, branches, file changes, and diffs in one window.
 
-[Download v1.6.2](https://github.com/asd116725/git-workbench/releases/tag/v1.6.2) · [User manual](docs/user-manual.md) · [Installation](docs/installation.md) · [Changelog](CHANGELOG.md)
+[Download v1.7.0](https://github.com/asd116725/git-workbench/releases/tag/v1.7.0) · [User manual](docs/user-manual.md) · [Installation](docs/installation.md) · [Changelog](CHANGELOG.md)
 
-The current stable release is **1.6.2**. Download `GitWorkbench_1.6.2_macos_arm64.dmg` and `SHA256SUMS.txt` from the same release, then verify the checksum before installing.
+The current stable release is **1.7.0**. Download `GitWorkbench_1.7.0_macos_arm64.dmg` and `SHA256SUMS.txt` from the same release, then verify the checksum before installing.
 
 *Screenshots use the English interface and fictional demo data. Choose your language in Settings.*
 
@@ -22,6 +22,7 @@ The current stable release is **1.6.2**. Download `GitWorkbench_1.6.2_macos_arm6
 - Recognize files and folders with bundled vscode-icons, consistently matched by name and type across changes, history, and diff tabs. No network connection required.
 - Stage or unstage a file, a directory, or an entire group of changes.
 - Write a commit message in one multiline field: the first line is the subject, and the remaining lines are the body. Commit staged changes while keeping unstaged edits.
+- Generate Chinese Conventional Commit messages with DeepSeek from staged changes, preview and edit the result, then explicitly apply it to the draft. Requires a local `DEEPSEEK_API_KEY`; see [AI commit messages](docs/user-manual.md#ai-generated-commit-messages-170).
 - Automatically refresh the active worktree after filesystem changes, preserving the reading position and commit draft for the current session.
 - Explore repository history in three panes: commits, changed files, and diff. Filter by branch, search the full reachable history, and choose a parent when comparing merge commits.
 - Adjust pane widths, code font size, and diff mode, with an Atom One Dark color scheme.
@@ -40,12 +41,12 @@ Version `1.1.0` introduced **branch merging, completing or aborting a conflicted
 
 The current release provides a **macOS Apple Silicon (arm64)** installer. Official builds for Intel Mac, Windows, and Linux are not available yet.
 
-1. Download the [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.6.2/GitWorkbench_1.6.2_macos_arm64.dmg) and `SHA256SUMS.txt` from the [v1.6.2 release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.2).
+1. Download the [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.7.0/GitWorkbench_1.7.0_macos_arm64.dmg) and `SHA256SUMS.txt` from the [v1.7.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.7.0).
 2. Follow the [installation guide](docs/installation.md) to verify the download, drag **代码管理** into Applications, and open it.
 3. Click **Open local repository** and choose an existing repository. The app uses your installed Git; make sure `git --version` works first.
 4. Select a file to read its diff, click `+` at the end of the row to stage it, enter a commit message, and commit.
 
-Version 1.6.2 is a stable release, but its installer is **ad-hoc signed, without Apple Developer ID signing or notarization**. The stable release designation does not change its signing status. macOS may ask you to confirm its source; see [first launch](docs/installation.md#first-launch).
+Version 1.7.0 is a stable release, but its installer is **ad-hoc signed, without Apple Developer ID signing or notarization**. The stable release designation does not change its signing status. macOS may ask you to confirm its source; see [first launch](docs/installation.md#first-launch).
 
 ## Support and limitations
 
@@ -90,7 +91,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.6.2
+pnpm release:check --tag v1.7.0
 ```
 
 ```sh

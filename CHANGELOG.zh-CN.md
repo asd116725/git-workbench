@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-02
+
+- 接入 DeepSeek，按既有 `staged-commit-message-zh` 规则为暂存区生成中文 Conventional Commit；预览编辑后明确填入提交草稿，不自动提交或推送。
+- 仅由原生进程读取 `DEEPSEEK_API_KEY`，兼容 macOS Finder/Dock 启动时的登录 Shell 环境；密钥不进入前端、偏好设置或发行包，未安装本机 Skill 时使用内置规则。
+- 生成、取消、重试及失败保留已有草稿；应用文案前核验索引内容、HEAD 与分支，拒绝过期结果，隔离不同工作区的请求。
+- 为缺少密钥、API 失败和输入过大提供明确提示，不静默截断暂存差异；保留手写提交流程，补齐简体中文、繁体中文和英文界面文案。
+- 更新应用图标为已选定的 Git 分支合并设计，同步各平台与前端图标资源。
+
+AI 生成会将暂存差异和必要仓库上下文发送至 DeepSeek，需要配置账户与网络。详见 [AI 使用说明](https://github.com/asd116725/git-workbench/blob/main/docs/zh-CN/user-manual.md#ai-生成提交信息170)。
+
+此版本提供 macOS Apple Silicon（arm64）安装包，采用 ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证。升级前请保存提交草稿，并用 `⌘Q` 完全退出旧版。请使用同一 Release 的 `SHA256SUMS.txt` 校验 `GitWorkbench_1.7.0_macos_arm64.dmg` 后安装。
+
 ## [1.6.2] - 2026-11-02
 
 - 切换分支后检查已配置的远程上游并自动快进拉取，包含此前尚未获取的新提交；同步失败时保留已完成的切换并提示原因。

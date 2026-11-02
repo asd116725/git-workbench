@@ -2,7 +2,7 @@
 
 [English](../user-manual.md) | **简体中文**
 
-适用于 `1.6.2` 桌面正式版本。安装包仅提供 macOS Apple Silicon（arm64），可从 [v1.6.2 Release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.2) 下载；浏览器中的示例数据仅用于体验界面，与真实仓库隔离。
+适用于 `1.7.0` 桌面正式版本。安装包仅提供 macOS Apple Silicon（arm64），可从 [v1.7.0 Release](https://github.com/asd116725/git-workbench/releases/tag/v1.7.0) 下载；浏览器中的示例数据仅用于体验界面，与真实仓库隔离。
 
 ## 1. 认识窗口
 
@@ -168,6 +168,18 @@ git config user.email "你的邮箱"
 hook、签名或其他 Git 检查失败时，应用显示错误并保留草稿。解决错误后可重试。成功后草稿清空，变更列表刷新。提交草稿只保留在本次应用会话中，重启会丢失。
 
 macOS 版首次执行 Git 操作时，会在用户主目录读取登录和交互 Shell 的 PATH，并在本次应用进程中缓存，供 Git 和 hooks 查找通过 nvm、Homebrew 等安装的 Node、npm、npx。不会自动按仓库的 `.nvmrc` 切换 Node 版本，也不会跳过 Husky 检查。安装工具或修改 Shell 配置后，请用 `⌘ Q` 完全退出应用再打开；关闭窗口只会隐藏，不能重新加载环境。Shell 初始化失败或超过 10 秒时，应用继续使用原有环境。
+
+### AI 生成提交信息（1.7.0）
+
+打开本地仓库并暂存文件后，点击「提交信息」右侧的「AI 生成」。应用将完整暂存差异、必要的索引上下文、提交规范和近期提交标题发送至 DeepSeek，不包含未暂存修改或无关未跟踪文件。生成使用 `staged-commit-message-zh` 规则，无论界面语言如何，文案均为中文 Conventional Commit。
+
+在弹窗中检查、编辑候选文案，确认后填入草稿。已有草稿时明确显示「替换草稿」；取消、重试或失败均保留原文。填入不执行暂存、提交或推送，之后仍需点击原有提交按钮。索引、HEAD、分支或当前工作区变化后，需要重新生成，不能应用过期结果。
+
+应用读取启动环境中的 `DEEPSEEK_API_KEY`。macOS 下继承环境缺失时，也会在用户主目录读取登录交互 Shell 中的该变量，以支持 Finder/Dock 启动。仅在其他终端临时 export 的变量不会自动进入桌面应用；修改继承的 Key 后请完全退出并重启。密钥仅由原生进程处理，不保存到前端偏好或安装包中。检测到变量不等于已通过鉴权或账户余额充足。
+
+优先使用本机 `$CODEX_HOME/skills/staged-commit-message-zh/SKILL.md`，未设置 `CODEX_HOME` 时使用 `~/.codex/skills/staged-commit-message-zh/SKILL.md`；未安装 Skill 的机器使用应用内置规则副本。Skill 仅约束取材和文案，模型不能执行命令，应用也不会执行仓库配置脚本。
+
+AI 生成是可选功能，需要网络及 DeepSeek 账户。首版不处理空暂存区、未解决冲突和进行中的合并/变基等操作；超大输入明确提示缩小暂存范围，不会静默截断后生成不完整说明，也不猜测二进制内容。缺少密钥、鉴权失败、余额不足、限流及网络错误会显示对应处理提示，手写提交继续可用。服务信息见 [DeepSeek 官方文档](https://api-docs.deepseek.com/)。
 
 ## 8.1 提交历史
 

@@ -7,9 +7,9 @@
 `package.json` 是版本号来源，Tauri 的 `version` 直接引用它。Rust 包和锁文件的根包版本由脚本同步。Git 标签采用 `vX.Y.Z`，日志使用 `## [X.Y.Z] - YYYY-MM-DD`。
 
 ```sh
-pnpm release:version 1.6.2
-# 手动将本次变化写入 CHANGELOG.md 的 [1.6.2] 节，保留空的 [Unreleased]
-pnpm release:check --tag v1.6.2
+pnpm release:version 1.7.0
+# 手动将本次变化写入 CHANGELOG.md 的 [1.7.0] 节，保留空的 [Unreleased]
+pnpm release:check --tag v1.7.0
 ```
 
 脚本拒绝无效格式和版本回退，保留第三方依赖版本，不创建提交或标签。预发布状态由 GitHub Release 标记控制，版本仍使用 `x.y.z`。
@@ -18,7 +18,7 @@ pnpm release:check --tag v1.6.2
 
 ## 本地检查及构建
 
-应用图标原图保存在 `src-tauri/icons/app-icon-source.png`，使用不透明、背景铺满的正方形画布，不预先添加透明留白、圆角底板或外框，避免新版 macOS 自动适配时出现灰色底板。替换原图后，执行 `pnpm tauri icon src-tauri/icons/app-icon-source.png --output src-tauri/icons` 生成各平台尺寸，并将生成的 `src-tauri/icons/128x128.png` 同步为 `public/app-icon.png`。构建后须在 Finder 和 Dock 中检查系统实际显示效果，不能只检查 PNG 预览。
+应用图标原图保存在 `src-tauri/icons/app-icon-source.png`，1.7.0 已确认的原稿为带 Git 分支合并符号的深色圆角底板，底板外侧保留透明像素。导出时保持原稿的轮廓、透明度与留白，不额外叠加背景或外框。替换原图后，执行 `pnpm tauri icon src-tauri/icons/app-icon-source.png --output src-tauri/icons` 生成各平台尺寸，并将生成的 `src-tauri/icons/128x128.png` 同步为 `public/app-icon.png`。构建后须在 Finder 和 Dock 中检查系统实际显示效果，不能只检查 PNG 预览。
 
 1. 使用干净的 `main`，确认更新日志、下载链接、手册和截图适用于本次版本。
 2. 执行 README 中全部检查。版本脚本的测试覆盖不同步、标签错误、日志缺失和无效升级。
@@ -27,7 +27,7 @@ pnpm release:check --tag v1.6.2
 
 ```text
 release-artifacts/
-  GitWorkbench_1.6.2_macos_arm64.dmg
+  GitWorkbench_1.7.0_macos_arm64.dmg
   SHA256SUMS.txt
   release-notes.md
 ```
@@ -46,9 +46,9 @@ release-artifacts/
 
 ```sh
 git add <本次发布文件>
-git commit -m "chore: 发布 1.6.2 正式版本"
-git tag -a v1.6.2 -m "Git Workbench 1.6.2"
-git push --atomic origin main v1.6.2
+git commit -m "chore: 发布 1.7.0 正式版本"
+git tag -a v1.7.0 -m "Git Workbench 1.7.0"
+git push --atomic origin main v1.7.0
 ```
 
 基础 CI 检查 `main`、Pull Request 和 `v*` 标签。标签任务先检查版本/标签、类型、lint、前端构建和前后端测试，再在 `macos-15` 构建 arm64 DMG；只有发布任务拥有 `contents: write`。
@@ -60,10 +60,10 @@ git push --atomic origin main v1.6.2
 1. 确认标签工作流所有任务成功，Release 目标提交与标签一致。
 2. 下载草稿附件，核对其 SHA-256，再检查 DMG 版本、架构与启动。
 3. 复核更新说明、ad-hoc 签名提示、安装手册链接及附件命名。
-4. `1.6.2` 在核对完成后发布为正式版本，并设为最新版本。执行：
+4. `1.7.0` 在核对完成后发布为正式版本，并设为最新版本。执行：
 
 ```sh
-gh release edit v1.6.2 --repo asd116725/git-workbench --draft=false --prerelease=false --latest
+gh release edit v1.7.0 --repo asd116725/git-workbench --draft=false --prerelease=false --latest
 ```
 
 5. 从公开链接重新下载 DMG 和校验文件，检查 README 的下载链接与操作手册可访问。

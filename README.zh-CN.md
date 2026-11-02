@@ -4,9 +4,9 @@
 
 一个面向本地仓库的 Git 桌面工具。使用 Tauri 2、React 和 TypeScript 构建，将 worktree、分支、文件变更与 Diff 放在同一个窗口中。
 
-[下载 v1.6.2 安装包](https://github.com/asd116725/git-workbench/releases/tag/v1.6.2) · [中文操作手册](docs/zh-CN/user-manual.md) · [安装说明](docs/zh-CN/installation.md) · [更新日志](CHANGELOG.zh-CN.md)
+[下载 v1.7.0 安装包](https://github.com/asd116725/git-workbench/releases/tag/v1.7.0) · [中文操作手册](docs/zh-CN/user-manual.md) · [安装说明](docs/zh-CN/installation.md) · [更新日志](CHANGELOG.zh-CN.md)
 
-当前正式版本为 **1.6.2**，提供 `GitWorkbench_1.6.2_macos_arm64.dmg` 和同一 Release 的 `SHA256SUMS.txt`，请校验后安装。
+当前正式版本为 **1.7.0**，提供 `GitWorkbench_1.7.0_macos_arm64.dmg` 和同一 Release 的 `SHA256SUMS.txt`，请校验后安装。
 
 ![Git Workbench 本地变更界面，使用虚构示例数据](docs/screenshots/workbench.png)
 
@@ -20,6 +20,7 @@
 - 文件与目录使用 vscode-icons 图标，列表、历史和 Diff 标签页按文件名与类型一致匹配，离线可用。
 - 将单个文件、整个目录或整组变更加入暂存区，或取消暂存。
 - 在同一个多行输入框填写提交信息，首行作为标题、后续内容作为说明；提交暂存区内容，保留未暂存修改。
+- 使用 DeepSeek 根据暂存区生成中文 Conventional Commit，预览编辑后明确填入草稿，再手动提交；密钥从本机 `DEEPSEEK_API_KEY` 读取，详见[AI 提交信息](docs/zh-CN/user-manual.md#ai-生成提交信息170)。
 - 监听当前工作区变化，自动更新文件列表和 Diff，保留阅读位置与本次会话的提交草稿。
 - 以提交列表、变更文件树、Diff 三栏浏览真实历史，筛选分支、搜索完整历史，并切换合并提交的比较父提交。
 - 调整分栏宽度、代码字号和 Diff 模式；使用 Atom One Dark 配色。
@@ -38,12 +39,12 @@
 
 当前版本提供 **macOS Apple Silicon（arm64）** 安装包。Intel Mac、Windows、Linux 暂无官方构建。
 
-1. 从 [v1.6.2 Release](https://github.com/asd116725/git-workbench/releases/tag/v1.6.2) 下载 [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.6.2/GitWorkbench_1.6.2_macos_arm64.dmg) 和 `SHA256SUMS.txt`。
+1. 从 [v1.7.0 Release](https://github.com/asd116725/git-workbench/releases/tag/v1.7.0) 下载 [DMG](https://github.com/asd116725/git-workbench/releases/download/v1.7.0/GitWorkbench_1.7.0_macos_arm64.dmg) 和 `SHA256SUMS.txt`。
 2. 按[安装说明](docs/zh-CN/installation.md)校验文件，将「代码管理」拖入 Applications 后打开。
 3. 点击「打开本地仓库」，选择已有仓库的目录。应用使用本机 Git，请先确认 `git --version` 可以运行。
 4. 选择文件阅读 Diff，在行末点击 `+` 暂存；在提交框中填写信息，点击提交按钮。
 
-v1.6.2 为正式版本，安装包仍采用 **ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证**。正式版本标记不代表已经获得 Apple 身份签名或公证。macOS 可能要求确认来源；处理方式见[首次打开](docs/zh-CN/installation.md#首次打开)。
+v1.7.0 为正式版本，安装包仍采用 **ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证**。正式版本标记不代表已经获得 Apple 身份签名或公证。macOS 可能要求确认来源；处理方式见[首次打开](docs/zh-CN/installation.md#首次打开)。
 
 ## 支持范围与限制
 
@@ -88,7 +89,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.6.2
+pnpm release:check --tag v1.7.0
 ```
 
 ```sh

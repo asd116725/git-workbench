@@ -44,5 +44,5 @@ const resolved = new Set(cargo.resolve.nodes.map(node => node.id));
 for (const pkg of cargo.packages.filter(pkg => pkg.source && resolved.has(pkg.id)).sort((a, b) => a.name.localeCompare(b.name))) {
   appendLicense(`Rust: ${pkg.name}`, pkg.version, pkg.license, dirname(pkg.manifest_path), `https://crates.io/crates/${pkg.name}/${pkg.version}`);
 }
-writeFileSync(resolve(root, 'docs/licenses/dependencies.txt'), `${sections.join('')}\n`.replace(/\r\n/g, '\n'));
+writeFileSync(resolve(root, 'docs/licenses/dependencies.txt'), `${sections.join('')}\n`.replace(/\r\n/g, '\n').replace(/[\t ]+$/gm, ''));
 console.log('已更新 docs/licenses/dependencies.txt；发布前请检查许可和作者声明。');

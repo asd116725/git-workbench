@@ -11,12 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Field, FieldGroup, FieldLabel, FieldDescription } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CodeDiff } from './components/CodeDiff';
+import { CommitComposer } from './components/CommitComposer';
 import { HistoryView } from './components/HistoryView';
 import { useHistory } from './lib/history-store';
 import { BranchPickerDialog } from './components/BranchPickerDialog';
@@ -148,22 +148,6 @@ function FileGroup({ worktree, area, disabled, conflictsOnly = false }: { worktr
   </Collapsible>;
 }
 
-function CommitComposer({ worktree, busy, onCommit }: { worktree: Worktree; busy: boolean; onCommit: () => Promise<void> }) {
-  useI18n();
-  const { drafts, setDraft, mergeDrafts, setMergeMessage } = useWorkbench();
-  const merging = worktree.operation?.kind === 'merge';
-  const message = merging ? getMergeMessage(worktree, mergeDrafts) : drafts[worktree.id]?.message ?? '';
-  const stagedCount = getChanges(worktree, 'staged').length;
-  const blocked = commitBlockReason(worktree, message);
-  const ready = !busy && !blocked;
-  return <form className="commit-composer" onSubmit={event => { event.preventDefault(); if (ready) void onCommit(); }}>
-    <FieldGroup className="commit-fields"><Field><FieldLabel htmlFor="commit-message">{merging ? t("合并提交信息") : t("提交信息")}</FieldLabel><Textarea id="commit-message" placeholder={t("简要说明这次更改\n\n添加详细说明（可选）")} value={message} disabled={busy || Boolean(worktree.operation && !merging)} autoComplete="off" onChange={event => merging ? setMergeMessage(event.target.value) : setDraft({ message: event.target.value })} /></Field>
-    </FieldGroup>
-    {blocked && (worktree.operation || worktree.files.some(file => file.git?.conflicted)) && <p className="commit-warning">{translateMessage(blocked)}</p>}
-    <Button type="submit" className="commit-button" disabled={!ready} title={blocked ? translateMessage(blocked) : undefined}><Icon name={busy ? 'loading' : merging ? 'git-merge' : 'check'} className={busy ? 'spin' : ''} />{busy ? t("正在处理…") : merging ? t("完成合并") : t("提交 {value1} 个文件", { value1: stagedCount })}</Button>
-  </form>;
-}
-
 function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; shortcutsEnabled: boolean }) {
   useI18n();
   const { selection, closeFile, stageChunk, commit, continueMerge, mergeDrafts, drafts, busy, refreshing, diff, refresh } = useWorkbench();
@@ -207,7 +191,7 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
       <section className="changes-panel" aria-label={t("文件变更与提交")}>
         <div className="changes-heading"><h1>{t("本地更改")}</h1><Badge variant="secondary" className="count-badge">{changedCount}</Badge><div className="file-view-switch" role="group" aria-label={t("文件显示方式")}>{(['tree', 'list'] as const).map(mode => <Hint key={mode} label={mode === 'tree' ? t("树形视图") : t("列表视图")}><Button variant="ghost" size="icon-xs" aria-label={mode === 'tree' ? t("树形视图") : t("列表视图")} aria-pressed={fileView === mode} onClick={() => setFileView(mode)}><Icon name={mode === 'tree' ? 'list-tree' : 'list-flat'} /></Button></Hint>)}</div></div>
         <div className="file-groups">{worktree.files.some(file => file.git?.conflicted) && <FileGroup worktree={worktree} area="unstaged" conflictsOnly disabled={busy || refreshing} />}<FileGroup worktree={worktree} area="unstaged" disabled={busy || refreshing} /><FileGroup worktree={worktree} area="staged" disabled={busy || refreshing} /></div>
-        <CommitComposer worktree={worktree} busy={busy || refreshing} onCommit={handleCommit} />
+        <CommitComposer key={JSON.stringify([worktree.id, worktree.path, worktree.branch, worktree.detached])} worktree={worktree} busy={busy || refreshing} onCommit={handleCommit} />
       </section>
     </Panel>
     <ResizeHandle className="resize-handle" aria-label={t("调整变更列表宽度")} />

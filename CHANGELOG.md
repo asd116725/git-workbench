@@ -6,6 +6,20 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-02
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#170---2026-11-02)
+
+- Generate Chinese Conventional Commit messages from staged changes with DeepSeek, using the existing `staged-commit-message-zh` rules. Preview and edit the candidate, then explicitly apply it to the commit draft; generation never commits or pushes.
+- Read `DEEPSEEK_API_KEY` only in the native process, with a login-shell fallback for macOS Finder/Dock launches. Keep credentials out of the frontend, preferences, and release bundle. Include a Skill fallback for machines without the local installation.
+- Preserve existing drafts during generation, cancellation, retries, and failures. Check the actual index, HEAD, and branch before applying results; reject outdated results and isolate requests between worktrees.
+- Explain missing credentials, API failures, and oversized input without silently truncating staged changes. Keep manual commits available, and provide Simplified Chinese, Traditional Chinese, and English interface messages.
+- Refresh the application icon with the selected Git merge artwork and synchronized platform assets.
+
+AI generation sends staged changes and necessary repository context to DeepSeek and requires a configured account and network access. See the [AI usage guide](https://github.com/asd116725/git-workbench/blob/main/docs/user-manual.md#ai-generated-commit-messages-170).
+
+This release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. Save commit drafts and quit the previous version completely with `⌘Q` before upgrading. Verify `GitWorkbench_1.7.0_macos_arm64.dmg` against `SHA256SUMS.txt` from the same release before installing.
+
 ## [1.6.2] - 2026-11-02
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#162---2026-11-02)

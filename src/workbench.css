@@ -144,6 +144,41 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .commit-fields [data-slot='field-label'] { color: var(--foreground); font-size: 14px; font-weight: 400; }
 .commit-fields textarea { height: 132px; min-height: 96px; max-height: 240px; padding: 10px; font-size: 13px; line-height: 1.6; background: var(--input-background); resize: vertical; }
 .commit-button { width: 100%; height: 37px; font-weight: 500; }
+.commit-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px; }
+.ai-commit-trigger { height: 26px; padding: 0 7px; gap: 5px; color: var(--blue); font-size: 12px; font-weight: 400; }
+.ai-commit-trigger .codicon { font-size: 15px; }
+.ai-commit-dialog { display: flex; flex-direction: column; width: min(640px, calc(100vw - 48px)); max-width: 640px; max-height: calc(100vh - 80px); padding: 24px 0 0; gap: 18px; overflow: hidden; }
+.ai-commit-dialog [data-slot='dialog-header'] { padding: 0 24px; flex-shrink: 0; }
+.ai-commit-dialog [data-slot='dialog-title'] { display: flex; align-items: center; gap: 8px; color: var(--foreground); }
+.ai-commit-dialog [data-slot='dialog-title'] .codicon { color: var(--blue); font-size: 20px; }
+.ai-commit-dialog [data-slot='dialog-description'] { font-size: 12px; line-height: 1.7; }
+.ai-commit-body { display: flex; flex-direction: column; gap: 14px; min-height: 0; padding: 0 24px; overflow-y: auto; }
+.ai-commit-context { display: flex; justify-content: space-between; gap: 12px; color: var(--muted-foreground); font-size: 12px; }
+.ai-commit-context > :first-child { color: var(--blue); }
+.ai-commit-status { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 210px; text-align: center; }
+.ai-commit-status > .codicon { color: var(--blue); font-size: 28px; }
+.ai-commit-status strong { font-size: 14px; font-weight: 500; }
+.ai-commit-status p { margin: 0; color: var(--muted-foreground); font-size: 12px; }
+.ai-commit-notice { display: flex; align-items: flex-start; gap: 10px; padding: 14px; border: 1px solid color-mix(in srgb, var(--orange) 30%, transparent); border-radius: 5px; background: color-mix(in srgb, var(--orange) 6%, transparent); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.ai-commit-notice > .codicon { margin-top: 3px; color: var(--orange); }
+.ai-commit-notice strong { color: var(--orange); font-weight: 500; }
+.ai-commit-notice p { margin: 8px 0 0; color: var(--muted-foreground); }
+.ai-commit-result { gap: 8px; }
+.ai-commit-result [data-slot='field-label'] { font-size: 12px; font-weight: 400; }
+.ai-commit-result textarea { height: clamp(170px, calc(100vh - 540px), 280px); min-height: 170px; padding: 12px; background: var(--input-background); font-size: 13px; line-height: 1.7; resize: vertical; }
+.ai-commit-result textarea:read-only { opacity: .65; }
+.ai-commit-files { color: var(--muted-foreground); font-size: 12px; }
+.ai-commit-files summary { cursor: pointer; }
+.ai-commit-files ul { margin: 10px 0 0; padding-left: 20px; max-height: 100px; overflow-y: auto; }
+.ai-commit-files li { padding: 2px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-commit-draft-note, .ai-commit-validating { margin: 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.7; }
+.ai-commit-draft-note[role='alert'] { color: var(--orange); }
+.ai-commit-footer { flex-shrink: 0; padding: 14px 24px 20px; border-top: 1px solid var(--border); }
+.ai-commit-disclosure { display: flex; gap: 6px; margin: 0 0 16px; color: var(--muted-foreground); font-size: 11px; line-height: 1.6; }
+.ai-commit-disclosure > .codicon { margin-top: 2px; font-size: 13px; }
+.ai-commit-actions { display: flex; align-items: center; gap: 8px; }
+.ai-commit-actions button { font-size: 12px; }
+.ai-commit-action-spacer { flex: 1; }
 .statusbar { display: flex; flex-shrink: 0; align-items: center; gap: 17px; height: 46px; padding: 0 18px; border-top: 1px solid var(--border); color: var(--muted-foreground); background: var(--sidebar); font-size: 13px; user-select: none; }
 .status-branch { display: flex; align-items: center; gap: 8px; max-width: 270px; overflow: hidden; white-space: nowrap; }
 .status-branch .codicon { font-size: 14px; }

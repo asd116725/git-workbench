@@ -7,9 +7,9 @@
 `package.json` is the version source; Tauri's `version` references it directly. The release script synchronizes the root Rust package version and its lockfile entry. Use Git tags in the form `vX.Y.Z` and changelog headings in the form `## [X.Y.Z] - YYYY-MM-DD`.
 
 ```sh
-pnpm release:version 1.6.2
-# Write this release's changes in CHANGELOG.md under [1.6.2], keeping an empty [Unreleased]
-pnpm release:check --tag v1.6.2
+pnpm release:version 1.7.0
+# Write this release's changes in CHANGELOG.md under [1.7.0], keeping an empty [Unreleased]
+pnpm release:check --tag v1.7.0
 ```
 
 The script rejects invalid formats and version downgrades, preserves third-party dependency versions, and does not create commits or tags. GitHub Release flags control prerelease status; version numbers still use `x.y.z`.
@@ -18,7 +18,7 @@ Keep the English and Simplified Chinese documentation in sync, including `CHANGE
 
 ## Local checks and builds
 
-The app icon source is `src-tauri/icons/app-icon-source.png`. Use an opaque square canvas with the background extending to every edge. Do not add transparent padding, a rounded base, or an outer frame in advance, as these can produce a gray backing when newer macOS versions adapt the icon. After replacing the source, run `pnpm tauri icon src-tauri/icons/app-icon-source.png --output src-tauri/icons` to generate platform sizes, and copy the generated `src-tauri/icons/128x128.png` to `public/app-icon.png`. After building, check the actual icon in Finder and the Dock, not only the PNG preview.
+The app icon source is `src-tauri/icons/app-icon-source.png`. The approved 1.7.0 artwork is a rounded dark tile with a Git merge symbol and transparent pixels outside the tile. Preserve its silhouette, transparency, and margins when exporting; do not add another background or frame. After replacing the source, run `pnpm tauri icon src-tauri/icons/app-icon-source.png --output src-tauri/icons` to generate platform sizes, and copy the generated `src-tauri/icons/128x128.png` to `public/app-icon.png`. After building, check the actual icon in Finder and the Dock, not only the PNG preview.
 
 1. Start from a clean `main` and confirm that the changelog, download links, manual, and screenshots match the release.
 2. Run all checks in the README. The version script's tests cover version mismatches, incorrect tags, missing changelog entries, and invalid upgrades.
@@ -27,7 +27,7 @@ The app icon source is `src-tauri/icons/app-icon-source.png`. Use an opaque squa
 
 ```text
 release-artifacts/
-  GitWorkbench_1.6.2_macos_arm64.dmg
+  GitWorkbench_1.7.0_macos_arm64.dmg
   SHA256SUMS.txt
   release-notes.md
 ```
@@ -46,9 +46,9 @@ For the first release, sign in to the maintainer account using the official GitH
 
 ```sh
 git add <release-files>
-git commit -m "chore: 发布 1.6.2 正式版本"
-git tag -a v1.6.2 -m "Git Workbench 1.6.2"
-git push --atomic origin main v1.6.2
+git commit -m "chore: 发布 1.7.0 正式版本"
+git tag -a v1.7.0 -m "Git Workbench 1.7.0"
+git push --atomic origin main v1.7.0
 ```
 
 The base CI runs for `main`, pull requests, and `v*` tags. Tag jobs first validate versions and tags, types, lint, the frontend build, and frontend/backend tests, then build the arm64 DMG on `macos-15`. Only the release job has `contents: write` permission.
@@ -60,10 +60,10 @@ The workflow uses GitHub's short-lived token to create a **draft prerelease**, u
 1. Confirm that every job in the tag workflow passed and that the release target commit matches the tag.
 2. Download the draft attachments, verify their SHA-256 checksums, and check the DMG's version, architecture, and launch behavior.
 3. Review the release notes, ad-hoc signing notice, installation guide link, and attachment names.
-4. After these checks, publish `1.6.2` as a stable release and mark it as latest:
+4. After these checks, publish `1.7.0` as a stable release and mark it as latest:
 
 ```sh
-gh release edit v1.6.2 --repo asd116725/git-workbench --draft=false --prerelease=false --latest
+gh release edit v1.7.0 --repo asd116725/git-workbench --draft=false --prerelease=false --latest
 ```
 
 5. Download the DMG and checksums again through the public links, and verify that the README's download links and user manual are accessible.

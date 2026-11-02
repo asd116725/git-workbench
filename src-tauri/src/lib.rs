@@ -8,6 +8,7 @@ use tauri::{Manager, RunEvent, WindowEvent};
 pub fn run() {
     let builder = tauri::Builder::default()
         .manage(git::GitWatchState::default())
+        .manage(git::ai_commit::AiCommitState::default())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             git::git_open,
@@ -33,6 +34,10 @@ pub fn run() {
             git::history::git_commit_detail,
             git::history::git_commit_diff,
             git::watch::git_watch,
+            git::ai_commit::ai_commit_check_key,
+            git::ai_commit::ai_commit_generate,
+            git::ai_commit::ai_commit_validate,
+            git::ai_commit::ai_commit_cancel,
         ]);
 
     #[cfg(target_os = "macos")]

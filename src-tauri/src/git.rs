@@ -16,6 +16,7 @@ type GitResult<T> = Result<T, String>;
 type RepositoryLocks = Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>;
 static REPOSITORY_LOCKS: OnceLock<RepositoryLocks> = OnceLock::new();
 
+pub mod ai_commit;
 mod navigation;
 use navigation::{GitBranch, GitWorktreeInfo, branches, checkout, common_directory, worktrees};
 pub mod branch_management;
