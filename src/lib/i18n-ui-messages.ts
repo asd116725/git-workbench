@@ -1,5 +1,10 @@
 /** 应用界面文案；分支、路径、提交信息与文件内容始终保留原文。 */
 export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
+  "1 工作树": { "en": "1 worktree", "zh-TW": "1 工作樹" },
+  "{count} 工作树": { "en": "{count} worktrees", "zh-TW": "{count} 工作樹" },
+  "当前 · {count}": { "en": "Current · {count}", "zh-TW": "目前 · {count}" },
+  "当前": { "en": "Current", "zh-TW": "目前" },
+  "关联": { "en": "Linked", "zh-TW": "關聯" },
   "未检测到 API Key": {"en": "No API key detected", "zh-TW": "未偵測到 API Key"},
   "API Key 无效，请更新本机配置后重试。": {"en": "The API key is invalid. Update your local configuration and try again.", "zh-TW": "API Key 無效，請更新本機設定後重試。"},
   "DeepSeek 余额不足，请充值后重试。": {"en": "Your DeepSeek balance is insufficient. Add funds and try again.", "zh-TW": "DeepSeek 餘額不足，請儲值後重試。"},
@@ -66,6 +71,14 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
   "仓库导航": {
     "en": "Repository navigation",
     "zh-TW": "儲存庫導覽"
+  },
+  "展开或收起仓库 {name}": {
+    "en": "Expand or collapse repository {name}",
+    "zh-TW": "展開或收合儲存庫 {name}"
+  },
+  "选择仓库 {name}": {
+    "en": "Select repository {name}",
+    "zh-TW": "選取儲存庫 {name}"
   },
   "仓库": {
     "en": "Repositories",

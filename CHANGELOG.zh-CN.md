@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-11-02
+
+- 分离仓库展开与选择：箭头只展开或收起工作树列表，仓库名称和工作树行只选择操作目标，选择时保留各项目的展开状态；箭头支持 Enter 和空格。
+- 项目采用独立边框分组、文件夹图标及工作树数量；主工作区与关联工作树通过图标和「关联」标签区分，当前工作树以蓝色选中态和「当前」标记展示，收起项目后保留当前项目提示。
+- 侧栏支持在 240–360 px 范围内调整宽度，窄布局保留同步数量；补齐简体中文、繁体中文和英文文案，更新侧栏使用说明。
+
+此版本提供 macOS Apple Silicon（arm64）安装包，采用 ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证。详见[安装说明](https://github.com/asd116725/git-workbench/blob/main/docs/zh-CN/installation.md)。
+
+升级前请保存提交草稿，并用 `⌘Q` 完全退出旧版。请使用同一 Release 的 `SHA256SUMS.txt` 校验 `GitWorkbench_1.7.1_macos_arm64.dmg` 后安装。
+
 ## [1.7.0] - 2026-11-02
 
 - 接入 DeepSeek，按既有 `staged-commit-message-zh` 规则为暂存区生成中文 Conventional Commit；预览编辑后明确填入提交草稿，不自动提交或推送。

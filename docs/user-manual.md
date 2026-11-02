@@ -35,6 +35,10 @@ If opening fails, check that the directory exists, your account can access it, a
 
 When a repository opens, the app reads the linked worktrees registered with Git and lists them under the same repository. Each entry shows its name and branch; click one to change the operation target.
 
+The arrow beside a repository name only expands or collapses its worktree list; it preserves the active worktree, diff, and commit draft. Click the repository name to select that repository, or a worktree to select a specific target. Selection leaves each repository's expanded state unchanged. The arrow also supports Enter and Space.
+
+Each project has its own group, with a folder icon and worktree count in the header. Main worktrees use a desktop icon; linked worktrees show a **Linked** label. A blue selection and **Current** label identify the active worktree. Collapsing its project keeps a **Current** hint in the header. The sidebar width can be adjusted between 240 and 360 px; hover over truncated names to read them in full.
+
 **Available since 1.5.0:** the sidebar shows `↓` incoming and `↑` outgoing commit counts beside each worktree's branch. Each branch is compared with its own upstream. Both counts appear when either is nonzero, for example `↓0 ↑3`; synchronized branches, branches without an upstream, and unknown counts show no numbers. Narrow sidebars preserve the counts and truncate the branch name; hover to read the full name and synchronization details. Counts use the most recently fetched local refs and displaying them does not contact the remote. Select the relevant worktree and click **Fetch** when you need updated remote refs.
 
 Each worktree has its own files, index, and commit draft for the current session. Staging and committing affect only the selected worktree. Check the path in the bottom bar before switching targets.

@@ -6,6 +6,18 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-11-02
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#171---2026-11-02)
+
+- Separate repository expansion from selection: the arrow only expands or collapses the worktree list, while repository names and worktree rows select the operation target without changing expanded states. Support Enter and Space on the arrow.
+- Give projects distinct bordered groups with folder icons and worktree counts. Distinguish main and linked worktrees with icons and a **Linked** label; mark the active worktree in blue with **Current**, and retain a current-project hint when collapsed.
+- Adjust the sidebar between 240 and 360 px, preserve synchronization counts in narrow layouts, and provide matching Simplified Chinese, Traditional Chinese, and English labels. Update the sidebar usage guide.
+
+This release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
+Save commit drafts and quit the previous version completely with `⌘Q` before upgrading. Verify `GitWorkbench_1.7.1_macos_arm64.dmg` against `SHA256SUMS.txt` from the same release before installing.
+
 ## [1.7.0] - 2026-11-02
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#170---2026-11-02)

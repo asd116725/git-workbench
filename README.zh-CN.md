@@ -69,13 +69,13 @@ Git Workbench 将本地仓库、关联 worktree、分支、Diff 和提交历史�
 
 ## 安装与快速上手
 
-当前正式版本为 **1.7.0**，提供 **macOS Apple Silicon（arm64）** 安装包。
+当前正式版本为 **1.7.1**，提供 **macOS Apple Silicon（arm64）** 安装包。
 
 | 下载内容 | 链接 |
 | --- | --- |
-| macOS 安装包 | [GitWorkbench_1.7.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.7.0/GitWorkbench_1.7.0_macos_arm64.dmg) |
-| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.7.0/SHA256SUMS.txt) |
-| 版本说明 | [v1.7.0 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.7.0) |
+| macOS 安装包 | [GitWorkbench_1.7.1_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.7.1/GitWorkbench_1.7.1_macos_arm64.dmg) |
+| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.7.1/SHA256SUMS.txt) |
+| 版本说明 | [v1.7.1 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.7.1) |
 
 1. **安装应用**：使用同一 Release 的校验文件核对 DMG，将「代码管理」拖入 Applications。详见[安装说明](docs/zh-CN/installation.md)。
 2. **打开仓库**：先确认 `git --version` 可以运行，再点击应用中的「打开仓库」，选择已有的本地仓库。
@@ -147,7 +147,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.7.0
+pnpm release:check --tag v1.7.1
 ```
 
 ```sh
