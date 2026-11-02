@@ -28,9 +28,9 @@ Git Workbench brings repositories, linked worktrees, branches, diffs, and commit
 
 Use your existing Git configuration for authors, signing, hooks, and remote credentials. Optional DeepSeek assistance can turn staged changes into a Chinese commit-message draft for you to review.
 
-![Local changes, linked worktrees, and a side-by-side diff](docs/screenshots/workbench-en.png)
+![Project groups, linked worktrees, local changes, and an inline diff](docs/screenshots/workbench-v1.7.1-en.jpg)
 
-*Interface preview with fictional demo data. The browser demo includes hunk-staging controls; the desktop app currently stages files, directories, and groups. See [support and limitations](#support-and-limitations).*
+*v1.7.1 interface preview with fictional demo data. The browser demo includes hunk-staging controls; the desktop app currently stages files, directories, and groups. See [support and limitations](#support-and-limitations).*
 
 ## Your daily Git workflow, in one place
 
@@ -49,9 +49,9 @@ Switching to a branch with a remote upstream checks for updates and attempts a f
 
 Select a commit to see its message, changed files, and diff without changing your working branch. History filters affect what you browse, not what is checked out.
 
-![Commit history with a commit list, changed-file tree, and historical diff](docs/screenshots/history-en.png)
+![Commit history with a commit list, changed-file tree, and historical diff](docs/screenshots/history-v1.7.1-en.jpg)
 
-*Repositories, paths, authors, and commits in these previews are fictional.*
+*v1.7.1 history preview with fictional repositories, paths, authors, and commits.*
 
 ## AI commit messages, with a review step
 

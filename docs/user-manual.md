@@ -8,10 +8,10 @@ Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-re
 
 ## 1. Window layout
 
-![Repositories, changed-file tree, and diff](screenshots/workbench-en.png)
+![Project groups, staged changes, and an inline diff](screenshots/workbench-v1.7.1-en.jpg)
 
 - The left sidebar contains repositories and their linked worktrees.
-- The middle pane contains unstaged/staged file trees and the commit form.
+- The middle pane contains unstaged/staged file trees or lists and the commit form.
 - The right pane shows a read-only diff of the selected file.
 - The top bar has branch switching and manual refresh. The bottom bar shows the current worktree, changed-file count, and path.
 
@@ -193,7 +193,7 @@ AI generation is optional and requires network access and a DeepSeek account. Em
 
 Click **Commit history** (提交历史) at the top. The repository sidebar stays in place. From left to right, the main area shows commits, the selected commit's changed-file tree, and its historical diff. On first entry, the newest commit and its first changed file are selected. Appropriate empty states appear when there are no commits or no changed files.
 
-![Read-only history with three panes and fictional demo data](screenshots/history-en.png)
+![Read-only history with three panes and fictional demo data](screenshots/history-v1.7.1-en.jpg)
 
 **Browse and search:**
 
