@@ -1,0 +1,103 @@
+name: Windows x64 安装包验证
+
+on:
+  push:
+    branches: ['codex/windows-build-v1.8.1']
+    paths: ['.github/workflows/windows-x64-build.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: 构建并安装 Windows 版
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - name: 保持源文件换行一致
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 核对应用源码与 v1.8.1 一致
+        run: git diff --exit-code v1.8.1 HEAD -- . ':(exclude).github/workflows/windows-x64-build.yml'
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          cache: pnpm
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+      - name: 前端类型检查
+        run: pnpm typecheck
+      - name: 前端测试
+        run: pnpm test
+      - name: 构建 Windows x64 安装包
+        run: pnpm exec tauri build --target x86_64-pc-windows-msvc --bundles nsis --ci
+      - name: 检验并整理安装包
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($version -ne '1.8.1') { throw "Unexpected version: $version" }
+          $bundle = 'src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis'
+          $installers = @(Get-ChildItem $bundle -Filter '*-setup.exe' -File)
+          if ($installers.Count -ne 1) { throw "Expected one NSIS installer; found $($installers.Count)" }
+          $binary = Get-Item 'src-tauri/target/x86_64-pc-windows-msvc/release/git-workbench.exe'
+          $bytes = [IO.File]::ReadAllBytes($binary.FullName)
+          $offset = [BitConverter]::ToInt32($bytes, 0x3c)
+          if ($bytes[0] -ne 0x4d -or $bytes[1] -ne 0x5a -or [BitConverter]::ToUInt32($bytes, $offset) -ne 0x4550 -or [BitConverter]::ToUInt16($bytes, $offset + 4) -ne 0x8664) { throw 'Main executable is not a Windows x64 PE binary' }
+          $actualVersion = $binary.VersionInfo.ProductVersion
+          if ($actualVersion -notin @($version, "$version.0")) { throw "Unexpected executable version: $actualVersion" }
+          $output = Join-Path $env:GITHUB_WORKSPACE 'release-artifacts/windows-x64'
+          New-Item -ItemType Directory -Force -Path $output | Out-Null
+          $name = "GitWorkbench_${version}_windows_x64_setup.exe"
+          $installer = Join-Path $output $name
+          Copy-Item $installers[0].FullName $installer
+          $hash = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText((Join-Path $output 'SHA256SUMS-windows.txt'), "$hash  $name`n", [Text.UTF8Encoding]::new($false))
+          $base = (git rev-parse 'v1.8.1^{commit}').Trim()
+          $signature = (Get-AuthenticodeSignature $installer).Status.ToString()
+          @{version=$version; sourceCommit=$base; workflowCommit=$env:GITHUB_SHA; architecture='x64'; productVersion=$actualVersion; sha256=$hash; signature=$signature} | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $output 'BUILD-INFO.json')
+          Write-Host "Installer: $name, SHA-256: $hash, signature: $signature"
+      - name: 安装并验证程序可以启动
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = (Get-ChildItem 'release-artifacts/windows-x64' -Filter '*_setup.exe' -File).FullName
+          $destination = Join-Path $env:RUNNER_TEMP 'git-workbench-smoke'
+          $setup = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$destination") -PassThru
+          if (-not $setup.WaitForExit(120000)) { Stop-Process -Id $setup.Id -Force; throw 'Installer timed out' }
+          if ($setup.ExitCode -ne 0) { throw "Installer failed with code $($setup.ExitCode)" }
+          $apps = @(Get-ChildItem $destination -Recurse -File -Filter '*.exe' | Where-Object { $_.Name -in @('git-workbench.exe', '代码管理.exe') })
+          if ($apps.Count -ne 1) { Get-ChildItem $destination -Recurse; throw "Expected one app executable; found $($apps.Count)" }
+          $app = Start-Process -FilePath $apps[0].FullName -PassThru
+          Start-Sleep -Seconds 12
+          $app.Refresh()
+          if ($app.HasExited) { throw "App exited immediately with code $($app.ExitCode)" }
+          Stop-Process -Id $app.Id -Force
+          Write-Host 'Installer completed and the application process stayed running.'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: git-workbench-v1.8.1-windows-x64
+          path: release-artifacts/windows-x64/
+          if-no-files-found: error
+          retention-days: 90
+
+  test:
+    name: Windows 原生回归
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - name: 保持源文件换行一致
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Rust 原生回归测试
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
