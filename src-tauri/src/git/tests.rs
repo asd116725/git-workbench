@@ -1427,7 +1427,13 @@ fn batch_split_index_and_linked_worktree_keep_independent_indexes() {
     let linked = fixture.path().join("linked");
     git(
         fixture.path(),
-        &["worktree", "add", "-b", "linked", linked.to_str().unwrap()],
+        &[
+            "worktree",
+            "add",
+            "-b",
+            "linked",
+            dunce::simplified(&linked).to_str().unwrap(),
+        ],
     )
     .unwrap();
     fs::write(linked.join("one.txt"), "linked one\n").unwrap();
