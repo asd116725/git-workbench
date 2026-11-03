@@ -1,3 +1,6 @@
+import { useAppearance } from './lib/appearance';
+import { startNativeAppearance } from './lib/native-appearance';
+import { AppearancePicker } from './components/AppearancePicker';
 import { languages, t, useI18n, type Language } from './lib/i18n';
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { translateMessage } from './lib/i18n-system';
@@ -11,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Field, FieldGroup, FieldLabel, FieldDescription } from '@/components/ui/field';
+import { Field, FieldLabel, FieldDescription } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -35,6 +38,7 @@ import { getChanges, getFileStatus } from './lib/demo-git';
 import type { ChangeArea, FileSnapshot, Repository, Worktree } from './lib/types';
 import '@vscode/codicons/dist/codicon.css';
 import './workbench.css';
+import './appearance.css';
 
 const native = isTauri();
 
@@ -205,13 +209,30 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
 function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { language, setLanguage } = useI18n();
   const { fontSize, setFontSize, resetLayout } = usePreferences();
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="settings-dialog"><DialogHeader><DialogTitle>{t("工作台设置")}</DialogTitle><DialogDescription>{t("调整阅读体验，偏好会保存在当前设备。")}</DialogDescription></DialogHeader>
-    <FieldGroup><Field><FieldLabel htmlFor="interface-language">{t("界面语言")}</FieldLabel><select id="interface-language" value={language} onChange={event => setLanguage(event.target.value as Language)} aria-describedby="interface-language-description">{languages.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select><FieldDescription id="interface-language-description">{t("切换后立即生效，并保存在当前设备。")}</FieldDescription></Field><Field><FieldLabel htmlFor="font-size">{t("代码字号")} <span className="field-value">{fontSize}px</span></FieldLabel><Input id="font-size" type="range" min="11" max="18" step="1" value={fontSize} onChange={event => setFontSize(Number(event.target.value))} /><FieldDescription>{t("应用于并排和内联代码差异视图。")}</FieldDescription></Field></FieldGroup>
-    <Separator /><div className="settings-row"><div><strong>{t("恢复默认布局")}</strong><p>{t("重置分栏宽度、字号与 Diff 显示方式。")}</p></div><Button variant="outline" onClick={() => { resetLayout(); onOpenChange(false); toast.success(t("已恢复默认布局")); }}>{t("恢复")}</Button></div>
-    {!native && <div className="settings-row"><div><strong>{t("重置示例数据")}</strong><p>{t("恢复最初的文件更改与提交记录。")}</p></div><Button variant="outline" onClick={() => { useWorkbench.getState().reset(); useHistory.getState().reset(); onOpenChange(false); toast.success(t("示例数据已重置")); }}>{t("重置")}</Button></div>}
-    <Separator /><div className="settings-row"><div><strong>Git Workbench</strong><p>{t("当前版本")}</p></div><span>v{appVersion}</span></div>
-    <p className="settings-footnote"><Icon name="info" />{native ? t("使用系统 Git，提交沿用仓库的作者、签名和 hooks 配置。") : t("浏览器为界面演示，真实仓库操作请使用桌面应用。")}</p>
-  </DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="settings-dialog">
+      <DialogHeader><DialogTitle>{t("工作台设置")}</DialogTitle><DialogDescription>{t("调整外观与阅读体验，找到适合你的工作方式。")}</DialogDescription></DialogHeader>
+      <AppearancePicker />
+      <Separator />
+      <div className="settings-preferences-grid">
+        <Field><FieldLabel htmlFor="interface-language">{t("界面语言")}</FieldLabel>
+          <select id="interface-language" value={language} onChange={event => setLanguage(event.target.value as Language)} aria-describedby="interface-language-description">
+            {languages.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select><FieldDescription id="interface-language-description">{t("切换后立即生效，并保存在当前设备。")}</FieldDescription>
+        </Field>
+        <Field><FieldLabel htmlFor="font-size">{t("代码字号")} <span className="field-value">{fontSize}px</span></FieldLabel>
+          <Input id="font-size" type="range" min="11" max="18" step="1" value={fontSize} onChange={event => setFontSize(Number(event.target.value))} />
+          <FieldDescription>{t("应用于并排和内联代码差异视图。")}</FieldDescription>
+        </Field>
+      </div>
+      <Separator />
+      <div className="settings-row"><div><strong>{t("恢复默认布局")}</strong><p>{t("重置分栏宽度、字号与 Diff 显示方式。")}</p></div><Button variant="outline" onClick={() => { resetLayout(); onOpenChange(false); toast.success(t("已恢复默认布局")); }}>{t("恢复")}</Button></div>
+      {!native && <div className="settings-row"><div><strong>{t("重置示例数据")}</strong><p>{t("恢复最初的文件更改与提交记录。")}</p></div><Button variant="outline" onClick={() => { useWorkbench.getState().reset(); useHistory.getState().reset(); onOpenChange(false); toast.success(t("示例数据已重置")); }}>{t("重置")}</Button></div>}
+      <Separator />
+      <div className="settings-row"><div><strong>Git Workbench</strong><p>{t("当前版本")}</p></div><span>v{appVersion}</span></div>
+      <p className="settings-footnote"><Icon name="info" />{t("切换主题时保留当前工作区、差异阅读位置和提交草稿。")}</p>
+    </DialogContent>
+  </Dialog>;
 }
 
 function OpenRepositoryDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -262,6 +283,7 @@ function WelcomeView({ onOpen }: { onOpen: () => void }) {
 
 export default function App() {
   useI18n();
+  const resolvedTheme = useAppearance(state => state.resolvedTheme);
   const { repositories, activeWorktreeId, view, busy, restoring, refreshing, error, autoRefreshError } = useWorkbench();
   const { layout, setLayout, layoutResetKey } = usePreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -273,6 +295,7 @@ export default function App() {
   const changedCount = worktree ? new Set([...getChanges(worktree, 'unstaged'), ...getChanges(worktree, 'staged')].map(item => item.id)).size : 0;
   const real = worktree?.source === 'native';
 
+  useEffect(() => startNativeAppearance(), []);
   useEffect(() => { void useWorkbench.getState().restoreSession(); }, []);
   useEffect(() => startAutoRefresh(), []);
 
@@ -291,7 +314,7 @@ export default function App() {
         <footer className="statusbar"><span className="status-branch"><Icon name="git-branch" />{branchLabel(worktree)}</span><span className="status-divider" /><span>{view === 'history' ? t("历史只读") : busy ? t("Git 操作进行中…") : refreshing ? t("正在刷新…") : changedCount ? t("{value1} 个文件有更改", { value1: changedCount }) : t("工作区干净")}</span><span className={`status-demo ${real ? 'status-native' : ''}`}><Icon name={real ? 'repo' : 'beaker'} />{real ? t("本地 Git") : t("演示模式")}</span><span className="status-spacer" /><span className="status-path" title={worktree.path}>{worktree.path}</span></footer>
       </> : restoring ? <div className="diff-message" role="status"><Icon name="loading spin" />{t("正在恢复上次打开的仓库…")}</div> : <WelcomeView onOpen={() => setRepositoryOpen(true)} />}</main></Panel>
     </Group>
-    <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} /><OpenRepositoryDialog open={repositoryOpen} onOpenChange={setRepositoryOpen} /><Toaster theme="dark" position="bottom-right" closeButton richColors containerAriaLabel={t("通知")} toastOptions={{ closeButtonAriaLabel: t("关闭通知") }} />
+    <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} /><OpenRepositoryDialog open={repositoryOpen} onOpenChange={setRepositoryOpen} /><Toaster theme={resolvedTheme} position="bottom-right" closeButton richColors containerAriaLabel={t("通知")} toastOptions={{ closeButtonAriaLabel: t("关闭通知") }} />
     {branchOpen && worktree && <BranchPickerDialog key={worktree.id} worktree={worktree} open onOpenChange={setBranchOpen} />}
     {mergeOpen && worktree && <MergeBranchDialog key={worktree.id} worktree={worktree} open onOpenChange={setMergeOpen} />}
   </div></TooltipProvider>;

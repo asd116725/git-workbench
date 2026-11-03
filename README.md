@@ -28,9 +28,9 @@ Git Workbench brings repositories, linked worktrees, branches, diffs, and commit
 
 Use your existing Git configuration for authors, signing, hooks, and remote credentials. Optional DeepSeek assistance can turn staged changes into a Chinese commit-message draft for you to review.
 
-![Project groups, linked worktrees, local changes, and an inline diff](docs/screenshots/workbench-v1.7.1-en.jpg)
+![Project groups, linked worktrees, local changes, and an inline diff](docs/screenshots/workbench-v1.8.0-en.jpg)
 
-*v1.7.1 interface preview with fictional demo data. The browser demo includes hunk-staging controls; the desktop app currently stages files, directories, and groups. See [support and limitations](#support-and-limitations).*
+*v1.8.0 light appearance preview with fictional demo data. The browser demo includes hunk-staging controls; the desktop app currently stages files, directories, and groups. See [support and limitations](#support-and-limitations).*
 
 ## Your daily Git workflow, in one place
 
@@ -41,17 +41,19 @@ Use your existing Git configuration for authors, signing, hooks, and remote cred
 | **Branches & synchronization** | Search, create, delete, and merge branches. Fetch, pull, push, or publish a branch for the first time. See incoming and outgoing counts in the sidebar, branch list, and toolbar. |
 | **Commit history** | Browse commits, changed files, and historical diffs together. Search the selected branch's full reachable history, compare merge parents, and spot commits that have not been pushed. |
 | **AI commit drafts** | Generate Chinese Conventional Commit messages from staged changes with DeepSeek. Preview, edit, and explicitly apply a candidate before committing. |
-| **A workspace that fits** | Adjust pane widths, font size, and diff mode. Use the Atom One Dark theme, file-type icons, and a choice of English, 简体中文, or 繁體中文. |
+| **A workspace that fits** | Adjust pane widths, font size, and diff mode. Choose Light, Dark, or System appearance, with file-type icons and English, 简体中文, or 繁體中文. |
 
 Switching to a branch with a remote upstream checks for updates and attempts a fast-forward pull. If local changes, diverged history, or a network error prevent synchronization, the app preserves the completed switch and explains what needs attention. Resolve conflicted files in your editor, then complete the merge in the app; you can also abort a merge from the app.
+
+Since **1.8.0**, choose **Settings → Appearance → Light / Dark / System**. The interface, code editor, and native window update together, and your choice is remembered. Switching appearances preserves the current worktree, diff reading position, and commit draft.
 
 ### Follow the history behind a change
 
 Select a commit to see its message, changed files, and diff without changing your working branch. History filters affect what you browse, not what is checked out.
 
-![Commit history with a commit list, changed-file tree, and historical diff](docs/screenshots/history-v1.7.1-en.jpg)
+![Commit history with a commit list, changed-file tree, and historical diff](docs/screenshots/history-v1.8.0-en.jpg)
 
-*v1.7.1 history preview with fictional repositories, paths, authors, and commits.*
+*v1.8.0 dark appearance history preview with fictional repositories, paths, authors, and commits.*
 
 ## AI commit messages, with a review step
 
@@ -69,13 +71,13 @@ Generation does not stage files, commit, or push. Canceling or encountering an e
 
 ## Install and start
 
-The current stable release is **1.7.1**, available for **macOS Apple Silicon (arm64)**.
+The current stable release is **1.8.0**, available for **macOS Apple Silicon (arm64)**.
 
 | Download | Link |
 | --- | --- |
-| macOS installer | [GitWorkbench_1.7.1_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.7.1/GitWorkbench_1.7.1_macos_arm64.dmg) |
-| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.7.1/SHA256SUMS.txt) |
-| Release notes | [What's new in v1.7.1](https://github.com/asd116725/git-workbench/releases/tag/v1.7.1) |
+| macOS installer | [GitWorkbench_1.8.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.8.0/GitWorkbench_1.8.0_macos_arm64.dmg) |
+| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.8.0/SHA256SUMS.txt) |
+| Release notes | [What's new in v1.8.0](https://github.com/asd116725/git-workbench/releases/tag/v1.8.0) |
 
 1. **Install:** verify the DMG against the checksum file from the same release, then drag **代码管理** (Git Workbench) into Applications. See the [installation guide](docs/installation.md).
 2. **Open a repository:** make sure `git --version` works, then choose **Open repository** in the app and select an existing local repository.
@@ -147,7 +149,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.7.1
+pnpm release:check --tag v1.8.0
 ```
 
 ```sh
@@ -175,4 +177,4 @@ The `.app` is written to `src-tauri/target/release/bundle/macos/`; standardized 
 
 ## License
 
-Project code is licensed under [MIT](LICENSE). Codicons, vscode-icons, the Geist font, the Atom One Dark theme, and third-party software retain their own licenses. See [third-party notices](THIRD-PARTY-NOTICES.md); license copies are included in the app bundle.
+Project code is licensed under [MIT](LICENSE). Codicons, vscode-icons, the Geist font, the Atom One Dark and One Light themes, and third-party software retain their own licenses. See [third-party notices](THIRD-PARTY-NOTICES.md); license copies are included in the app bundle.

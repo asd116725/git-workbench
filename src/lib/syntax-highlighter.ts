@@ -9,10 +9,11 @@ import css from 'shiki/langs/css.mjs';
 import scss from 'shiki/langs/scss.mjs';
 import html from 'shiki/langs/html.mjs';
 import oneDark from '../themes/atom-one-dark.json';
+import oneLight from '../themes/atom-one-light.json';
 
 /** 使用 VS Code 原主题的完整作用域规则，避免把导入变量和类型声明混为一种颜色。 */
 export const syntaxHighlighter = createHighlighterCoreSync({
-  themes: [{ ...oneDark, name: 'workbench-dark', type: 'dark' }],
+  themes: [{ ...oneDark, name: 'workbench-dark', type: 'dark' }, { ...oneLight, name: 'workbench-light', type: 'light' }],
   langs: [typescript, tsx, javascript, jsx, json, css, scss, html],
   /** 语法和引擎随应用打包，离线使用且不需要放宽 CSP 以执行 WASM。 */
   engine: createJavaScriptRegexEngine({ target: 'ES2018' }),

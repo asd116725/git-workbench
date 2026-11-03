@@ -28,9 +28,9 @@ Git Workbench 将本地仓库、关联 worktree、分支、Diff 和提交历史�
 
 应用沿用本机 Git 的作者信息、签名、hooks 和远程凭据配置。你也可以选择接入 DeepSeek，根据暂存修改生成中文提交草稿，检查后再使用。
 
-![项目分组、关联工作树、本地变更与内联 Diff](docs/screenshots/workbench-v1.7.1.jpg)
+![项目分组、关联工作树、本地变更与内联 Diff](docs/screenshots/workbench-v1.8.0.jpg)
 
-*v1.7.1 界面预览，使用虚构演示数据。截图中的按变更块暂存属于浏览器演示，桌面应用当前支持文件、目录与整组暂存，详见[支持范围与限制](#支持范围与限制)。*
+*v1.8.0 浅色界面预览，使用虚构演示数据。截图中的按变更块暂存属于浏览器演示，桌面应用当前支持文件、目录与整组暂存，详见[支持范围与限制](#支持范围与限制)。*
 
 ## 日常 Git 工作，在这里完成
 
@@ -41,17 +41,19 @@ Git Workbench 将本地仓库、关联 worktree、分支、Diff 和提交历史�
 | **分支与远程同步** | 搜索、创建、删除及合并分支，获取、拉取、推送或首次发布分支；在侧栏、分支列表与工具栏查看待拉取、待推送数量。 |
 | **提交历史** | 同时浏览提交列表、变更文件与历史 Diff，搜索所选分支的完整可达历史，切换合并父提交，识别尚未推送的记录。 |
 | **AI 提交草稿** | 使用 DeepSeek 根据暂存修改生成中文 Conventional Commit；先预览编辑，再明确填入提交草稿。 |
-| **阅读与操作体验** | 调整分栏宽度、字号和 Diff 模式，使用 Atom One Dark 配色与文件类型图标；支持 English、简体中文、繁體中文。 |
+| **阅读与操作体验** | 调整分栏宽度、字号和 Diff 模式，可选择浅色、深色或跟随系统外观，保留文件类型图标；支持 English、简体中文、繁體中文。 |
 
 切换到有远程上游的分支时，应用会检查更新并尝试快进拉取。如果本地修改、分支分叉或网络错误阻止同步，会保留已经完成的切换并说明原因。合并冲突需在外部编辑器中解决，再回到应用完成合并；也可以在应用中中止合并。
+
+**1.8.0** 起，可在 **设置 → 外观主题** 选择「浅色 / 深色 / 跟随系统」。工作台、代码区和原生窗口同步切换，并自动记住选择；当前工作区、Diff 阅读位置和提交草稿保持不变。
 
 ### 从一条提交，追到具体修改
 
 选中提交即可查看完整信息、变更文件与 Diff。历史中的分支筛选只改变浏览范围，不切换当前工作分支。
 
-![提交列表、变更文件树与历史 Diff](docs/screenshots/history-v1.7.1.jpg)
+![提交列表、变更文件树与历史 Diff](docs/screenshots/history-v1.8.0.jpg)
 
-*v1.7.1 提交历史预览，仓库、路径、作者和提交记录均为虚构数据。*
+*v1.8.0 深色提交历史预览，仓库、路径、作者和提交记录均为虚构数据。*
 
 ## AI 提交信息，先检查再使用
 
@@ -69,13 +71,13 @@ Git Workbench 将本地仓库、关联 worktree、分支、Diff 和提交历史�
 
 ## 安装与快速上手
 
-当前正式版本为 **1.7.1**，提供 **macOS Apple Silicon（arm64）** 安装包。
+当前正式版本为 **1.8.0**，提供 **macOS Apple Silicon（arm64）** 安装包。
 
 | 下载内容 | 链接 |
 | --- | --- |
-| macOS 安装包 | [GitWorkbench_1.7.1_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.7.1/GitWorkbench_1.7.1_macos_arm64.dmg) |
-| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.7.1/SHA256SUMS.txt) |
-| 版本说明 | [v1.7.1 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.7.1) |
+| macOS 安装包 | [GitWorkbench_1.8.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.8.0/GitWorkbench_1.8.0_macos_arm64.dmg) |
+| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.8.0/SHA256SUMS.txt) |
+| 版本说明 | [v1.7.1 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.8.0) |
 
 1. **安装应用**：使用同一 Release 的校验文件核对 DMG，将「代码管理」拖入 Applications。详见[安装说明](docs/zh-CN/installation.md)。
 2. **打开仓库**：先确认 `git --version` 可以运行，再点击应用中的「打开仓库」，选择已有的本地仓库。
@@ -147,7 +149,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.7.1
+pnpm release:check --tag v1.8.0
 ```
 
 ```sh
@@ -175,4 +177,4 @@ pnpm desktop:package
 
 ## 许可证
 
-项目代码采用 [MIT](LICENSE) 许可证。Codicons、vscode-icons、Geist 字体、Atom One Dark 主题及第三方软件保留各自许可证，详见[第三方许可说明](THIRD-PARTY-NOTICES.zh-CN.md)。应用包中附带许可副本。
+项目代码采用 [MIT](LICENSE) 许可证。Codicons、vscode-icons、Geist 字体、Atom One Dark、One Light 主题及第三方软件保留各自许可证，详见[第三方许可说明](THIRD-PARTY-NOTICES.zh-CN.md)。应用包中附带许可副本。

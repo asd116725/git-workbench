@@ -5,6 +5,7 @@ import { structuredPatch } from 'diff';
 import { getDiff, getHunks } from '../lib/demo-git';
 import type { ChangeArea, FileSnapshot } from '../lib/types';
 import { monaco } from '../lib/monaco';
+import { editorThemes, useAppearance } from '../lib/appearance';
 import { getEditorLanguage } from '../lib/syntax-highlighter';
 import { createDiffContentUpdater } from '../lib/diff-content';
 import { FileIcon } from './FileIcon';
@@ -148,7 +149,7 @@ function ActiveCodeDiff({
     const instance = monaco.editor.createDiffEditor(containerRef.current!, {
       automaticLayout: true,
       readOnly: true,
-      theme: 'workbench-dark',
+      theme: editorThemes[useAppearance.getState().resolvedTheme],
     });
     const viewModel = instance.createViewModel({ original, modified });
     instance.setModel(viewModel);

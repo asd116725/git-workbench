@@ -8,7 +8,7 @@ Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-re
 
 ## 1. Window layout
 
-![Project groups, staged changes, and an inline diff](screenshots/workbench-v1.7.1-en.jpg)
+![Project groups, staged changes, and an inline diff](screenshots/workbench-v1.8.0-en.jpg)
 
 - The left sidebar contains repositories and their linked worktrees.
 - The middle pane contains unstaged/staged file trees or lists and the commit form.
@@ -193,7 +193,7 @@ AI generation is optional and requires network access and a DeepSeek account. Em
 
 Click **Commit history** (提交历史) at the top. The repository sidebar stays in place. From left to right, the main area shows commits, the selected commit's changed-file tree, and its historical diff. On first entry, the newest commit and its first changed file are selected. Appropriate empty states appear when there are no commits or no changed files.
 
-![Read-only history with three panes and fictional demo data](screenshots/history-v1.7.1-en.jpg)
+![Read-only history with three panes and fictional demo data](screenshots/history-v1.8.0-en.jpg)
 
 **Browse and search:**
 
@@ -234,7 +234,13 @@ The app watches files and Git metadata for the active worktree, including shared
 
 **Settings** at the bottom left shows the current version and lets you change code font size or restore the default layout, font size, and diff mode. Layout, reading preferences, and repository paths are saved on the current device; commit drafts last only for the current session. Restoring the default layout does not clear remembered repositories.
 
-Since 1.4.0, **Settings → Interface language** provides language options, with **中文简体 / 中文繁體 / English**, defaulting to Simplified Chinese. The interface updates immediately and retains your choice on the next launch. Restoring the default layout or resetting demo data does not reset the language. Switching languages leaves repository paths, branches, authors, commit messages, file contents, and raw Git output unchanged. System menus and standard system-dialog buttons follow the operating system.
+Since **1.8.0**, **Settings → Appearance** offers **Light / Dark / System**. Choose a card to apply it immediately; the app remembers the choice for the next launch. Existing installations start in Dark. System follows operating-system appearance changes. The interface, code highlighting, diff backgrounds, notifications, and native window match the selected appearance.
+
+![Appearance settings with Light, Dark, and System choices](screenshots/appearance-v1.8.0-en.jpg)
+
+Switching themes preserves the active worktree, selected file, diff reading position, and commit draft. Resetting the layout, changing interface language, or resetting demo data does not clear the appearance preference. The native main window restores its appearance before becoming visible.
+
+Since 1.4.0, **Settings → Interface language** provides language options, with **中文简体 / 中文繁體 / English**, defaulting to Simplified Chinese. The interface updates immediately and retains your choice on the next launch. Restoring the default layout or resetting demo data does not reset the language. Switching languages leaves repository paths, branches, authors, commit messages, file contents, and raw Git output unchanged. The language of system menus and standard system-dialog buttons follows the operating system.
 
 ## 10. Keyboard shortcuts
 

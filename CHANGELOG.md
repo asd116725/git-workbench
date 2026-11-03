@@ -6,6 +6,20 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-03
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#180---2026-11-03)
+
+- Add **Light**, **Dark**, and **System** appearance choices to settings. Apply changes immediately and remember them independently of layout preferences; existing installations keep the familiar dark appearance.
+- Extend the light palette to repository groups, worktrees, history, inputs, dialogs, and notifications. Add One Light-derived code highlighting with readable text and soft red/green diff backgrounds.
+- Synchronize the native window theme and background, restoring the saved appearance before showing the main window. System mode follows the effective system appearance.
+- Preserve the active worktree, commit draft, and diff models while switching themes. Resetting the layout leaves the appearance choice intact.
+- Provide Simplified Chinese, Traditional Chinese, and English labels, update the usage guide, and bundle the light theme's attribution and MIT license.
+
+This release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
+Save commit drafts and quit the previous version completely with `⌘Q` before upgrading. Verify `GitWorkbench_1.8.0_macos_arm64.dmg` against `SHA256SUMS.txt` from the same release before installing.
+
 ## [1.7.1] - 2026-11-02
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#171---2026-11-02)

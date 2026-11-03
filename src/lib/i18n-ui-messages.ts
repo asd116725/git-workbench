@@ -1,5 +1,16 @@
 /** 应用界面文案；分支、路径、提交信息与文件内容始终保留原文。 */
 export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
+  "外观主题": {"en": "Appearance", "zh-TW": "外觀主題"},
+  "浅色": {"en": "Light", "zh-TW": "淺色"},
+  "深色": {"en": "Dark", "zh-TW": "深色"},
+  "跟随系统": {"en": "System", "zh-TW": "跟隨系統"},
+  "明亮、清晰": {"en": "Bright and clear", "zh-TW": "明亮、清晰"},
+  "熟悉的深色工作台": {"en": "The familiar dark workspace", "zh-TW": "熟悉的深色工作台"},
+  "自动适配系统外观": {"en": "Match system appearance", "zh-TW": "自動配合系統外觀"},
+  "随系统外观自动切换，当前为{theme}。": {"en": "Follow system appearance. Currently {theme}.", "zh-TW": "隨系統外觀自動切換，目前為{theme}。"},
+  "切换立即生效，外观偏好会自动保存。": {"en": "Changes apply immediately and are saved automatically.", "zh-TW": "切換立即生效，外觀偏好會自動儲存。"},
+  "调整外观与阅读体验，找到适合你的工作方式。": {"en": "Adjust appearance and reading preferences to suit your workflow.", "zh-TW": "調整外觀與閱讀體驗，找到適合你的工作方式。"},
+  "切换主题时保留当前工作区、差异阅读位置和提交草稿。": {"en": "Switching themes preserves the current worktree, diff reading position, and commit draft.", "zh-TW": "切換主題時保留目前工作區、差異閱讀位置與提交草稿。"},
   "1 工作树": { "en": "1 worktree", "zh-TW": "1 工作樹" },
   "{count} 工作树": { "en": "{count} worktrees", "zh-TW": "{count} 工作樹" },
   "当前 · {count}": { "en": "Current · {count}", "zh-TW": "目前 · {count}" },
