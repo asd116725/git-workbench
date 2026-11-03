@@ -11,7 +11,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let directory = tempfile::tempdir().unwrap();
-        let base = fs::canonicalize(directory.path()).unwrap();
+        let base = dunce::canonicalize(directory.path()).unwrap();
         let local = base.join("local");
         let remote = base.join("remote.git");
         let peer = base.join("peer");

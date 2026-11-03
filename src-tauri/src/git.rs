@@ -452,7 +452,8 @@ impl IndexTransaction {
         )?);
         // Git 会沿索引符号链接加锁，需锁定真实文件才能与外部 Git 互斥。
         let index = if index.exists() {
-            fs::canonicalize(index).map_err(|error| format!("无法定位 Git 索引：{error}"))?
+            // Git for Windows 无法将常见的 \\?\ 前缀用于 GIT_INDEX_FILE。
+            dunce::canonicalize(index).map_err(|error| format!("无法定位 Git 索引：{error}"))?
         } else {
             index
         };

@@ -408,7 +408,7 @@ mod tests {
     impl Repo {
         fn new() -> Self {
             let directory = tempfile::tempdir().unwrap();
-            let root = fs::canonicalize(directory.path()).unwrap();
+            let root = dunce::canonicalize(directory.path()).unwrap();
             git(&root, &["init", "-b", "main"]).unwrap();
             git(&root, &["config", "user.name", "Merge Test"]).unwrap();
             git(&root, &["config", "user.email", "merge@example.invalid"]).unwrap();

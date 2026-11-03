@@ -63,12 +63,17 @@ impl Fixture {
 #[test]
 fn first_commit_covers_all_files_and_uses_only_index_context() {
     let fixture = Fixture::new();
-    fixture.stage("说明\n特殊 名称.txt", "staged-only-text\n");
+    let filename = if cfg!(windows) {
+        "说明 特殊 名称.txt"
+    } else {
+        "说明\n特殊 名称.txt"
+    };
+    fixture.stage(filename, "staged-only-text\n");
     fixture.stage("src/second.rs", "pub fn staged() {}\n");
-    fixture.write("说明\n特殊 名称.txt", "worktree-secret-must-not-be-sent\n");
+    fixture.write(filename, "worktree-secret-must-not-be-sent\n");
     let input = fixture.collect().unwrap();
     assert_eq!(input.files.len(), 2);
-    assert!(input.files.iter().any(|path| path == "说明\n特殊 名称.txt"));
+    assert!(input.files.iter().any(|path| path == filename));
     assert!(input.prompt.user.contains("staged-only-text"));
     assert!(input.prompt.user.contains("pub fn staged"));
     assert!(!input.prompt.user.contains("worktree-secret"));
@@ -226,6 +231,15 @@ fn local_skill_has_priority_and_corruption_does_not_fall_back() {
 }
 
 #[test]
+fn local_skill_accepts_windows_line_endings() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("SKILL.md");
+    let skill = BUNDLED_SKILL.replace('\n', "\r\n");
+    fs::write(&path, &skill).unwrap();
+    assert_eq!(load_skill_at(Some(&path)).unwrap(), skill);
+}
+
+#[test]
 fn intent_to_add_becoming_staged_invalidates_same_object_snapshot() {
     let fixture = Fixture::new();
     fixture.stage("a.txt", "first\n");
@@ -254,6 +268,7 @@ fn optional_context_limit_does_not_truncate_staged_evidence() {
     }
 }
 
+#[cfg(unix)]
 #[test]
 fn repository_path_ending_in_newline_keeps_its_identity() {
     let fixture = Fixture::with_suffix("\n");

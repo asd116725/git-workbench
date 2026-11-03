@@ -11,7 +11,7 @@ struct TrackingFixture {
 impl TrackingFixture {
     fn new() -> Self {
         let directory = tempfile::tempdir().unwrap();
-        let root = fs::canonicalize(directory.path()).unwrap();
+        let root = dunce::canonicalize(directory.path()).unwrap();
         let remote = root.join("remote.git");
         let local = root.join("local");
         let peer = root.join("peer");
@@ -483,7 +483,7 @@ fn worktree_sync_read_failure_does_not_hide_worktrees() {
 #[test]
 fn unborn_worktree_has_no_sync_status() {
     let directory = tempfile::tempdir().unwrap();
-    let repo = fs::canonicalize(directory.path()).unwrap();
+    let repo = dunce::canonicalize(directory.path()).unwrap();
     git(&repo, &["init", "-b", "main"]).unwrap();
     let rows = worktrees(&repo).unwrap();
     assert_eq!(rows.len(), 1);

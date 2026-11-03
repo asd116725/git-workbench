@@ -557,7 +557,7 @@ fn load_skill_at(path: Option<&Path>) -> AiResult<String> {
     } else {
         BUNDLED_SKILL.to_string()
     };
-    if !skill.starts_with("---\n")
+    if !(skill.starts_with("---\n") || skill.starts_with("---\r\n"))
         || !skill.contains("name: staged-commit-message-zh")
         || !skill.contains("git diff --cached")
         || skill.len() < 200

@@ -20,7 +20,7 @@ impl Fixture {
     fn new() -> Self {
         let directory = tempfile::tempdir().unwrap();
         let fixture = Self {
-            root: fs::canonicalize(directory.path()).unwrap(),
+            root: dunce::canonicalize(directory.path()).unwrap(),
             _directory: directory,
         };
         let repo = fixture.path();
@@ -120,9 +120,40 @@ fn staged_and_working_versions_remain_independent() {
     );
 }
 
+#[cfg(windows)]
+#[test]
+fn windows_extended_repository_paths_support_stage_and_unstage() {
+    let fixture = Fixture::new();
+    fixture.write("tracked.txt", "base\n");
+    fixture.initial_commit();
+    fixture.write("tracked.txt", "staged\n");
+    let extended = fs::canonicalize(fixture.path()).unwrap();
+    assert!(extended.to_string_lossy().starts_with(r"\\?\"));
+    stage(&extended, "tracked.txt").unwrap();
+    assert_eq!(
+        git(&extended, &["show", ":tracked.txt"]).unwrap(),
+        b"staged\n"
+    );
+    fixture.write("tracked.txt", "working\n");
+    unstage(&extended, "tracked.txt").unwrap();
+    assert_eq!(
+        git(&extended, &["show", ":tracked.txt"]).unwrap(),
+        b"base\n"
+    );
+    assert_eq!(
+        fs::read(fixture.path().join("tracked.txt")).unwrap(),
+        b"working\n"
+    );
+}
+
 #[test]
 fn deleted_files_and_staged_renames_use_correct_paths() {
     let fixture = Fixture::new();
+    let renamed_path = if cfg!(windows) {
+        "新 名.txt"
+    } else {
+        "新\n名.txt"
+    };
     fixture.write("旧 名.txt", "contents\n");
     fixture.write("deleted.txt", "delete me\n");
     fixture.initial_commit();
@@ -135,32 +166,38 @@ fn deleted_files_and_staged_renames_use_correct_paths() {
     assert_eq!(staged.modified, None);
     unstage(fixture.path(), "deleted.txt").unwrap();
     assert!(!fixture.path().join("deleted.txt").exists());
-    git(fixture.path(), &["mv", "--", "旧 名.txt", "新\n名.txt"]).unwrap();
+    git(fixture.path(), &["mv", "--", "旧 名.txt", renamed_path]).unwrap();
     let renamed = changes(fixture.path())
         .unwrap()
         .into_iter()
-        .find(|file| file.path == "新\n名.txt")
+        .find(|file| file.path == renamed_path)
         .unwrap();
     assert_eq!(renamed.status_index, "R");
     assert_eq!(renamed.original_path.as_deref(), Some("旧 名.txt"));
-    let preview = diff(fixture.path(), "新\n名.txt", ChangeArea::Staged).unwrap();
+    let preview = diff(fixture.path(), renamed_path, ChangeArea::Staged).unwrap();
     assert!(preview.notice.unwrap().contains("路径"));
-    stage(fixture.path(), "新\n名.txt").unwrap();
-    unstage(fixture.path(), "新\n名.txt").unwrap();
+    stage(fixture.path(), renamed_path).unwrap();
+    unstage(fixture.path(), renamed_path).unwrap();
     assert_eq!(
         git(fixture.path(), &["show", ":旧 名.txt"]).unwrap(),
         b"contents\n"
     );
-    assert!(fixture.path().join("新\n名.txt").exists());
+    assert!(fixture.path().join(renamed_path).exists());
 }
 
 #[test]
 fn literal_paths_do_not_expand_git_pathspecs() {
     let fixture = Fixture::new();
-    for name in [":(glob)*", "a[1].txt", "other.txt"] {
+    let selected = if cfg!(windows) {
+        "a[1].txt"
+    } else {
+        ":(glob)*"
+    };
+    let other_pattern = if cfg!(windows) { "a1.txt" } else { "a[1].txt" };
+    for name in [selected, other_pattern, "other.txt"] {
         fixture.write(name, name);
     }
-    stage(fixture.path(), ":(glob)*").unwrap();
+    stage(fixture.path(), selected).unwrap();
     let files = changes(fixture.path()).unwrap();
     assert_eq!(
         files.iter().filter(|file| file.status_index == "A").count(),
@@ -676,7 +713,12 @@ fn worktrees_share_repository_identity_and_preserve_unavailable_entries() {
     fixture.write("file.txt", "base\n");
     fixture.initial_commit();
     let parent = tempfile::tempdir().unwrap();
-    let linked = parent.path().join("linked 中文\nworktree");
+    let linked_name = if cfg!(windows) {
+        "linked 中文 worktree"
+    } else {
+        "linked 中文\nworktree"
+    };
+    let linked = parent.path().join(linked_name);
     git(
         fixture.path(),
         &["worktree", "add", "-b", "feature", linked.to_str().unwrap()],
@@ -1272,25 +1314,36 @@ fn failed_batch_filter_leaves_index_and_working_files_unchanged() {
 #[test]
 fn batch_literal_rename_and_partial_selection_preserve_unselected_versions() {
     let fixture = Fixture::new();
+    let renamed_path = if cfg!(windows) {
+        "new 名.txt"
+    } else {
+        "new\nname.txt"
+    };
+    let special_path = if cfg!(windows) {
+        "literal[1].txt"
+    } else {
+        ":(glob)*"
+    };
+    let spaced_path = if cfg!(windows) {
+        "space name.txt"
+    } else {
+        "tab\tname.txt"
+    };
     fixture.write("old name.txt", "rename contents\n");
     fixture.write("unselected.txt", "head\n");
     fixture.initial_commit();
     fixture.write("unselected.txt", "index\n");
     stage(fixture.path(), "unselected.txt").unwrap();
     fixture.write("unselected.txt", "working\n");
-    git(
-        fixture.path(),
-        &["mv", "--", "old name.txt", "new\nname.txt"],
-    )
-    .unwrap();
-    for name in [":(glob)*", "a[1].txt", "tab\tname.txt"] {
+    git(fixture.path(), &["mv", "--", "old name.txt", renamed_path]).unwrap();
+    for name in [special_path, "a[1].txt", spaced_path] {
         fixture.write(name, "literal\n");
     }
     let paths = vec![
-        "new\nname.txt".into(),
-        ":(glob)*".into(),
+        renamed_path.into(),
+        special_path.into(),
         "a[1].txt".into(),
-        "tab\tname.txt".into(),
+        spaced_path.into(),
     ];
     stage_paths(fixture.path(), &paths).unwrap();
     unstage_paths(fixture.path(), &paths).unwrap();
@@ -1306,7 +1359,7 @@ fn batch_literal_rename_and_partial_selection_preserve_unselected_versions() {
         fs::read(fixture.path().join("unselected.txt")).unwrap(),
         b"working\n"
     );
-    assert!(fixture.path().join("new\nname.txt").exists());
+    assert!(fixture.path().join(renamed_path).exists());
     assert_eq!(
         changes(fixture.path())
             .unwrap()

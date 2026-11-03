@@ -158,7 +158,7 @@ fn outgoing_history_hides_unknown_detached_remote_and_unborn_states() {
 impl Repo {
     fn new() -> Self {
         let directory = tempfile::tempdir().unwrap();
-        let root = fs::canonicalize(directory.path()).unwrap();
+        let root = dunce::canonicalize(directory.path()).unwrap();
         git(&root, &["init", "-b", "main"]).unwrap();
         git(&root, &["config", "user.name", "History Author"]).unwrap();
         git(&root, &["config", "user.email", "history@example.invalid"]).unwrap();
@@ -462,8 +462,16 @@ fn history_does_not_read_or_modify_current_index_and_working_files() {
 #[test]
 fn rename_delete_and_special_character_paths_use_exact_git_objects() {
     let repo = Repo::new();
-    let old = "原文件\t:name\n.txt";
-    let new = "目录/新名字\n.txt";
+    let old = if cfg!(windows) {
+        "原文件 name.txt"
+    } else {
+        "原文件\t:name\n.txt"
+    };
+    let new = if cfg!(windows) {
+        "目录/新名字.txt"
+    } else {
+        "目录/新名字\n.txt"
+    };
     repo.save(old, "same contents\n");
     repo.commit("initial path");
     fs::create_dir(repo.root.join("目录")).unwrap();

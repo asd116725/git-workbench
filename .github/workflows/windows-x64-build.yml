@@ -3,7 +3,9 @@ name: Windows x64 安装包验证
 on:
   push:
     branches: ['codex/windows-build-v1.8.1']
-    paths: ['.github/workflows/windows-x64-build.yml']
+    paths:
+      - '.github/workflows/windows-x64-build.yml'
+      - 'src-tauri/**'
 
 permissions:
   contents: read
@@ -19,8 +21,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: 核对应用源码与 v1.8.1 一致
-        run: git diff --exit-code v1.8.1 HEAD -- . ':(exclude).github/workflows/windows-x64-build.yml'
+      - name: 核对 v1.8.1 基准
+        run: git merge-base --is-ancestor v1.8.1 HEAD
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -51,14 +53,14 @@ jobs:
           if ($actualVersion -notin @($version, "$version.0")) { throw "Unexpected executable version: $actualVersion" }
           $output = Join-Path $env:GITHUB_WORKSPACE 'release-artifacts/windows-x64'
           New-Item -ItemType Directory -Force -Path $output | Out-Null
-          $name = "GitWorkbench_${version}_windows_x64_setup.exe"
+          $name = "GitWorkbench_${version}_windows_x64_preview_setup.exe"
           $installer = Join-Path $output $name
           Copy-Item $installers[0].FullName $installer
           $hash = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLowerInvariant()
           [IO.File]::WriteAllText((Join-Path $output 'SHA256SUMS-windows.txt'), "$hash  $name`n", [Text.UTF8Encoding]::new($false))
           $base = (git rev-parse 'v1.8.1^{commit}').Trim()
           $signature = (Get-AuthenticodeSignature $installer).Status.ToString()
-          @{version=$version; sourceCommit=$base; workflowCommit=$env:GITHUB_SHA; architecture='x64'; productVersion=$actualVersion; sha256=$hash; signature=$signature} | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $output 'BUILD-INFO.json')
+          @{version=$version; sourceCommit=$env:GITHUB_SHA; baseCommit=$base; architecture='x64'; productVersion=$actualVersion; sha256=$hash; signature=$signature; preview=$true} | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $output 'BUILD-INFO.json')
           Write-Host "Installer: $name, SHA-256: $hash, signature: $signature"
       - name: 安装并验证程序可以启动
         shell: pwsh
@@ -79,7 +81,7 @@ jobs:
           Write-Host 'Installer completed and the application process stayed running.'
       - uses: actions/upload-artifact@v4
         with:
-          name: git-workbench-v1.8.1-windows-x64
+          name: git-workbench-v1.8.1-windows-x64-preview
           path: release-artifacts/windows-x64/
           if-no-files-found: error
           retention-days: 90

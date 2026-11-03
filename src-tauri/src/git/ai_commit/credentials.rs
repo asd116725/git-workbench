@@ -84,6 +84,7 @@ mod tests {
         time::{Duration, Instant},
     };
 
+    #[cfg(unix)]
     #[test]
     fn shell_extracts_only_named_value_and_preserves_exit_failure() {
         let mut command = Command::new("/bin/sh");
@@ -104,6 +105,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn shell_timeout_and_background_pipe_are_bounded() {
         for script in [

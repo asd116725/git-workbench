@@ -503,7 +503,7 @@ mod tests {
                 "protocol.file.allow=always",
                 "submodule",
                 "add",
-                source.root.to_str().unwrap(),
+                dunce::simplified(&source.root).to_str().unwrap(),
                 submodule_name,
             ],
         )
