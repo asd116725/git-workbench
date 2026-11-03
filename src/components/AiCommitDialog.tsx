@@ -24,7 +24,7 @@ export function AiCommitDialog({ state, stagedCount, hasDraft, blocked, onApply,
     <DialogContent className="ai-commit-dialog" onCloseAutoFocus={event => { event.preventDefault(); onCloseFocus(); }}>
       <DialogHeader>
         <DialogTitle><i className="codicon codicon-sparkle" aria-hidden="true" />{t('AI 生成提交信息')}</DialogTitle>
-        <DialogDescription>{t('根据暂存内容生成中文文案，确认使用后才会填入提交框。')}</DialogDescription>
+        <DialogDescription>{t('根据暂存内容和当前界面语言生成文案，确认使用后才会填入提交框。')}</DialogDescription>
       </DialogHeader>
       <div className="ai-commit-body">
         <div className="ai-commit-context"><span>DeepSeek</span><span>{t('已暂存 {count} 个文件', { count: stagedCount })}</span></div>

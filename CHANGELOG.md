@@ -6,6 +6,18 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-11-03
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#181---2026-11-03)
+
+- Generate AI commit messages in the selected interface language: English, Simplified Chinese, or Traditional Chinese. Each generation or regeneration reads the current selection without translating existing drafts or candidates.
+- Accept English Conventional Commit subjects and give the selected language precedence over language examples in the existing Skill and repository rules. Continue to verify staged content before applying a candidate.
+- Update the AI dialog, README, and usage guides to explain how the output language is selected.
+
+This release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
+Save commit drafts and quit the previous version completely with `⌘Q` before upgrading. Verify `GitWorkbench_1.8.1_macos_arm64.dmg` against `SHA256SUMS.txt` from the same release before installing.
+
 ## [1.8.0] - 2026-11-03
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#180---2026-11-03)

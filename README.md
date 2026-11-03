@@ -26,7 +26,7 @@
 
 Git Workbench brings repositories, linked worktrees, branches, diffs, and commit history into a single desktop app. It is built for developers working across several local projects or parallel feature branches who want to review exactly what goes into each commit.
 
-Use your existing Git configuration for authors, signing, hooks, and remote credentials. Optional DeepSeek assistance can turn staged changes into a Chinese commit-message draft for you to review.
+Use your existing Git configuration for authors, signing, hooks, and remote credentials. Optional DeepSeek assistance can turn staged changes into a commit-message draft in your current interface language for you to review.
 
 ![Project groups, linked worktrees, local changes, and an inline diff](docs/screenshots/workbench-v1.8.0-en.jpg)
 
@@ -40,7 +40,7 @@ Use your existing Git configuration for authors, signing, hooks, and remote cred
 | **Diffs & staging** | Browse a file tree or flat list, read side-by-side or inline diffs, and stage or unstage files, directories, or all changes. Commit the staged content while keeping unstaged edits. |
 | **Branches & synchronization** | Search, create, delete, and merge branches. Fetch, pull, push, or publish a branch for the first time. See incoming and outgoing counts in the sidebar, branch list, and toolbar. |
 | **Commit history** | Browse commits, changed files, and historical diffs together. Search the selected branch's full reachable history, compare merge parents, and spot commits that have not been pushed. |
-| **AI commit drafts** | Generate Chinese Conventional Commit messages from staged changes with DeepSeek. Preview, edit, and explicitly apply a candidate before committing. |
+| **AI commit drafts** | Generate Conventional Commit messages from staged changes with DeepSeek in your current interface language. Preview, edit, and explicitly apply a candidate before committing. |
 | **A workspace that fits** | Adjust pane widths, font size, and diff mode. Choose Light, Dark, or System appearance, with file-type icons and English, 简体中文, or 繁體中文. |
 
 Switching to a branch with a remote upstream checks for updates and attempts a fast-forward pull. If local changes, diverged history, or a network error prevent synchronization, the app preserves the completed switch and explains what needs attention. Resolve conflicted files in your editor, then complete the merge in the app; you can also abort a merge from the app.
@@ -57,7 +57,7 @@ Select a commit to see its message, changed files, and diff without changing you
 
 ## AI commit messages, with a review step
 
-The optional AI workflow introduced in **1.7.0** uses DeepSeek and the bundled `staged-commit-message-zh` writing rules. Messages are generated in Chinese regardless of the interface language.
+The optional AI workflow introduced in **1.7.0** uses DeepSeek and the `staged-commit-message-zh` writing rules. Generation follows **Settings → Interface language**: English, Simplified Chinese, or Traditional Chinese. Each generation or regeneration uses the current selection; switching languages does not translate or overwrite an existing draft or candidate.
 
 1. **Stage the changes** you want to include in the commit.
 2. Choose **AI generate**, then review and edit the candidate.
@@ -71,13 +71,13 @@ Generation does not stage files, commit, or push. Canceling or encountering an e
 
 ## Install and start
 
-The current stable release is **1.8.0**, available for **macOS Apple Silicon (arm64)**.
+The current stable release is **1.8.1**, available for **macOS Apple Silicon (arm64)**.
 
 | Download | Link |
 | --- | --- |
-| macOS installer | [GitWorkbench_1.8.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.8.0/GitWorkbench_1.8.0_macos_arm64.dmg) |
-| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.8.0/SHA256SUMS.txt) |
-| Release notes | [What's new in v1.8.0](https://github.com/asd116725/git-workbench/releases/tag/v1.8.0) |
+| macOS installer | [GitWorkbench_1.8.1_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.8.1/GitWorkbench_1.8.1_macos_arm64.dmg) |
+| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.8.1/SHA256SUMS.txt) |
+| Release notes | [What's new in v1.8.1](https://github.com/asd116725/git-workbench/releases/tag/v1.8.1) |
 
 1. **Install:** verify the DMG against the checksum file from the same release, then drag **代码管理** (Git Workbench) into Applications. See the [installation guide](docs/installation.md).
 2. **Open a repository:** make sure `git --version` works, then choose **Open repository** in the app and select an existing local repository.
@@ -149,7 +149,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.8.0
+pnpm release:check --tag v1.8.1
 ```
 
 ```sh

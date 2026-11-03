@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-11-03
+
+- AI 提交信息跟随当前界面语言生成，支持简体中文、繁体中文和英文；每次生成或重新生成都读取最新选择，切换语言不改写已有草稿或候选文案。
+- 接受英文 Conventional Commit 标题；界面语言选择优先于现有 Skill 和仓库规范中的语言示例，应用候选前仍会核验暂存内容。
+- 更新 AI 弹窗、README 和操作手册，说明提交文案的语言选择方式。
+
+此版本提供 macOS Apple Silicon（arm64）安装包，采用 ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证。详见[安装说明](https://github.com/asd116725/git-workbench/blob/main/docs/zh-CN/installation.md)。
+
+升级前请保存提交草稿，并用 `⌘Q` 完全退出旧版。请使用同一 Release 的 `SHA256SUMS.txt` 校验 `GitWorkbench_1.8.1_macos_arm64.dmg` 后安装。
+
 ## [1.8.0] - 2026-11-03
 
 - 在设置中增加「浅色 / 深色 / 跟随系统」三种外观，选择后立即应用并独立保存；原有用户默认保留熟悉的深色主题。

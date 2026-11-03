@@ -177,7 +177,9 @@ On macOS, the first Git operation reads PATH from a login and interactive shell 
 
 ### AI-generated commit messages (1.7.0)
 
-With a local repository open and files staged, use **AI generate** beside the commit-message label. The app sends the complete staged diff and necessary index context, commit conventions, and recent subject lines to DeepSeek. Unstaged edits and unrelated untracked files are excluded. Generation uses the `staged-commit-message-zh` rules to produce a Chinese Conventional Commit regardless of the interface language.
+With a local repository open and files staged, use **AI generate** beside the commit-message label. The app sends the complete staged diff and necessary index context, commit conventions, and recent subject lines to DeepSeek. Unstaged edits and unrelated untracked files are excluded. Generation uses the evidence and writing rules from `staged-commit-message-zh`, with the output language following **Settings → Interface language**: English, Simplified Chinese, or Traditional Chinese. This selection takes precedence over language conventions in Skill examples and repository rules; Conventional Commit types/scopes, code identifiers, and file paths remain unchanged.
+
+Each generation or regeneration reads the current interface language. Switching languages does not translate existing drafts, candidates, or historical commits. To request another language, change the interface language and generate again.
 
 Review and edit the candidate in the dialog, then explicitly apply it to the draft. If a draft already exists, the action clearly replaces it. Canceling, retrying, or encountering an error preserves the original draft. Applying a message does not stage files, commit, or push; use the existing commit button afterward. If the index, HEAD, branch, or selected worktree changes, regenerate instead of applying an outdated result.
 

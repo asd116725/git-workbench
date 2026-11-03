@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { aiCommitBlockReason, createAiCommitSession } from './ai-commit-session';
 import { aiCommitErrorCode, type AiCommitResult } from './native-ai-commit';
+import { setLanguage } from './i18n';
 import { findWorktree, useWorkbench } from './store';
 import type { Worktree } from './types';
 
@@ -41,13 +42,14 @@ function replaceWorktree(patch: Partial<Worktree> = {}) {
 function draft() { return useWorkbench.getState().drafts[owner.id].message; }
 
 beforeEach(() => {
+  setLanguage('zh-CN');
   mockedInvoke.mockReset().mockImplementation(reply);
   useWorkbench.setState({ repositories: [{ id: 'repo', name: 'repo', worktrees: [owner, other] }], activeWorktreeId: owner.id, busy: false, refreshing: false, drafts: { [owner.id]: { message: '手写草稿' }, [other.id]: { message: '其他工作区草稿' } } });
   session = createAiCommitSession(owner);
   disconnect = session.getState().connect();
 });
 
-afterEach(() => disconnect());
+afterEach(() => { disconnect(); setLanguage('zh-CN'); });
 
 describe('AI 提交会话', () => {
   it('生成及编辑只修改候选，应用前再次核验，并保留其他工作区草稿', async () => {
@@ -63,7 +65,38 @@ describe('AI 提交会话', () => {
     expect(session.getState().phase).toBe('closed');
     expect(mockedInvoke.mock.calls.filter(([command]) => command === 'ai_commit_validate')).toHaveLength(2);
     expect(mockedInvoke.mock.calls.every(([command]) => command.startsWith('ai_commit_'))).toBe(true);
-    expect(mockedInvoke).toHaveBeenCalledWith('ai_commit_generate', { repoPath: owner.path, requestId: expect.any(String) });
+    expect(mockedInvoke).toHaveBeenCalledWith('ai_commit_generate', { repoPath: owner.path, requestId: expect.any(String), language: 'zh-CN' });
+  });
+
+  it.each(['zh-CN', 'zh-TW', 'en'] as const)('%s 按当前界面语言发起生成', async language => {
+    setLanguage(language);
+    await session.getState().generate();
+    expect(mockedInvoke).toHaveBeenCalledWith('ai_commit_generate', { repoPath: owner.path, requestId: expect.any(String), language });
+    expect(session.getState().phase).toBe('preview');
+    expect(draft()).toBe('手写草稿');
+  });
+
+  it('重新生成读取新语言，切换语言本身保留候选和手写草稿', async () => {
+    await session.getState().generate();
+    setLanguage('en');
+    expect(session.getState().candidate).toBe(result.message);
+    expect(draft()).toBe('手写草稿');
+    await session.getState().generate();
+    const requests = mockedInvoke.mock.calls.filter(([command]) => command === 'ai_commit_generate').map(([, args]) => args);
+    expect(requests).toEqual([
+      { repoPath: owner.path, requestId: expect.any(String), language: 'zh-CN' },
+      { repoPath: owner.path, requestId: expect.any(String), language: 'en' },
+    ]);
+  });
+
+  it('密钥检测结束后按实际开始生成时的界面语言请求', async () => {
+    const pending = deferred<{ available: boolean }>();
+    mockedInvoke.mockImplementation(command => command === 'ai_commit_check_key' ? pending.promise : reply(command));
+    const opening = session.getState().open();
+    setLanguage('zh-TW');
+    pending.resolve({ available: true });
+    await opening;
+    expect(mockedInvoke).toHaveBeenCalledWith('ai_commit_generate', { repoPath: owner.path, requestId: expect.any(String), language: 'zh-TW' });
   });
 
   it('取消实际通知原生端，迟到结果不能恢复预览或覆盖草稿', async () => {

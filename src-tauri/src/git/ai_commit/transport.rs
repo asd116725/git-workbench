@@ -139,9 +139,7 @@ fn parse_response(bytes: &[u8]) -> AiResult<String> {
             && kind
                 .bytes()
                 .all(|byte| byte.is_ascii_lowercase() || byte == b'-')
-            && summary
-                .chars()
-                .any(|character| ('\u{3400}'..='\u{9fff}').contains(&character))
+            && summary.chars().any(char::is_alphabetic)
             && !prefix.chars().any(char::is_whitespace)
     });
     if !valid_title
@@ -188,6 +186,25 @@ mod tests {
             parse_response(&response("```text\r\nfix: 修复筛选\r\n```".into(), "stop")).unwrap(),
             "fix: 修复筛选"
         );
+    }
+
+    #[test]
+    fn accepts_commit_messages_in_each_interface_language() {
+        for expected in [
+            "fix(filter): 忽略查询大小写与首尾空白\n\n- 保留空查询行为",
+            "fix(filter): 忽略查詢大小寫與首尾空白\n\n- 保留空查詢行為",
+            "fix(filter): ignore case and surrounding whitespace\n\n- Preserve empty queries",
+        ] {
+            assert_eq!(
+                parse_response(&response(expected.into(), "stop")).unwrap(),
+                expected
+            );
+            let wrapped = format!("```text\n{expected}\n```");
+            assert_eq!(
+                parse_response(&response(wrapped.into(), "stop")).unwrap(),
+                expected
+            );
+        }
     }
 
     #[test]
@@ -355,7 +372,7 @@ mod tests {
         assert_eq!(request["stream"], false);
         assert_eq!(request["max_tokens"], 4096);
         assert!(request.get("tools").is_none());
-        for content in ["feat: English only", "", "feat: 新增\0"] {
+        for content in ["", "feat: ", "feat: 123", "feat: ---", "feat: 新增\0"] {
             assert_eq!(
                 parse_response(&response(content.into(), "stop"))
                     .unwrap_err()

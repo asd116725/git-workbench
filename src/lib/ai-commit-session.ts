@@ -4,7 +4,7 @@ import { aiCommitErrorCode, nativeAiCommit, type AiCommitErrorCode, type AiCommi
 import { findWorktree, useWorkbench } from './store';
 import type { Worktree } from './types';
 
-/** 普通本地提交可生成中文文案；首次提交无需已有 HEAD。 */
+/** 普通本地提交可生成文案；首次提交无需已有 HEAD。 */
 export function aiCommitBlockReason(worktree: Worktree): string | null {
   if (worktree.source !== 'native' || worktree.bare || worktree.available === false) return '请打开可用的本地工作区后使用 AI 生成。';
   if (worktree.operation || worktree.files.some(file => file.git?.conflicted)) return '请先完成当前 Git 操作或解决冲突，再使用 AI 生成。';

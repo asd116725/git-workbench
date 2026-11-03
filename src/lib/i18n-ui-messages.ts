@@ -33,7 +33,7 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
   "生成失败，请稍后重试。": {"en": "Generation failed. Try again later.", "zh-TW": "產生失敗，請稍後重試。"},
   "请打开可用的本地工作区后使用 AI 生成。": {"en": "Open an available local worktree to use AI generation.", "zh-TW": "請開啟可用的本機工作區後使用 AI 產生。"},
   "AI 生成提交信息": {"en": "Generate commit message with AI", "zh-TW": "AI 產生提交訊息"},
-  "根据暂存内容生成中文文案，确认使用后才会填入提交框。": {"en": "Generate a Chinese message from staged changes. It is only added to your draft when you apply it.", "zh-TW": "根據暫存內容產生中文文案，確認使用後才會填入提交框。"},
+  "根据暂存内容和当前界面语言生成文案，确认使用后才会填入提交框。": {"en": "Generate a message from staged changes in the current interface language. It is only added to your draft when you apply it.", "zh-TW": "根據暫存內容和目前介面語言產生文案，確認使用後才會填入提交框。"},
   "已暂存 {count} 个文件": {"en": "{count} staged files", "zh-TW": "已暫存 {count} 個檔案"},
   "正在检测 API Key…": {"en": "Checking for an API key…", "zh-TW": "正在偵測 API Key…"},
   "正在生成提交文案…": {"en": "Generating commit message…", "zh-TW": "正在產生提交文案…"},

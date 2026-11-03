@@ -41,7 +41,12 @@ impl Fixture {
     fn collect(&self) -> AiResult<Input> {
         let control = WorkControl::standalone(Duration::from_secs(15));
         locked(self.path().to_str().unwrap(), &control, |repo| {
-            collect_locked(repo, BUNDLED_SKILL, &control)
+            collect_locked(
+                repo,
+                BUNDLED_SKILL,
+                CommitLanguage::SimplifiedChinese,
+                &control,
+            )
         })
     }
 
@@ -70,6 +75,35 @@ fn first_commit_covers_all_files_and_uses_only_index_context() {
     assert!(fixture.validate(&input.snapshot_id));
     fixture.write("src/second.rs", "only-worktree-change\n");
     assert!(fixture.validate(&input.snapshot_id));
+}
+
+#[test]
+fn interface_language_overrides_skill_language_without_changing_staged_evidence() {
+    let fixture = Fixture::new();
+    fixture.stage(
+        "src/filter.ts",
+        "export const matches = (value: string) => value.trim();\n",
+    );
+    fixture.stage("AGENTS.md", "提交信息必须使用中文。\n");
+    let control = WorkControl::standalone(Duration::from_secs(15));
+    let baseline = fixture.collect().unwrap();
+    for (language, expected) in [
+        ("zh-CN", "输出语言：简体中文（zh-CN）"),
+        ("zh-TW", "輸出語言：繁體中文（zh-TW）"),
+        ("en", "Output language: English (en)"),
+    ] {
+        let language: CommitLanguage = serde_json::from_value(language.into()).unwrap();
+        let input = locked(fixture.path().to_str().unwrap(), &control, |repo| {
+            collect_locked(repo, BUNDLED_SKILL, language, &control)
+        })
+        .unwrap();
+        assert_eq!(input.prompt.user, baseline.prompt.user);
+        assert_eq!(input.snapshot_id, baseline.snapshot_id);
+        assert!(input.prompt.system.contains(BUNDLED_SKILL));
+        let output_protocol = input.prompt.system.split(BUNDLED_SKILL).nth(1).unwrap();
+        assert!(output_protocol.contains(expected));
+        assert!(output_protocol.contains("语言和输出格式优先于"));
+    }
 }
 
 #[test]
@@ -246,7 +280,12 @@ fn cancellation_stops_collection_and_releases_shared_repository_lock() {
     let worker = thread::spawn(move || {
         locked(&root, &control, |repo| {
             acquired.send(()).unwrap();
-            collect_locked(repo, BUNDLED_SKILL, &control)
+            collect_locked(
+                repo,
+                BUNDLED_SKILL,
+                CommitLanguage::SimplifiedChinese,
+                &control,
+            )
         })
     });
     wait_acquired.recv_timeout(Duration::from_secs(3)).unwrap();

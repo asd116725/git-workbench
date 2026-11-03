@@ -1,6 +1,6 @@
 //! 原生端独立处理暂存取材与凭证；前端仅接收候选文案和快照标识。
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, VecDeque},
     sync::Mutex,
@@ -102,6 +102,33 @@ pub struct GeneratedCommit {
     files: Vec<String>,
 }
 
+/// 生成语言只接受应用支持的三种选择，不把任意前端文本拼入系统规则。
+#[derive(Clone, Copy, Deserialize)]
+pub enum CommitLanguage {
+    #[serde(rename = "zh-CN")]
+    SimplifiedChinese,
+    #[serde(rename = "zh-TW")]
+    TraditionalChinese,
+    #[serde(rename = "en")]
+    English,
+}
+
+impl CommitLanguage {
+    fn prompt_instruction(self) -> &'static str {
+        match self {
+            Self::SimplifiedChinese => {
+                "输出语言：简体中文（zh-CN）。标题摘要和正文必须使用简体中文。"
+            }
+            Self::TraditionalChinese => {
+                "輸出語言：繁體中文（zh-TW）。標題摘要和內文必須使用繁體中文，不得使用簡體中文。"
+            }
+            Self::English => {
+                "Output language: English (en). Write the subject summary and body in English."
+            }
+        }
+    }
+}
+
 struct RequestGuard<'a> {
     state: &'a AiCommitState,
     id: String,
@@ -190,6 +217,7 @@ pub async fn ai_commit_check_key() -> AiResult<KeyAvailability> {
 pub async fn ai_commit_generate(
     repo_path: String,
     request_id: String,
+    language: CommitLanguage,
     state: tauri::State<'_, AiCommitState>,
 ) -> AiResult<GeneratedCommit> {
     let (_guard, mut cancellation) = state.begin(request_id)?;
@@ -200,17 +228,21 @@ pub async fn ai_commit_generate(
     tokio::select! {
         biased;
         _ = cancelled(&mut cancellation) => Err(AiError::new("cancelled")),
-        result = tokio::time::timeout(Duration::from_secs(100), generate(repo_path, control)) => {
+        result = tokio::time::timeout(Duration::from_secs(100), generate(repo_path, language, control)) => {
             result.map_err(|_| AiError::new("timeout"))?
         }
     }
 }
 
-async fn generate(repo_path: String, control: WorkControl) -> AiResult<GeneratedCommit> {
+async fn generate(
+    repo_path: String,
+    language: CommitLanguage,
+    control: WorkControl,
+) -> AiResult<GeneratedCommit> {
     let input_path = repo_path.clone();
     let collection_control = control.clone();
     let input = tauri::async_runtime::spawn_blocking(move || {
-        collection::collect(&input_path, &collection_control)
+        collection::collect(&input_path, language, &collection_control)
     })
     .await
     .map_err(|_| AiError::new("internal"))??;

@@ -64,7 +64,7 @@ describe('AI 提交预览', () => {
     ['zh-CN', 'AI 生成提交信息', '替换草稿'],
     ['zh-TW', 'AI 產生提交訊息', '取代草稿'],
     ['en', 'Generate commit message with AI', 'Replace draft'],
-  ] as const)('%s 翻译界面并保留固定中文生成文案', (language, title, action) => {
+  ] as const)('%s 翻译界面并保留已有候选和文件路径原文', (language, title, action) => {
     setLanguage(language);
     const html = render();
     expect(html).toContain(title);

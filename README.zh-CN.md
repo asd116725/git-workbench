@@ -26,7 +26,7 @@
 
 Git Workbench 将本地仓库、关联 worktree、分支、Diff 和提交历史放在同一个桌面应用中。适合同时维护多个项目、并行处理功能分支，并希望在提交前逐项核对修改的开发者。
 
-应用沿用本机 Git 的作者信息、签名、hooks 和远程凭据配置。你也可以选择接入 DeepSeek，根据暂存修改生成中文提交草稿，检查后再使用。
+应用沿用本机 Git 的作者信息、签名、hooks 和远程凭据配置。你也可以选择接入 DeepSeek，根据暂存修改和当前界面语言生成提交草稿，检查后再使用。
 
 ![项目分组、关联工作树、本地变更与内联 Diff](docs/screenshots/workbench-v1.8.0.jpg)
 
@@ -40,7 +40,7 @@ Git Workbench 将本地仓库、关联 worktree、分支、Diff 和提交历史�
 | **Diff 与暂存** | 用目录树或列表浏览修改，查看并排或内联 Diff，暂存或取消暂存文件、目录及整组变更；提交暂存内容，保留未暂存修改。 |
 | **分支与远程同步** | 搜索、创建、删除及合并分支，获取、拉取、推送或首次发布分支；在侧栏、分支列表与工具栏查看待拉取、待推送数量。 |
 | **提交历史** | 同时浏览提交列表、变更文件与历史 Diff，搜索所选分支的完整可达历史，切换合并父提交，识别尚未推送的记录。 |
-| **AI 提交草稿** | 使用 DeepSeek 根据暂存修改生成中文 Conventional Commit；先预览编辑，再明确填入提交草稿。 |
+| **AI 提交草稿** | 使用 DeepSeek 根据暂存修改和当前界面语言生成 Conventional Commit；先预览编辑，再明确填入提交草稿。 |
 | **阅读与操作体验** | 调整分栏宽度、字号和 Diff 模式，可选择浅色、深色或跟随系统外观，保留文件类型图标；支持 English、简体中文、繁體中文。 |
 
 切换到有远程上游的分支时，应用会检查更新并尝试快进拉取。如果本地修改、分支分叉或网络错误阻止同步，会保留已经完成的切换并说明原因。合并冲突需在外部编辑器中解决，再回到应用完成合并；也可以在应用中中止合并。
@@ -57,7 +57,7 @@ Git Workbench 将本地仓库、关联 worktree、分支、Diff 和提交历史�
 
 ## AI 提交信息，先检查再使用
 
-**1.7.0** 新增可选的 AI 文案功能，使用 DeepSeek 与内置的 `staged-commit-message-zh` 写作规则。无论界面语言如何设置，生成的提交信息均为中文。
+AI 文案功能自 **1.7.0** 起提供，使用 DeepSeek 与 `staged-commit-message-zh` 写作规则。生成语言跟随「设置 → 界面语言」：中文简体生成简体中文，中文繁體生成繁体中文，English 生成英文。每次生成或重新生成时读取当前选择；切换语言不会翻译或覆盖已有草稿和候选文案。
 
 1. **暂存本次修改**，明确希望纳入提交的内容。
 2. 点击 **AI 生成**，在弹窗中检查并编辑候选文案。
@@ -71,13 +71,13 @@ Git Workbench 将本地仓库、关联 worktree、分支、Diff 和提交历史�
 
 ## 安装与快速上手
 
-当前正式版本为 **1.8.0**，提供 **macOS Apple Silicon（arm64）** 安装包。
+当前正式版本为 **1.8.1**，提供 **macOS Apple Silicon（arm64）** 安装包。
 
 | 下载内容 | 链接 |
 | --- | --- |
-| macOS 安装包 | [GitWorkbench_1.8.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.8.0/GitWorkbench_1.8.0_macos_arm64.dmg) |
-| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.8.0/SHA256SUMS.txt) |
-| 版本说明 | [v1.7.1 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.8.0) |
+| macOS 安装包 | [GitWorkbench_1.8.1_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.8.1/GitWorkbench_1.8.1_macos_arm64.dmg) |
+| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.8.1/SHA256SUMS.txt) |
+| 版本说明 | [v1.8.1 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.8.1) |
 
 1. **安装应用**：使用同一 Release 的校验文件核对 DMG，将「代码管理」拖入 Applications。详见[安装说明](docs/zh-CN/installation.md)。
 2. **打开仓库**：先确认 `git --version` 可以运行，再点击应用中的「打开仓库」，选择已有的本地仓库。
@@ -149,7 +149,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.8.0
+pnpm release:check --tag v1.8.1
 ```
 
 ```sh
