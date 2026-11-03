@@ -1,0 +1,61 @@
+name: Windows x64 桌面交互验收
+
+on:
+  push:
+    branches: ['codex/windows-build-v1.8.1']
+    paths:
+      - '.github/workflows/windows-x64-ui.yml'
+      - 'scripts/ci/windows-smoke.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  desktop:
+    name: 验证已安装应用和 Git 操作
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - name: 保持源文件换行一致
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: git-workbench-v1.8.1-windows-x64
+          path: windows-package
+          github-token: ${{ github.token }}
+          run-id: 41613964665
+      - name: 核验并安装打包产物
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = (Get-ChildItem 'windows-package' -Filter '*_setup.exe' -File).FullName
+          $info = Get-Content 'windows-package/BUILD-INFO.json' -Raw | ConvertFrom-Json
+          $actual = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLowerInvariant()
+          if ($actual -ne $info.sha256 -or $info.sourceCommit -ne '35844c40db8d6d0527df4410dc0b3c4f7db593b5') { throw 'Installer checksum or source commit mismatch' }
+          $destination = Join-Path $env:RUNNER_TEMP 'git-workbench-ui'
+          $setup = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$destination") -PassThru
+          if (-not $setup.WaitForExit(120000)) { Stop-Process -Id $setup.Id -Force; throw 'Installer timed out' }
+          if ($setup.ExitCode -ne 0) { throw "Installer failed with code $($setup.ExitCode)" }
+          $apps = @(Get-ChildItem $destination -Recurse -File -Filter '*.exe' | Where-Object { $_.Name -in @('git-workbench.exe', '代码管理.exe') })
+          if ($apps.Count -ne 1) { throw "Expected one app executable; found $($apps.Count)" }
+          "WINDOWS_APP_EXE=$($apps[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: 准备 Windows WebView 驱动
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path (Join-Path $env:EDGEWEBDRIVER 'msedgedriver.exe'))) { throw 'Edge WebDriver unavailable' }
+          & (Join-Path $env:EDGEWEBDRIVER 'msedgedriver.exe') --version
+          cargo install tauri-driver --locked
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "$(Join-Path $env:USERPROFILE '.cargo/bin')" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: 验证应用界面与临时 Git 仓库
+        run: python scripts/ci/windows-smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: git-workbench-v1.8.1-windows-ui-evidence
+          path: release-artifacts/windows-ui-proof/
+          if-no-files-found: warn
+          retention-days: 30
