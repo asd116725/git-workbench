@@ -157,12 +157,20 @@ def main():
         driver.click('[data-slot="dialog-close"]')
         assert driver.script('return document.querySelector("#commit-message").value') == 'Windows smoke draft'
         assert driver.element('button[aria-label="Generate commit message with AI"]')
+        driver.element('.code-diff-root:not(.code-diff-empty)')
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if driver.script('return document.querySelector(".code-diff-root").innerText.includes("working version")'):
+                break
+            time.sleep(0.3)
+        else:
+            raise RuntimeError('暂存文件的差异内容未显示')
         driver.screenshot(output / 'windows-workbench.png')
         assert git(repo, 'status', '--porcelain').strip() == 'M  src/sample.txt'
         (output / 'result.json').write_text(json.dumps({
             'installedAppStarted': True, 'openedSyntheticRepository': True,
             'stagedAndUnstagedShown': True, 'stagingUpdatedGitIndex': True,
-            'themeAndLanguageChanged': True, 'commitDraftPreserved': True,
+            'themeAndLanguageChanged': True, 'commitDraftPreserved': True, 'diffRendered': True,
         }, indent=2) + '\n', encoding='utf-8')
         print('Windows 原生界面和虚构仓库操作验证通过。')
     except Exception:

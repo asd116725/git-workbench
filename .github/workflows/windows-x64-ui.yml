@@ -25,7 +25,7 @@ jobs:
           name: git-workbench-v1.8.1-windows-x64-preview
           path: windows-package
           github-token: ${{ github.token }}
-          run-id: 41615408670
+          run-id: 41629738755
       - name: 核验并安装打包产物
         shell: pwsh
         run: |
@@ -33,7 +33,7 @@ jobs:
           $installer = (Get-ChildItem 'windows-package' -Filter '*_setup.exe' -File).FullName
           $info = Get-Content 'windows-package/BUILD-INFO.json' -Raw | ConvertFrom-Json
           $actual = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLowerInvariant()
-          if ($actual -ne $info.sha256 -or $info.sourceCommit -ne '603032b80cd20af41ce82d650ecf0794ae15674e' -or $info.baseCommit -ne '35844c40db8d6d0527df4410dc0b3c4f7db593b5') { throw 'Installer checksum or source commit mismatch' }
+          if ($actual -ne $info.sha256 -or $info.sourceCommit -ne 'e55d3b3fe49965d5b75d2ea79cb93fe064f2ebc6' -or $info.baseCommit -ne '35844c40db8d6d0527df4410dc0b3c4f7db593b5') { throw 'Installer checksum or source commit mismatch' }
           $destination = Join-Path $env:RUNNER_TEMP 'git-workbench-ui'
           $setup = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$destination") -PassThru
           if (-not $setup.WaitForExit(120000)) { Stop-Process -Id $setup.Id -Force; throw 'Installer timed out' }
