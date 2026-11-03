@@ -65,6 +65,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "$(Join-Path $env:USERPROFILE '.cargo/bin')" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: 验证应用界面与临时 Git 仓库
+        env:
+          PYTHONUTF8: '1'
         run: python scripts/ci/windows-smoke.py
       - uses: actions/upload-artifact@v4
         if: always()
