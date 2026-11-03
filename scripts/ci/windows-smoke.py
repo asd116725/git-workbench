@@ -160,7 +160,7 @@ def main():
         driver.element('.code-diff-root:not(.code-diff-empty)')
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
-            if driver.script('return document.querySelector(".code-diff-root").innerText.includes("working version")'):
+            if driver.script('return [...document.querySelectorAll(".code-diff-root .view-line")].some(line => line.textContent.replaceAll(String.fromCharCode(160), " ").includes("working version"))'):
                 break
             time.sleep(0.3)
         else:
