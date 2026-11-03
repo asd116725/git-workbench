@@ -20,7 +20,7 @@ impl Fixture {
     fn new() -> Self {
         let directory = tempfile::tempdir().unwrap();
         let fixture = Self {
-            root: dunce::canonicalize(directory.path()).unwrap(),
+            root: fs::canonicalize(directory.path()).unwrap(),
             _directory: directory,
         };
         let repo = fixture.path();
@@ -144,6 +144,24 @@ fn windows_extended_repository_paths_support_stage_and_unstage() {
         fs::read(fixture.path().join("tracked.txt")).unwrap(),
         b"working\n"
     );
+    with_repository(
+        dunce::simplified(fixture.path()).to_str().unwrap(),
+        |repo| {
+            assert!(
+                navigation::branches(repo)?
+                    .iter()
+                    .any(|branch| branch.name == "main" && branch.current)
+            );
+            assert_eq!(
+                diff(repo, "tracked.txt", ChangeArea::Unstaged)?
+                    .modified
+                    .as_deref(),
+                Some("working\n")
+            );
+            Ok(())
+        },
+    )
+    .unwrap();
 }
 
 #[test]
@@ -498,7 +516,7 @@ fn submodule_changes_show_notice() {
             "protocol.file.allow=always",
             "submodule",
             "add",
-            module.path().to_str().unwrap(),
+            dunce::simplified(module.path()).to_str().unwrap(),
             "module",
         ],
     )
@@ -807,7 +825,7 @@ fn worktree_list_preserves_bare_source_when_opened_from_linked_checkout() {
         &[
             "clone",
             "--bare",
-            fixture.path().to_str().unwrap(),
+            dunce::simplified(fixture.path()).to_str().unwrap(),
             bare.to_str().unwrap(),
         ],
     )

@@ -36,9 +36,9 @@ impl TrackingFixture {
         configure(&peer);
         Self {
             _directory: directory,
-            local,
-            peer,
-            linked: root.join("linked"),
+            local: fs::canonicalize(local).unwrap(),
+            peer: fs::canonicalize(peer).unwrap(),
+            linked: fs::canonicalize(root).unwrap().join("linked"),
         }
     }
 }
@@ -252,7 +252,7 @@ fn branch_counts_follow_each_upstream_and_only_locally_fetched_refs() {
         &[
             "worktree",
             "add",
-            fixture.linked.to_str().unwrap(),
+            dunce::simplified(&fixture.linked).to_str().unwrap(),
             "diverged",
         ],
     )
@@ -337,11 +337,16 @@ fn porcelain_preserves_paths_and_optional_reasons() {
 fn worktree_counts_follow_each_branch_without_fetching_or_touching_files() {
     let fixture = TrackingFixture::new();
     let repo = &fixture.local;
-    let root = repo.parent().unwrap();
+    let root = dunce::simplified(repo.parent().unwrap());
     git(repo, &["branch", "topic", "--track", "origin/main"]).unwrap();
     git(
         repo,
-        &["worktree", "add", fixture.linked.to_str().unwrap(), "topic"],
+        &[
+            "worktree",
+            "add",
+            dunce::simplified(&fixture.linked).to_str().unwrap(),
+            "topic",
+        ],
     )
     .unwrap();
     commit_empty(&fixture.linked, "topic one");
@@ -499,7 +504,12 @@ fn worktree_upstream_configuration_is_resolved_in_each_worktree_context() {
         git(repo, &["branch", "--no-track", "topic", "main"]).unwrap();
         git(
             repo,
-            &["worktree", "add", fixture.linked.to_str().unwrap(), "topic"],
+            &[
+                "worktree",
+                "add",
+                dunce::simplified(&fixture.linked).to_str().unwrap(),
+                "topic",
+            ],
         )
         .unwrap();
         commit_empty(repo, "advance main");
@@ -540,7 +550,7 @@ fn worktree_upstream_configuration_is_resolved_in_each_worktree_context() {
                 &[
                     "config",
                     &format!("includeIf.{condition}.path"),
-                    included.to_str().unwrap(),
+                    dunce::simplified(&included).to_str().unwrap(),
                 ],
             )
             .unwrap();

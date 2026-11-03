@@ -523,7 +523,8 @@ mod tests {
         .unwrap();
         let submodule = fixture.root.join(submodule_name);
         let module_dir =
-            PathBuf::from(git_line(&submodule, &["rev-parse", "--absolute-git-dir"]).unwrap());
+            fs::canonicalize(git_line(&submodule, &["rev-parse", "--absolute-git-dir"]).unwrap())
+                .unwrap();
         assert!(module_dir.starts_with(fixture.root.join(".git/modules")));
         assert!(submodule.join(".git").is_file());
         let nested_dir = module_dir.join("modules/nested/team/tools");
