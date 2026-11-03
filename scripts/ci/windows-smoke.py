@@ -106,7 +106,7 @@ def prepare_repository():
 
 def main():
     application = Path(os.environ['WINDOWS_APP_EXE'])
-    native_driver = Path(os.environ['EDGEWEBDRIVER']) / 'msedgedriver.exe'
+    native_driver = Path(os.environ['WINDOWS_EDGE_DRIVER'])
     output = Path('release-artifacts/windows-ui-proof')
     output.mkdir(parents=True, exist_ok=True)
     assert application.is_file() and native_driver.is_file()
