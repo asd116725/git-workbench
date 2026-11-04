@@ -1,6 +1,6 @@
 [package]
 name = "git-workbench"
-version = "1.8.2"
+version = "1.8.3"
 description = "本地 Git 仓库管理桌面工具"
 edition = "2024"
 license = "MIT"

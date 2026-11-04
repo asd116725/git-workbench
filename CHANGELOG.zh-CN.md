@@ -6,6 +6,16 @@
 
 ## [Unreleased]
 
+## [1.8.3] - 2026-11-04
+
+- 合并确认区改为紧凑醒目的两行摘要：第一行展示来源→目标、当前分支标记及待合入数量，第二行展示合并方式与潜在冲突提示。
+- 扩大分支列表空间，保留可见的确认操作；兼容加载、失败重试、快进和无需合并状态，适配长分支名及窄窗口。
+- 延续深浅主题配色，补齐英文与繁体中文翻译；原有合并执行逻辑和确认保护保持不变。
+
+此版本提供 macOS Apple Silicon（arm64）安装包，采用 ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证。详见[安装说明](https://github.com/asd116725/git-workbench/blob/main/docs/zh-CN/installation.md)。
+
+升级前请保存提交草稿，并用 `⌘Q` 完全退出旧版。请使用同一 Release 的 `SHA256SUMS.txt` 校验 `GitWorkbench_1.8.3_macos_arm64.dmg` 后安装。
+
 ## [1.8.2] - 2026-11-04
 
 - AI 提交信息取材支持 Git 索引内各子目录中的标准 commitlint 配置，以及 Rush 的 `common/autoinstallers/rush-commitlint/` 目录。

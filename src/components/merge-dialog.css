@@ -1,11 +1,26 @@
-.merge-dialog .branch-results { min-height: 100px; max-height: 300px; }
+.merge-dialog.branch-dialog { width: min(760px, calc(100vw - 48px)); max-width: 760px; max-height: min(780px, calc(100dvh - 48px)); gap: 12px; }
+.merge-dialog > [data-slot='dialog-header'], .merge-dialog > .branch-search { flex-shrink: 0; }
+/** 列表优先分配剩余高度，确认区保持紧凑且始终可见。 */
+.merge-dialog .branch-results { flex: 1 1 360px; min-height: 100px; max-height: 400px; }
+.merge-dialog .branch-option.is-current { background: color-mix(in srgb, var(--blue) 10%, var(--popover)); box-shadow: inset 2px 0 var(--blue); }
+.merge-dialog .branch-option:focus-visible { outline: 1px solid var(--blue); outline-offset: -1px; }
 .merge-confirmation { flex-shrink: 0; padding: 14px 24px 20px; border-top: 1px solid var(--border); }
-.merge-preview { min-height: 50px; font-size: 12px; }
-.merge-preview p { display: flex; align-items: center; gap: 6px; margin: 6px 0 10px; color: var(--muted-foreground); line-height: 1.6; }
-.merge-preview > [data-slot='button'] { margin-top: 6px; }
-.merge-direction { display: flex; align-items: center; gap: 10px; }
-.merge-direction strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.merge-preview { display: flex; flex-direction: column; justify-content: center; gap: 8px; min-height: 76px; padding: 11px 14px; border: 1px solid var(--widget-border); border-left-width: 3px; border-radius: 6px; background: var(--muted); font-size: 12px; }
+.merge-preview.is-ready { border-color: color-mix(in srgb, var(--blue) 48%, var(--popover)); border-left-color: var(--blue); background: color-mix(in srgb, var(--blue) 8%, var(--popover)); }
+.merge-preview-heading { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.merge-direction { display: flex; flex: 1; align-items: center; gap: 14px; min-width: 0; }
+.merge-branch { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.merge-direction strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; color: var(--foreground-strong); }
 .merge-direction .codicon { flex-shrink: 0; color: var(--blue); }
+.merge-direction > .codicon { font-size: 22px; }
+.merge-current-label { flex-shrink: 0; padding: 2px 5px; border-radius: 3px; color: var(--blue); background: color-mix(in srgb, var(--blue) 12%, transparent); font-size: 10px; }
+.merge-incoming-count { flex-shrink: 0; padding: 3px 8px; border-radius: 4px; color: var(--muted-foreground); background: var(--secondary); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.is-ready .merge-incoming-count { color: var(--primary-foreground); background: var(--primary); }
+.merge-preview-status, .merge-preview-placeholder, .merge-preview-status > span { display: flex; align-items: center; gap: 7px; }
+.merge-preview-status { flex-wrap: wrap; gap: 5px 12px; min-height: 18px; color: var(--muted-foreground); line-height: 1.5; }
+.merge-preview-status .codicon, .merge-preview-placeholder .codicon { font-size: 15px; }
+.merge-preview-status .merge-conflict-hint { padding-left: 12px; border-left: 1px solid var(--widget-border); color: var(--yellow); }
+.merge-preview-placeholder { margin: 0; color: var(--muted-foreground); }
 .merge-strategy { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; }
 .merge-strategy input { width: 14px; height: 14px; margin: 0; accent-color: var(--primary); }
 .merge-strategy:has(input:disabled) { color: var(--muted-foreground); }
@@ -13,3 +28,15 @@
 .merge-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .merge-dialog-actions [data-slot='button'] { max-width: 75%; }
 .merge-dialog-actions [data-slot='button'] span { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 600px) {
+  .merge-dialog.branch-dialog { width: calc(100vw - 24px); }
+  .merge-confirmation { padding-inline: 16px; }
+  .merge-preview-heading, .merge-direction { gap: 8px; }
+  .merge-current-label { display: none; }
+  .merge-direction strong { font-size: 12px; }
+  .merge-preview-status .merge-conflict-hint { padding-left: 0; border-left: 0; }
+}
+@media (max-height: 600px) {
+  .merge-dialog.branch-dialog { overflow-y: auto; }
+  .merge-dialog .branch-results { flex-shrink: 0; max-height: 160px; }
+}

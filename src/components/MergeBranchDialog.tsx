@@ -140,13 +140,24 @@ export function MergeBranchDialog({ worktree, open, onOpenChange }: {
               })}
       </div>
       <div className="merge-confirmation">
-        <div className="merge-preview" aria-live="polite" aria-busy={previewing}>
+        <div className={`merge-preview${preview && !preview.upToDate ? ' is-ready' : ''}`} aria-live="polite" aria-busy={previewing}>
           {selected ? <>
-            <div className="merge-direction"><strong title={selected.name}>{selected.name}</strong><i className="codicon codicon-arrow-right" aria-hidden="true" /><strong title={target.branch}>{target.branch}</strong></div>
-            {previewing ? <p><i className="codicon codicon-loading spin" aria-hidden="true" />{t("正在检查合并…")}</p>
-              : preview ? <p>{preview.upToDate ? t("当前分支已包含来源提交，无需合并。") : t("{value1} 个待合入提交 · {value2}", { value1: preview.incomingCommits, value2: preview.fastForward && !noFf ? t("可快进合并") : t("将创建合并提交，执行时仍可能出现冲突") })}</p>
-                : <Button variant="outline" size="sm" disabled={locked || Boolean(blocked)} onClick={() => void selectSource(selected)}>{t("重新检查合并")}</Button>}
-          </> : <p>{t("请先选择要合入的来源分支。")}</p>}
+            <div className="merge-preview-heading">
+              <div className="merge-direction">
+                <span className="merge-branch"><i className="codicon codicon-git-branch" aria-hidden="true" /><strong title={selected.name}>{selected.name}</strong></span>
+                <i className="codicon codicon-arrow-right" aria-hidden="true" />
+                <span className="merge-branch"><i className="codicon codicon-git-branch" aria-hidden="true" /><strong title={target.branch}>{target.branch}</strong><span className="merge-current-label">{t("当前分支")}</span></span>
+              </div>
+              {preview && <span className="merge-incoming-count">{t("{count} 个待合入提交", { count: preview.incomingCommits })}</span>}
+            </div>
+            <div className="merge-preview-status">
+              {previewing ? <span><i className="codicon codicon-loading spin" aria-hidden="true" />{t("正在检查合并…")}</span>
+                : preview ? preview.upToDate ? <span><i className="codicon codicon-check" aria-hidden="true" />{t("当前分支已包含来源提交，无需合并。")}</span>
+                  : <><span><i className={`codicon codicon-${preview.fastForward && !noFf ? 'arrow-right' : 'git-merge'}`} aria-hidden="true" />{preview.fastForward && !noFf ? t("可快进合并") : t("将创建合并提交")}</span>
+                    {(!preview.fastForward || noFf) && <span className="merge-conflict-hint"><i className="codicon codicon-warning" aria-hidden="true" />{t("执行时仍可能出现冲突")}</span>}</>
+                  : <Button variant="outline" size="sm" disabled={locked || Boolean(blocked)} onClick={() => void selectSource(selected)}>{t("重新检查合并")}</Button>}
+            </div>
+          </> : <p className="merge-preview-placeholder"><i className="codicon codicon-git-merge" aria-hidden="true" />{t("请先选择要合入的来源分支。")}</p>}
         </div>
         <label className="merge-strategy"><input type="checkbox" checked={noFf} disabled={locked || Boolean(blocked)} onChange={event => setNoFf(event.target.checked)} /><span>{t("始终创建合并提交")}</span></label>
         <p className="merge-source-hint">{t("远程分支来自本地已获取的记录；合并不包含其他工作区尚未提交的更改。")}</p>

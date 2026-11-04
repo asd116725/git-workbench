@@ -6,6 +6,18 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.8.3] - 2026-11-04
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#183---2026-11-04)
+
+- Make the merge confirmation summary compact and more prominent: show source → target, the current-branch label, and incoming commit count on the first line, with merge strategy and potential conflicts on the second.
+- Give the branch list more space while keeping confirmation actions visible. Preserve loading, retry, fast-forward, and already-up-to-date states, and handle long branch names and narrow windows.
+- Match both light and dark themes and provide corresponding English and Traditional Chinese translations. Existing merge execution and confirmation safeguards are unchanged.
+
+This release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
+Save commit drafts and quit the previous version completely with `⌘Q` before upgrading. Verify `GitWorkbench_1.8.3_macos_arm64.dmg` against `SHA256SUMS.txt` from the same release before installing.
+
 ## [1.8.2] - 2026-11-04
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#182---2026-11-04)

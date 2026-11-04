@@ -1047,13 +1047,17 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
     "en": "Fast-forward available",
     "zh-TW": "可快進合併"
   },
-  "将创建合并提交，执行时仍可能出现冲突": {
-    "en": "Creates a merge commit; conflicts may still occur",
-    "zh-TW": "將建立合併提交，執行時仍可能發生衝突"
+  "将创建合并提交": {
+    "en": "Creates a merge commit",
+    "zh-TW": "將建立合併提交"
   },
-  "{value1} 个待合入提交 · {value2}": {
-    "en": "Incoming commits: {value1} · {value2}",
-    "zh-TW": "{value1} 個待合併提交 · {value2}"
+  "执行时仍可能出现冲突": {
+    "en": "Conflicts may still occur",
+    "zh-TW": "執行時仍可能發生衝突"
+  },
+  "{count} 个待合入提交": {
+    "en": "Incoming commits: {count}",
+    "zh-TW": "{count} 個待合併提交"
   },
   "重新检查合并": {
     "en": "Recheck merge",
