@@ -196,6 +196,147 @@ fn static_rules_and_history_use_staged_versions_and_never_execute_scripts() {
 }
 
 #[test]
+fn rush_commitlint_rules_include_index_config_and_installed_inheritance() {
+    let fixture = Fixture::new();
+    let config = "common/autoinstallers/rush-commitlint/commitlint.config.js";
+    fixture.stage(
+        config,
+        "module.exports = { extends: ['@commitlint/config-conventional'], rules: { 'header-max-length': [2, 'always', 150] } };",
+    );
+    fixture.git(&["commit", "-m", "chore: 配置提交规则"]);
+    fixture.write(
+        config,
+        "module.exports = { rules: { 'header-max-length': [0] } };",
+    );
+    fixture.write(
+        "common/autoinstallers/rush-commitlint/node_modules/@commitlint/config-conventional/index.js",
+        "require('fs').writeFileSync('executed', 'bad'); module.exports = { rules: { 'body-max-line-length': [2, 'always', 100] } };",
+    );
+    fixture.stage("src/feature.ts", "export const feature = true;\n");
+    let input = fixture.collect().unwrap();
+    let material: serde_json::Value = serde_json::from_str(&input.prompt.user).unwrap();
+    let rules = material["repository_rules"].as_array().unwrap();
+    assert!(rules.iter().any(|rule| rule["path"] == config && rule["content"].as_str().unwrap().contains("150")));
+    assert!(rules.iter().any(|rule| {
+        rule["content"]
+            .as_str()
+            .unwrap()
+            .contains("'body-max-line-length': [2, 'always', 100]")
+    }));
+    assert!(!fixture.path().join("executed").exists());
+}
+
+#[test]
+fn nested_commitlint_config_follows_relative_extends_without_cycles() {
+    let fixture = Fixture::new();
+    fixture.stage(
+        "tools/git/commitlint.config.cts",
+        "export default { extends: ['./base'] };",
+    );
+    fixture.stage("tools/git/base.js", "module.exports = { extends: ['./commitlint.config.cts'], rules: { 'body-max-line-length': [2, 'always', 72] } };");
+    fixture.git(&["commit", "-m", "chore: 配置提交规则"]);
+    fixture.stage("src/feature.ts", "export const feature = true;\n");
+    let input = fixture.collect().unwrap();
+    let material: serde_json::Value = serde_json::from_str(&input.prompt.user).unwrap();
+    let rules = material["repository_rules"].as_array().unwrap();
+    assert_eq!(
+        rules
+            .iter()
+            .filter(|rule| rule["path"] == "tools/git/base.js")
+            .count(),
+        1
+    );
+    assert!(
+        rules
+            .iter()
+            .any(|rule| rule["content"].as_str().unwrap().contains("72"))
+    );
+}
+
+#[test]
+fn oversized_index_rules_are_rejected_instead_of_silently_omitted() {
+    let fixture = Fixture::new();
+    fixture.stage("commitlint.config.js", "x".repeat(MAX_RULE_BYTES + 1));
+    fixture.git(&["commit", "-m", "chore: 配置提交规则"]);
+    fixture.stage("src/a.ts", "export const a = 1;\n");
+    assert_eq!(fixture.collect().err().unwrap().code, "input_too_large");
+}
+
+#[test]
+fn inherited_config_ignores_examples_and_uses_package_entry_without_sending_manifest() {
+    let fixture = Fixture::new();
+    fixture.stage(
+        "package.json",
+        r#"{"commitlint":{"extends":["team"]},"privateNote":"not-rule-material"}"#,
+    );
+    fixture.git(&["commit", "-m", "chore: 配置提交规则"]);
+    fixture.write(
+        "node_modules/commitlint-config-team/package.json",
+        r#"{"main":"lib/config.cjs","privateNote":"not-rule-material"}"#,
+    );
+    fixture.write("node_modules/commitlint-config-team/lib/config.cjs", "// extends: ['./comment']\nconst example = `extends: ['./example']`;\nmodule.exports = { rules: { 'body-max-line-length': [2, 'always', 80] } };");
+    fixture.write(
+        "node_modules/commitlint-config-team/lib/comment.js",
+        "comment-should-not-be-loaded",
+    );
+    fixture.write(
+        "node_modules/commitlint-config-team/lib/example.js",
+        "example-should-not-be-loaded",
+    );
+    fixture.stage("src/a.ts", "export const a = 1;\n");
+    let input = fixture.collect().unwrap();
+    assert!(
+        input
+            .prompt
+            .user
+            .contains("'body-max-line-length': [2, 'always', 80]")
+    );
+    assert!(!input.prompt.user.contains("should-not-be-loaded"));
+    assert!(!input.prompt.user.contains("not-rule-material"));
+}
+
+#[test]
+fn removed_inherited_config_does_not_fall_back_to_untracked_file() {
+    let fixture = Fixture::new();
+    fixture.stage(
+        "commitlint.config.js",
+        "module.exports = { extends: ['./base'] };",
+    );
+    fixture.stage("base.js", "module.exports = { rules: {} };");
+    fixture.git(&["commit", "-m", "chore: 配置提交规则"]);
+    fixture.git(&["rm", "base.js"]);
+    fixture.write("base.js", "recreated-worktree-file-must-not-be-sent");
+    let input = fixture.collect().unwrap();
+    assert!(!input.prompt.user.contains("recreated-worktree-file"));
+}
+
+#[cfg(unix)]
+#[test]
+fn inherited_config_does_not_follow_links_outside_repository() {
+    let fixture = Fixture::new();
+    let outside = tempfile::tempdir().unwrap();
+    fs::write(
+        outside.path().join("index.js"),
+        "outside-secret-must-not-be-sent",
+    )
+    .unwrap();
+    fixture.stage(
+        "commitlint.config.js",
+        "module.exports = { extends: ['external', '../../../outside'] };",
+    );
+    fs::create_dir_all(fixture.path().join("node_modules")).unwrap();
+    std::os::unix::fs::symlink(
+        outside.path(),
+        fixture
+            .path()
+            .join("node_modules/commitlint-config-external"),
+    )
+    .unwrap();
+    let input = fixture.collect().unwrap();
+    assert!(!input.prompt.user.contains("outside-secret"));
+}
+
+#[test]
 fn custom_diff_commands_and_fsmonitor_are_disabled() {
     let fixture = Fixture::new();
     fixture.stage("file.txt", "staged\n");

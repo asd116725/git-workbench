@@ -71,13 +71,13 @@ Generation does not stage files, commit, or push. Canceling or encountering an e
 
 ## Install and start
 
-The current stable release is **1.8.1**, available for **macOS Apple Silicon (arm64)**.
+The current stable release is **1.8.2**, available for **macOS Apple Silicon (arm64)**.
 
 | Download | Link |
 | --- | --- |
-| macOS installer | [GitWorkbench_1.8.1_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.8.1/GitWorkbench_1.8.1_macos_arm64.dmg) |
-| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.8.1/SHA256SUMS.txt) |
-| Release notes | [What's new in v1.8.1](https://github.com/asd116725/git-workbench/releases/tag/v1.8.1) |
+| macOS installer | [GitWorkbench_1.8.2_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.8.2/GitWorkbench_1.8.2_macos_arm64.dmg) |
+| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.8.2/SHA256SUMS.txt) |
+| Release notes | [What's new in v1.8.2](https://github.com/asd116725/git-workbench/releases/tag/v1.8.2) |
 
 1. **Install:** verify the DMG against the checksum file from the same release, then drag **代码管理** (Git Workbench) into Applications. See the [installation guide](docs/installation.md).
 2. **Open a repository:** make sure `git --version` works, then choose **Open repository** in the app and select an existing local repository.
@@ -149,7 +149,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.8.1
+pnpm release:check --tag v1.8.2
 ```
 
 ```sh

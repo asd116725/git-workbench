@@ -6,6 +6,18 @@
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-11-04
+
+- AI 提交信息取材支持 Git 索引内各子目录中的标准 commitlint 配置，以及 Rush 的 `common/autoinstallers/rush-commitlint/` 目录。
+- 补充读取字面量 `extends` 数组引用的本地文件与已安装配置包，让正文行长等继承约束和本地覆盖规则一同进入生成上下文；优先读取索引版本，不执行配置脚本或安装依赖。
+- 保留规则大小限制，处理循环继承，排除仓库外的目录链接；补充回归测试和配置支持范围说明。
+
+规则用于指导 AI 生成，本次未新增生成结果的确定性校验或自动换行。候选文案仍需检查，并由项目原有提交检查验证。
+
+此版本提供 macOS Apple Silicon（arm64）安装包，采用 ad-hoc 签名，未进行 Developer ID 签名及 Apple 公证。详见[安装说明](https://github.com/asd116725/git-workbench/blob/main/docs/zh-CN/installation.md)。
+
+升级前请保存提交草稿，并用 `⌘Q` 完全退出旧版。请使用同一 Release 的 `SHA256SUMS.txt` 校验 `GitWorkbench_1.8.2_macos_arm64.dmg` 后安装。
+
 ## [1.8.1] - 2026-11-03
 
 - AI 提交信息跟随当前界面语言生成，支持简体中文、繁体中文和英文；每次生成或重新生成都读取最新选择，切换语言不改写已有草稿或候选文案。

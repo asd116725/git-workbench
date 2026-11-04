@@ -6,6 +6,20 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-11-04
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#182---2026-11-04)
+
+- Include standard commitlint configuration files from tracked subdirectories and Rush's `common/autoinstallers/rush-commitlint/` directory when collecting AI commit-message rules.
+- Read local files and installed configuration packages referenced by literal `extends` arrays, so inherited constraints such as body line length are available alongside local overrides. Prefer index versions and do not execute configuration scripts or install dependencies.
+- Preserve rule-size limits, handle cyclic references, and exclude external directory links. Add regression coverage and document the supported configuration scope.
+
+Rules guide AI generation; this update does not add deterministic validation or automatic wrapping of generated messages. Review the candidate and let the repository's normal commit checks validate it.
+
+This release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
+Save commit drafts and quit the previous version completely with `⌘Q` before upgrading. Verify `GitWorkbench_1.8.2_macos_arm64.dmg` against `SHA256SUMS.txt` from the same release before installing.
+
 ## [1.8.1] - 2026-11-03
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#181---2026-11-03)
