@@ -156,3 +156,9 @@ export interface GitMergeResult {
   commitId: string | null;
   warning: string | null;
 }
+
+/** 撤销确认绑定精确文件及内容快照，只操作工作区，不修改暂存区。 */
+export interface GitDiscardPreview {
+  files: Array<{ path: string; untracked: boolean }>;
+  snapshot: string;
+}

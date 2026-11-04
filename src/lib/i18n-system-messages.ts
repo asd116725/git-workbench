@@ -1,5 +1,13 @@
 /** 应用自有提示的完整原文与模板；参数保留仓库数据和 Git 输出原文。 */
 export const systemMessages: Record<string, { en: string; 'zh-TW': string }> = {
+  "请先完成或中止当前 Git 操作，再撤销修改。": {"en": "Complete or abort the current Git operation before discarding changes.", "zh-TW": "請先完成或中止目前 Git 操作，再撤銷修改。"},
+  "文件或暂存状态已变化，请重新预览并确认撤销。": {"en": "Files or staged changes have changed. Preview and confirm again.", "zh-TW": "檔案或暫存狀態已變更，請重新預覽並確認撤銷。"},
+  "无法撤销“{path}”：父目录不是普通目录。": {"en": "Cannot discard “{path}”: its parent is not a regular directory.", "zh-TW": "無法撤銷「{path}」：父目錄不是一般目錄。"},
+  "无法撤销“{path}”：目录或子模块需单独处理。": {"en": "Cannot discard “{path}”: directories and submodules must be handled separately.", "zh-TW": "無法撤銷「{path}」：目錄或子模組需單獨處理。"},
+  "无法撤销“{path}”：文件状态已变化或不支持，请刷新后重试。": {"en": "Cannot discard “{path}”: its state changed or is unsupported. Refresh and retry.", "zh-TW": "無法撤銷「{path}」：檔案狀態已變更或不支援，請重新整理後重試。"},
+  "无法移到废纸篓：{error}": {"en": "Cannot move to Trash: {error}", "zh-TW": "無法移到垃圾桶：{error}"},
+  "已撤销 {completed} 个文件，处理“{path}”失败：{error}": {"en": "Discarded {completed} files; failed to process “{path}”: {error}", "zh-TW": "已撤銷 {completed} 個檔案，處理「{path}」失敗：{error}"},
+
   "今天": { en: "Today", 'zh-TW': "今天" },
   "昨天": { en: "Yesterday", 'zh-TW': "昨天" },
   "尚无提交": { en: "No commits yet", 'zh-TW': "尚無提交" },

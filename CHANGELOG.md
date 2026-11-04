@@ -6,6 +6,21 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-04
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#190---2026-11-04)
+
+- Discard unstaged changes for a single file or the current worktree's entire Unstaged group, with a concise confirmation and controls independent of file selection and staging.
+- Restore tracked files to their index versions while preserving staged changes. Include new, untracked files by default and move them to the system Trash; the batch confirmation can exclude them.
+- Recheck the branch, index, and selected file contents before applying a confirmation. If they change, ask for a fresh preview. Report partial failures and allow retrying remaining changes; ongoing Git operations, conflicts, submodules, and directory replacements require separate handling.
+- Support tree and list views, light and dark themes, and English, Simplified Chinese, and Traditional Chinese.
+
+Tracked unstaged content discarded by this operation cannot be recovered through Git. Review the confirmation before proceeding.
+
+This release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
+Save commit drafts and quit the previous version completely with `⌘Q` before upgrading. Verify `GitWorkbench_1.9.0_macos_arm64.dmg` against `SHA256SUMS.txt` from the same release before installing.
+
 ## [1.8.3] - 2026-11-04
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#183---2026-11-04)

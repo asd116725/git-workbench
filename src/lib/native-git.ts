@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ChangeArea, FileSnapshot, GitBranch, GitBranchSync, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitFileStatus, GitMergePreview, GitMergeResult, GitOperation, GitRemoteResult, GitRemoteStatus, Repository, Worktree } from './types';
+import type { ChangeArea, FileSnapshot, GitDiscardPreview, GitBranch, GitBranchSync, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitFileStatus, GitMergePreview, GitMergeResult, GitOperation, GitRemoteResult, GitRemoteStatus, Repository, Worktree } from './types';
 
 /** 工作目录元数据不携带文件正文，未选中的目录保持懒加载。 */
 export interface NativeWorktree {
@@ -119,5 +119,7 @@ export const nativeGit = {
   diff: (repoPath: string, path: string, area: ChangeArea) => invoke<NativeDiff>('git_diff', { repoPath, path, area }),
   stage: (repoPath: string, paths: string[]) => invoke<void>('git_stage', { repoPath, paths }),
   unstage: (repoPath: string, paths: string[]) => invoke<void>('git_unstage', { repoPath, paths }),
+  previewDiscard: (repoPath: string, paths: string[]) => invoke<GitDiscardPreview>('git_discard_preview', { repoPath, paths }),
+  discard: (repoPath: string, preview: GitDiscardPreview, includeUntracked: boolean) => invoke<number>('git_discard', { repoPath, preview, includeUntracked }),
   commit: (repoPath: string, summary: string, description: string) => invoke<{ commitId: string }>('git_commit', { repoPath, summary, description }),
 };

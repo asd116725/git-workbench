@@ -27,6 +27,8 @@ import { BranchSyncCounts } from './components/BranchSyncStatus';
 import { MergeBranchDialog } from './components/MergeBranchDialog';
 import { MergeStatusBanner } from './components/MergeStatusBanner';
 import { RemoteActions } from './components/RemoteActions';
+import { DiscardChangesDialog } from './components/DiscardChangesDialog';
+import { isUntrackedChange } from './lib/discard';
 import { ChangeFileTree } from './components/ChangeFileTree';
 import { FileIcon } from './components/FileIcon';
 import { branchLabel, worktreeLabel, worktreeSyncDescription } from './components/branch-display';
@@ -119,6 +121,9 @@ function FileGroup({ worktree, area, disabled, conflictsOnly = false }: { worktr
   const { fileView } = usePreferences();
   const files = useMemo(() => getChanges(worktree, area).filter(file => Boolean(file.git?.conflicted) === conflictsOnly), [worktree, area, conflictsOnly]);
   const nodes = useMemo(() => fileView === 'tree' ? buildChangeTree(files, language) : [], [files, fileView, language]);
+  const [discardTarget, setDiscardTarget] = useState<{ worktreeId: string; branch: string; fileIds: string[]; bulk: boolean } | null>(null);
+  const canDiscard = area === 'unstaged' && !conflictsOnly;
+  const discardDisabled = disabled || Boolean(worktree.operation);
   const label = conflictsOnly ? t("合并冲突") : area === 'unstaged' ? t("未暂存") : t("已暂存");
 
   /** 目录按钮仅处理当前分组的后代文件，保留另一分组及同名前缀目录的状态。 */
@@ -129,9 +134,15 @@ function FileGroup({ worktree, area, disabled, conflictsOnly = false }: { worktr
     return <Hint label={t("{value1}（{value2} 个文件）", { value1: actionLabel, value2: targets.length })}><Button variant="ghost" size="icon-sm" className="bulk-stage-action" disabled={disabled || targets.length === 0} aria-label={actionLabel} onClick={() => void (area === 'unstaged' ? stage : unstage)(targets.map(file => file.id)).catch(error => toast.error(translateMessage(errorMessage(error))))}><Icon name={area === 'unstaged' ? 'add' : 'remove'} /></Button></Hint>;
   }
 
+  function openDiscard(fileIds: string[], bulk: boolean) {
+    setDiscardTarget({ worktreeId: worktree.id, branch: worktree.branch, fileIds, bulk });
+  }
+
   function renderFile(file: FileSnapshot, depth = 0) {
     const selected = selection?.fileId === file.id && selection.area === area;
     const status = getFileStatus(file, area);
+    const untracked = isUntrackedChange(file);
+    const discardLabel = t(untracked ? '移到废纸篓 {path}' : '撤销未暂存修改 {path}', { path: file.path });
     const actionLabel = `${conflictsOnly ? t("暂存已解决的冲突") : area === 'unstaged' ? t("暂存") : t("取消暂存")} ${file.path}`;
     const path = file.git?.originalPath ? `${file.git.originalPath} → ${file.path}` : file.path;
     return <div key={file.id} className={`file-row ${fileView === 'tree' ? 'tree-file-row' : ''} ${selected ? 'selected' : ''}`} style={{ '--file-depth': depth } as CSSProperties}>
@@ -140,17 +151,20 @@ function FileGroup({ worktree, area, disabled, conflictsOnly = false }: { worktr
         <span className="file-copy"><span className="file-name">{fileName(file)}</span>{fileView === 'list' && <span className="file-path">{file.git?.originalPath ? path : directory(file)}</span>}</span>
         <span className={`file-status status-${status}`}>{status}</span>
       </button>
+      {canDiscard && <Hint label={discardLabel}><Button variant="ghost" size="icon-sm" className="file-action file-discard-action" disabled={discardDisabled} aria-label={discardLabel} onClick={() => openDiscard([file.id], false)}><Icon name={untracked ? 'trash' : 'discard'} /></Button></Hint>}
       <Hint label={actionLabel}><Button variant={selected ? 'secondary' : 'ghost'} size="icon-sm" className="file-action" disabled={disabled} aria-label={actionLabel} onClick={() => void (area === 'unstaged' ? stage(file.id) : unstage(file.id)).catch(error => toast.error(translateMessage(errorMessage(error))))}><Icon name={area === 'unstaged' ? 'add' : 'remove'} /></Button></Hint>
     </div>;
   }
 
-  return <Collapsible defaultOpen className="file-group">
-    <div className="file-group-header"><CollapsibleTrigger className="file-group-heading"><Icon name="chevron-down" /><span>{label}</span><Badge variant="secondary" className="count-badge">{files.length}</Badge></CollapsibleTrigger>{files.length > 0 && renderBulkAction()}</div>
+  return <><Collapsible defaultOpen className="file-group">
+    <div className="file-group-header"><CollapsibleTrigger className="file-group-heading"><Icon name="chevron-down" /><span>{label}</span><Badge variant="secondary" className="count-badge">{files.length}</Badge></CollapsibleTrigger>{canDiscard && files.length > 0 && <Hint label={t('撤销全部未暂存修改')}><Button variant="ghost" size="icon-sm" className="bulk-discard-action" disabled={discardDisabled} aria-label={t('撤销全部未暂存修改')} onClick={() => openDiscard(files.map(file => file.id), true)}><Icon name="discard" /></Button></Hint>}{files.length > 0 && renderBulkAction()}</div>
     <CollapsibleContent>
       {fileView === 'tree' ? <ChangeFileTree nodes={nodes} selectedFileId={selection?.area === area ? selection.fileId : null} renderFile={renderFile} renderDirectoryAction={renderBulkAction} /> : files.map(file => renderFile(file))}
       {files.length === 0 && <p className="empty-group">{area === 'staged' ? t("暂存文件后即可提交") : t("工作区没有未暂存的更改")}</p>}
     </CollapsibleContent>
-  </Collapsible>;
+  </Collapsible>
+    {discardTarget?.worktreeId === worktree.id && discardTarget.branch === worktree.branch && <DiscardChangesDialog fileIds={discardTarget.fileIds} bulk={discardTarget.bulk} onClose={() => setDiscardTarget(null)} />}
+  </>;
 }
 
 function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; shortcutsEnabled: boolean }) {

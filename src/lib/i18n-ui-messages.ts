@@ -1,5 +1,22 @@
 /** 应用界面文案；分支、路径、提交信息与文件内容始终保留原文。 */
 export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
+  "撤销全部未暂存修改": {"en": "Discard all unstaged changes", "zh-TW": "撤銷全部未暫存修改"},
+  "撤销未暂存修改 {path}": {"en": "Discard unstaged changes in {path}", "zh-TW": "撤銷未暫存修改 {path}"},
+  "移到废纸篓 {path}": {"en": "Move {path} to Trash", "zh-TW": "移到垃圾桶 {path}"},
+  "撤销未暂存修改？": {"en": "Discard unstaged changes?", "zh-TW": "撤銷未暫存修改？"},
+  "撤销全部未暂存修改？": {"en": "Discard all unstaged changes?", "zh-TW": "撤銷全部未暫存修改？"},
+  "移到废纸篓？": {"en": "Move to Trash?", "zh-TW": "移到垃圾桶？"},
+  "移到废纸篓": {"en": "Move to Trash", "zh-TW": "移到垃圾桶"},
+  "撤销修改": {"en": "Discard changes", "zh-TW": "撤銷修改"},
+  "撤销 {count} 个文件": {"en": "Discard files ({count})", "zh-TW": "撤銷 {count} 個檔案"},
+  "包含 {count} 个新增文件（移到废纸篓）": {"en": "Include new files: {count} (move to Trash)", "zh-TW": "包含 {count} 個新增檔案（移到垃圾桶）"},
+  "未暂存内容将丢失，无法通过 Git 恢复。": {"en": "Unstaged changes will be lost and cannot be recovered with Git.", "zh-TW": "未暫存內容將遺失，無法透過 Git 復原。"},
+  "新增文件将移到废纸篓。": {"en": "New files will be moved to Trash.", "zh-TW": "新增檔案將移到垃圾桶。"},
+  "正在读取文件…": {"en": "Reading files…", "zh-TW": "正在讀取檔案…"},
+  "待撤销文件": {"en": "Files to discard", "zh-TW": "待撤銷檔案"},
+  "正在撤销…": {"en": "Discarding…", "zh-TW": "正在撤銷…"},
+  "已撤销 {count} 个文件的未暂存修改": {"en": "Discarded unstaged changes in {count} files", "zh-TW": "已撤銷 {count} 個檔案的未暫存修改"},
+
   "外观主题": {"en": "Appearance", "zh-TW": "外觀主題"},
   "浅色": {"en": "Light", "zh-TW": "淺色"},
   "深色": {"en": "Dark", "zh-TW": "深色"},

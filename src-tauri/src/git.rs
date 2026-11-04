@@ -22,6 +22,7 @@ use navigation::{GitBranch, GitWorktreeInfo, branches, checkout, common_director
 pub mod branch_management;
 pub mod watch;
 pub use watch::GitWatchState;
+pub mod discard;
 pub mod history;
 pub mod merge;
 pub mod remote;

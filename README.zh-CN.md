@@ -37,7 +37,7 @@ Git Workbench 将本地仓库、关联 worktree、分支、Diff 和提交历史�
 | 工作场景 | 可以做什么 |
 | --- | --- |
 | **仓库与 worktree** | 打开已有本地仓库，发现关联 worktree，从侧栏切换并行工作区；重新打开应用时恢复仓库与上次选中的工作区。 |
-| **Diff 与暂存** | 用目录树或列表浏览修改，查看并排或内联 Diff，暂存或取消暂存文件、目录及整组变更；提交暂存内容，保留未暂存修改。 |
+| **Diff 与暂存** | 用目录树或列表浏览修改，查看并排或内联 Diff，暂存或取消暂存文件、目录及整组变更；确认后可撤销单个或全部未暂存修改；也可提交暂存内容，保留未暂存修改。 |
 | **分支与远程同步** | 搜索、创建、删除及合并分支，获取、拉取、推送或首次发布分支；在侧栏、分支列表与工具栏查看待拉取、待推送数量。 |
 | **提交历史** | 同时浏览提交列表、变更文件与历史 Diff，搜索所选分支的完整可达历史，切换合并父提交，识别尚未推送的记录。 |
 | **AI 提交草稿** | 使用 DeepSeek 根据暂存修改和当前界面语言生成 Conventional Commit；先预览编辑，再明确填入提交草稿。 |
@@ -71,13 +71,13 @@ AI 文案功能自 **1.7.0** 起提供，使用 DeepSeek 与 `staged-commit-mess
 
 ## 安装与快速上手
 
-当前正式版本为 **1.8.3**，提供 **macOS Apple Silicon（arm64）** 安装包。
+当前正式版本为 **1.9.0**，提供 **macOS Apple Silicon（arm64）** 安装包。
 
 | 下载内容 | 链接 |
 | --- | --- |
-| macOS 安装包 | [GitWorkbench_1.8.3_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.8.3/GitWorkbench_1.8.3_macos_arm64.dmg) |
-| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.8.3/SHA256SUMS.txt) |
-| 版本说明 | [v1.8.3 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.8.3) |
+| macOS 安装包 | [GitWorkbench_1.9.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.9.0/GitWorkbench_1.9.0_macos_arm64.dmg) |
+| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.9.0/SHA256SUMS.txt) |
+| 版本说明 | [v1.9.0 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.9.0) |
 
 1. **安装应用**：使用同一 Release 的校验文件核对 DMG，将「代码管理」拖入 Applications。详见[安装说明](docs/zh-CN/installation.md)。
 2. **打开仓库**：先确认 `git --version` 可以运行，再点击应用中的「打开仓库」，选择已有的本地仓库。
@@ -149,7 +149,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.8.3
+pnpm release:check --tag v1.9.0
 ```
 
 ```sh

@@ -156,6 +156,12 @@ Unstaging does not undo worktree file content; it only changes the index. Unstag
 
 New write operations are temporarily blocked while an operation runs, then the status is refreshed. An external Git operation may cause an `index.lock` error. Wait for it to finish, refresh, and try again. Do not delete a lock file without understanding which process owns it.
 
+### Discard unstaged changes (1.9.0)
+
+In **Unstaged**, use the discard button beside a file, or the button in the group heading to review all unstaged changes in the current worktree. The confirmation lists the affected files. New, untracked files are included by default and moved to the system Trash; clear the checkbox to keep them.
+
+Tracked files are restored to the index version, and staged changes remain intact. Discarded unstaged content cannot be recovered through Git. If a file, the index, or branch changes while confirmation is open, re-read the preview before retrying. Ongoing Git operations, unresolved conflicts, submodules, and directory replacements must be handled separately. If an operation partially fails, the dialog reports progress and can re-read the remaining files.
+
 ## 8. Commit
 
 1. Review the **Staged** files and their diffs.

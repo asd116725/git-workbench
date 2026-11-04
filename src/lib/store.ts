@@ -5,11 +5,12 @@ import { createDemoRepositories } from './demo-data';
 import { commitWorktree, getChanges, stageFile, stageHunk, unstageFile } from './demo-git';
 import { createDemoBranch, createDemoBranchState, deleteDemoBranch, listDemoBranches, previewDemoBranchDeletion, recordDemoBranchCommit, switchDemoBranch, withDemoBranchSync, type DemoBranchState } from './demo-branches';
 import { nativeGit, toRepository, toWorktree } from './native-git';
+import { previewDemoDiscard } from './discard';
 import { commitBlockReason } from './merge-view';
 import { remoteBlockReason } from './remote-view';
 import { useHistory } from './history-store';
 import type { NativeRepository } from './native-git';
-import type { ChangeArea, FileSnapshot, GitBranch, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitMergePreview, GitMergeResult, GitOperation, GitRemoteAction, GitRemoteResult, Repository, Worktree } from './types';
+import type { ChangeArea, FileSnapshot, GitDiscardPreview, GitBranch, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitMergePreview, GitMergeResult, GitOperation, GitRemoteAction, GitRemoteResult, Repository, Worktree } from './types';
 
 /** 文件与比较区域共同标识一个差异视图。 */
 export interface Selection { fileId: string; area: ChangeArea }
@@ -121,6 +122,9 @@ interface WorkbenchState {
   /** 接收单个文件或目录下的一组文件，沿用精确文件路径操作。 */
   stage: (fileIds: string | string[]) => Promise<void>;
   unstage: (fileIds: string | string[]) => Promise<void>;
+  /** 预览未暂存文件并绑定工作区；每次执行只允许消费一次确认。 */
+  previewDiscard: (fileIds: string[]) => Promise<GitDiscardPreview>;
+  discard: (preview: GitDiscardPreview, includeUntracked: boolean) => Promise<number>;
   stageChunk: (fileId: string, index: number) => void;
   commit: () => Promise<string>;
   reset: () => void;
@@ -163,6 +167,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   let restorePromise: Promise<void> | undefined;
   const mergePreviewWorktrees = new WeakMap<GitMergePreview, string>();
   const deletePreviewWorktrees = new WeakMap<GitDeleteBranchPreview, string>();
+  const discardPreviewWorktrees = new WeakMap<GitDiscardPreview, string>();
   const demoBranchStates = new Map<string, DemoBranchState>();
 
   /** 演示分支按共享仓库保存于内存，切换工作区仍能看到刚创建的分支。 */
@@ -681,6 +686,44 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     setDraft: draft => set(state => ({ drafts: { ...state.drafts, [state.activeWorktreeId]: draft } })),
     stage: fileId => changeStage(fileId, true),
     unstage: fileId => changeStage(fileId, false),
+    previewDiscard: async fileIds => {
+      const worktree = currentWorktree();
+      if (get().busy) throw new Error('Git 操作正在进行，请稍候。');
+      if (worktree.operation) throw new Error('请先完成或中止当前 Git 操作，再撤销修改。');
+      const files = getChanges(worktree, 'unstaged').filter(file => fileIds.includes(file.id) && !file.git?.conflicted);
+      if (!files.length || files.length !== new Set(fileIds).size) throw new Error('该文件状态已变化，请刷新后重试。');
+      const version = statusVersion;
+      const paths = files.map(file => file.path);
+      const preview = worktree.source === 'native' ? await nativeGit.previewDiscard(worktree.path, paths) : previewDemoDiscard(worktree, paths);
+      if (get().activeWorktreeId !== worktree.id || version !== statusVersion) throw new Error('文件或暂存状态已变化，请重新预览并确认撤销。');
+      discardPreviewWorktrees.set(preview, worktree.id);
+      return preview;
+    },
+    discard: async (preview, includeUntracked) => {
+      const worktree = currentWorktree();
+      if (discardPreviewWorktrees.get(preview) !== worktree.id) throw new Error('文件或暂存状态已变化，请重新预览并确认撤销。');
+      if (worktree.operation) throw new Error('请先完成或中止当前 Git 操作，再撤销修改。');
+      const selected = preview.files.filter(file => includeUntracked || !file.untracked);
+      if (!selected.length) throw new Error('请选择要操作的变更文件。');
+      beginMutation();
+      discardPreviewWorktrees.delete(preview);
+      try {
+        if (worktree.source === 'native') {
+          const count = await nativeGit.discard(worktree.path, preview, includeUntracked);
+          await refreshAfterMutation(worktree);
+          return count;
+        }
+        if (previewDemoDiscard(worktree, preview.files.map(file => file.path)).snapshot !== preview.snapshot) throw new Error('文件或暂存状态已变化，请重新预览并确认撤销。');
+        const paths = new Set(selected.map(file => file.path));
+        replaceWorktree({ ...worktree, files: worktree.files.map(file => paths.has(file.path) ? { ...file, working: file.index } : file).filter(file => file.head !== null || file.index !== null || file.working !== null) });
+        return selected.length;
+      } catch (error) {
+        const message = errorMessage(error);
+        if (worktree.source === 'native') await refreshAfterMutation(worktree);
+        set({ error: message });
+        throw Object.assign(new Error(message), { cause: error });
+      } finally { set({ busy: false }); }
+    },
     stageChunk: (fileId, index) => {
       const worktree = currentWorktree();
       if (worktree.source === 'native') throw new Error('真实仓库目前支持整文件暂存。');

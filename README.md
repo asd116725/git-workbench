@@ -37,7 +37,7 @@ Use your existing Git configuration for authors, signing, hooks, and remote cred
 | Work with | What you can do |
 | --- | --- |
 | **Repositories & worktrees** | Open existing local repositories, discover linked worktrees, and move between parallel branches from the sidebar. Restore your repositories and last selected worktree when you reopen the app. |
-| **Diffs & staging** | Browse a file tree or flat list, read side-by-side or inline diffs, and stage or unstage files, directories, or all changes. Commit the staged content while keeping unstaged edits. |
+| **Diffs & staging** | Browse a file tree or flat list, read side-by-side or inline diffs, and stage or unstage files, directories, or all changes. Discard selected or all unstaged changes after confirmation, or commit staged content while keeping unstaged edits. |
 | **Branches & synchronization** | Search, create, delete, and merge branches. Fetch, pull, push, or publish a branch for the first time. See incoming and outgoing counts in the sidebar, branch list, and toolbar. |
 | **Commit history** | Browse commits, changed files, and historical diffs together. Search the selected branch's full reachable history, compare merge parents, and spot commits that have not been pushed. |
 | **AI commit drafts** | Generate Conventional Commit messages from staged changes with DeepSeek in your current interface language. Preview, edit, and explicitly apply a candidate before committing. |
@@ -71,13 +71,13 @@ Generation does not stage files, commit, or push. Canceling or encountering an e
 
 ## Install and start
 
-The current stable release is **1.8.3**, available for **macOS Apple Silicon (arm64)**.
+The current stable release is **1.9.0**, available for **macOS Apple Silicon (arm64)**.
 
 | Download | Link |
 | --- | --- |
-| macOS installer | [GitWorkbench_1.8.3_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.8.3/GitWorkbench_1.8.3_macos_arm64.dmg) |
-| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.8.3/SHA256SUMS.txt) |
-| Release notes | [What's new in v1.8.3](https://github.com/asd116725/git-workbench/releases/tag/v1.8.3) |
+| macOS installer | [GitWorkbench_1.9.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.9.0/GitWorkbench_1.9.0_macos_arm64.dmg) |
+| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.9.0/SHA256SUMS.txt) |
+| Release notes | [What's new in v1.9.0](https://github.com/asd116725/git-workbench/releases/tag/v1.9.0) |
 
 1. **Install:** verify the DMG against the checksum file from the same release, then drag **代码管理** (Git Workbench) into Applications. See the [installation guide](docs/installation.md).
 2. **Open a repository:** make sure `git --version` works, then choose **Open repository** in the app and select an existing local repository.
@@ -149,7 +149,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.8.3
+pnpm release:check --tag v1.9.0
 ```
 
 ```sh

@@ -16,6 +16,8 @@ pub fn run() {
             git::git_diff,
             git::git_stage,
             git::git_unstage,
+            git::discard::git_discard_preview,
+            git::discard::git_discard,
             git::git_commit,
             git::git_branches,
             git::git_checkout,

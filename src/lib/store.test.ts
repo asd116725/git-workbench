@@ -565,3 +565,76 @@ describe('自动刷新保留阅读与编辑状态', () => {
     expect(useWorkbench.getState().diff.file?.index).toBe('second\n');
   });
 });
+
+describe('未暂存修改撤销', () => {
+  const preview = { files: [{ path: 'first.ts', untracked: false }, { path: 'new.txt', untracked: true }], snapshot: 'confirmed-content' };
+
+  it('原生预览不切换所选文件，执行携带确认快照和新增文件开关', async () => {
+    const repository = { ...baseRepository, files: [...baseRepository.files, { path: 'new.txt', originalPath: null, statusIndex: '?', statusWorktree: '?', conflicted: false }] };
+    mockedInvoke.mockImplementation(async command => {
+      if (command === 'git_open' || command === 'git_status') return repository;
+      if (command === 'git_discard_preview') return preview;
+      if (command === 'git_discard') return 1;
+      return textDiff;
+    });
+    await useWorkbench.getState().openRepository(repository.path);
+    useWorkbench.getState().selectFile('second.ts', 'staged');
+    const selected = useWorkbench.getState().selection;
+    const result = await useWorkbench.getState().previewDiscard(['first.ts', 'new.txt']);
+    expect(useWorkbench.getState().selection).toEqual(selected);
+    mockedInvoke.mockClear();
+    expect(await useWorkbench.getState().discard(result, false)).toBe(1);
+    expect(mockedInvoke).toHaveBeenCalledWith('git_discard', { repoPath: repository.path, preview, includeUntracked: false });
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === 'git_status')).toHaveLength(1);
+    expect(useWorkbench.getState().busy).toBe(false);
+    await expect(useWorkbench.getState().discard(result, true)).rejects.toThrow('重新预览');
+  });
+
+  it('失败后刷新实际状态、保留草稿并禁止重用确认', async () => {
+    mockedInvoke.mockImplementation(async command => {
+      if (command === 'git_open' || command === 'git_status') return baseRepository;
+      if (command === 'git_discard_preview') return { ...preview, files: [preview.files[0]] };
+      if (command === 'git_discard') throw '文件或暂存状态已变化，请重新预览并确认撤销。';
+      return textDiff;
+    });
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    useWorkbench.getState().setDraft({ message: 'keep draft' });
+    const confirmed = await useWorkbench.getState().previewDiscard(['first.ts']);
+    mockedInvoke.mockClear();
+    await expect(useWorkbench.getState().discard(confirmed, true)).rejects.toThrow('重新预览');
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === 'git_status')).toHaveLength(1);
+    expect(useWorkbench.getState().drafts[currentWorktree().id].message).toBe('keep draft');
+    expect(useWorkbench.getState().busy).toBe(false);
+    await expect(useWorkbench.getState().discard(confirmed, true)).rejects.toThrow('重新预览');
+  });
+
+  it('只允许未暂存文件，拒绝缺失文件及未预览的确认对象', async () => {
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    await expect(useWorkbench.getState().previewDiscard(['missing.ts'])).rejects.toThrow('状态已变化');
+    await expect(useWorkbench.getState().discard(preview, true)).rejects.toThrow('重新预览');
+    expect(mockedInvoke.mock.calls.some(([command]) => command === 'git_discard')).toBe(false);
+  });
+
+  it.each([false, true])('演示撤销保留暂存版本，新增文件包含开关为 %s', async includeUntracked => {
+    vi.mocked(isTauri).mockReturnValue(false);
+    useWorkbench.getState().reset();
+    const original = currentWorktree();
+    const stagedFile = { id: 'partial', path: 'partial.ts', language: 'typescript', head: 'base', index: 'staged', working: 'working' };
+    const newFile = { id: 'new', path: 'new.ts', language: 'typescript', head: null, index: null, working: 'new' };
+    useWorkbench.setState({ repositories: [{ id: 'test', name: 'test', worktrees: [{ ...original, files: [stagedFile, newFile] }] }] });
+    const confirmed = await useWorkbench.getState().previewDiscard(['partial', 'new']);
+    expect(await useWorkbench.getState().discard(confirmed, includeUntracked)).toBe(includeUntracked ? 2 : 1);
+    expect(currentWorktree().files.find(file => file.id === 'partial')).toMatchObject({ head: 'base', index: 'staged', working: 'staged' });
+    expect(currentWorktree().files.some(file => file.id === 'new')).toBe(!includeUntracked);
+  });
+
+  it('演示内容在确认期间变化时拒绝覆盖', async () => {
+    vi.mocked(isTauri).mockReturnValue(false);
+    useWorkbench.getState().reset();
+    const worktree = currentWorktree();
+    const file = getChanges(worktree, 'unstaged')[0];
+    const confirmed = await useWorkbench.getState().previewDiscard([file.id]);
+    await useWorkbench.getState().stage(file.id);
+    await expect(useWorkbench.getState().discard(confirmed, true)).rejects.toThrow('重新预览');
+  });
+});
