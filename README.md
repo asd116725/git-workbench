@@ -18,7 +18,7 @@
 <p align="center">
   <a href="https://github.com/asd116725/git-workbench/releases/latest"><strong>Download for macOS</strong></a> ·
   <a href="#see-it-in-action">Watch the demo</a> ·
-  <a href="docs/user-manual.md">User manual</a> ·
+  <a href="docs/feature-guide.md">Visual feature guide</a> ·
   <a href="https://github.com/asd116725/git-workbench/issues">Report an issue</a>
 </p>
 
@@ -30,13 +30,13 @@ It uses your installed Git and existing author, signing, hooks, and remote crede
 
 ## See it in action
 
-[![Watch the Git Workbench v1.10.0 desktop demo](docs/media/git-workbench-v1.10.0-demo.gif)](https://github.com/asd116725/git-workbench/releases/download/v1.10.0/GitWorkbench_1.10.0_demo.mp4)
+[![Watch the Git Workbench v1.10.0 English desktop demo](docs/media/git-workbench-v1.10.0-demo-en.gif)](https://github.com/asd116725/git-workbench/releases/download/v1.10.0/GitWorkbench_1.10.0_demo_en.mp4)
 
-18-second preview above · **[Download the full 63-second demo →](https://github.com/asd116725/git-workbench/releases/download/v1.10.0/GitWorkbench_1.10.0_demo.mp4)**
+14-second preview above · **[Watch or download the full English demo · 38 seconds →](https://github.com/asd116725/git-workbench/releases/download/v1.10.0/GitWorkbench_1.10.0_demo_en.mp4)**
 
-A 63-second walkthrough: custom names and ordering → worktree switching → diffs and staging → commits and history → appearance.
+**[Explore all 20 features with screenshots and steps →](docs/feature-guide.md)**
 
-Recorded in the native app with fictional local projects and real Git operations. Chinese UI and captions, with English notes. Pauses are edited and some clips accelerated; sorting is shown with keyboard arrows.
+Recorded in the native app with an English interface, captions, and fictional example projects. Git operations are real; the synchronization demo uses a local bare repository as an offline remote. Idle pauses are trimmed; actions play at their original speed.
 
 ## Your daily Git workflow
 
@@ -96,6 +96,7 @@ For an interface-only preview, run `pnpm dev`. Browser mode uses separate demo d
 
 | Looking for | Start here |
 | --- | --- |
+| Every feature with screenshots and steps | [Visual feature guide](docs/feature-guide.md) |
 | Everyday workflows and troubleshooting | [User manual](docs/user-manual.md) |
 | Installing or updating the app | [Installation guide](docs/installation.md) |
 | Changes in each version | [Changelog](CHANGELOG.md) |

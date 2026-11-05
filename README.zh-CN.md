@@ -18,7 +18,7 @@
 <p align="center">
   <a href="https://github.com/asd116725/git-workbench/releases/latest"><strong>下载 macOS 版</strong></a> ·
   <a href="#看看实际操作">观看演示</a> ·
-  <a href="docs/zh-CN/user-manual.md">操作手册</a> ·
+  <a href="docs/zh-CN/feature-guide.md">完整图文指南</a> ·
   <a href="https://github.com/asd116725/git-workbench/issues">问题反馈</a>
 </p>
 
@@ -30,13 +30,13 @@ Git Workbench 是面向多项目、多分支开发的桌面 Git 客户端。把�
 
 ## 看看实际操作
 
-[![观看 Git Workbench v1.10.0 桌面操作演示](docs/media/git-workbench-v1.10.0-demo.gif)](https://github.com/asd116725/git-workbench/releases/download/v1.10.0/GitWorkbench_1.10.0_demo.mp4)
+[![观看 Git Workbench v1.10.0 英文桌面操作演示](docs/media/git-workbench-v1.10.0-demo-en.gif)](https://github.com/asd116725/git-workbench/releases/download/v1.10.0/GitWorkbench_1.10.0_demo_en.mp4)
 
-上方为 18 秒预览 · **[下载完整演示视频 · 63 秒 →](https://github.com/asd116725/git-workbench/releases/download/v1.10.0/GitWorkbench_1.10.0_demo.mp4)**
+上方为约 14 秒预览 · **[观看或下载完整英文演示 · 约 38 秒 →](https://github.com/asd116725/git-workbench/releases/download/v1.10.0/GitWorkbench_1.10.0_demo_en.mp4)**
 
-63 秒了解：改名与排序 → 工作树切换 → Diff 与暂存 → 提交与历史 → 明暗主题。
+**[逐项查看 20 个功能的图片与操作说明 →](docs/zh-CN/feature-guide.md)**
 
-使用虚构本地项目，在原生应用中录制真实 Git 操作；中文界面与字幕，附英文提示。已剪去等待并对部分片段加速，排序展示使用 ↑ / ↓ 快捷操作。
+在原生应用中录制，采用英文界面、英文字幕与虚构示例项目。Git 操作真实执行，同步演示使用本地 bare 仓库作为离线远端。仅剪去静止等待，操作按原速播放。
 
 ## 日常 Git 工作，在这里完成
 
@@ -96,6 +96,7 @@ pnpm desktop
 
 | 想了解什么 | 从这里开始 |
 | --- | --- |
+| 逐项功能配图与操作步骤 | [完整图文指南](docs/zh-CN/feature-guide.md) |
 | 日常操作与问题排查 | [操作手册](docs/zh-CN/user-manual.md) |
 | 安装或更新应用 | [安装说明](docs/zh-CN/installation.md) |
 | 各版本更新内容 | [更新日志](CHANGELOG.zh-CN.md) |
