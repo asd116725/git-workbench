@@ -6,6 +6,19 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-05
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#1100---2026-11-05)
+
+- Customize project, main-worktree, and linked-worktree display names in a compact dialog. Names are saved on the current device without changing repository paths or Git branches; choose **Reset name**, then **Save** to restore the default.
+- Reorder projects and worktrees with sidebar drag handles, or focus a handle and press `↑` / `↓`. Worktrees move only within their own project, including the main worktree.
+- Remember names and ordering across refreshes and app restarts. Newly opened projects and newly discovered worktrees append to the end of their respective lists, preserving the existing order.
+- Keep repository selection, expanded groups, diffs, and commit drafts while sorting. Provide insertion indicators, edge scrolling, cancellation, and English, Simplified Chinese, and Traditional Chinese labels.
+
+This release provides a macOS Apple Silicon (arm64) installer. It is ad-hoc signed, without Developer ID signing or Apple notarization. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
+Save commit drafts and quit the previous version completely with `⌘Q` before upgrading. Verify `GitWorkbench_1.10.0_macos_arm64.dmg` against `SHA256SUMS.txt` from the same release before installing.
+
 ## [1.9.0] - 2026-11-04
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#190---2026-11-04)

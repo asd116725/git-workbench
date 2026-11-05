@@ -36,7 +36,7 @@ Git Workbench 将本地仓库、关联 worktree、分支、Diff 和提交历史�
 
 | 工作场景 | 可以做什么 |
 | --- | --- |
-| **仓库与 worktree** | 打开已有本地仓库，发现关联 worktree，从侧栏切换并行工作区；重新打开应用时恢复仓库与上次选中的工作区。 |
+| **仓库与 worktree** | 打开本地仓库，发现关联 worktree，自定义显示名称，调整项目及项目内工作树的侧栏顺序；重新打开应用时恢复名称、顺序、仓库与上次选中的工作区。 |
 | **Diff 与暂存** | 用目录树或列表浏览修改，查看并排或内联 Diff，暂存或取消暂存文件、目录及整组变更；确认后可撤销单个或全部未暂存修改；也可提交暂存内容，保留未暂存修改。 |
 | **分支与远程同步** | 搜索、创建、删除及合并分支，获取、拉取、推送或首次发布分支；在侧栏、分支列表与工具栏查看待拉取、待推送数量。 |
 | **提交历史** | 同时浏览提交列表、变更文件与历史 Diff，搜索所选分支的完整可达历史，切换合并父提交，识别尚未推送的记录。 |
@@ -44,6 +44,8 @@ Git Workbench 将本地仓库、关联 worktree、分支、Diff 和提交历史�
 | **阅读与操作体验** | 调整分栏宽度、字号和 Diff 模式，可选择浅色、深色或跟随系统外观，保留文件类型图标；支持 English、简体中文、繁體中文。 |
 
 切换到有远程上游的分支时，应用会检查更新并尝试快进拉取。如果本地修改、分支分叉或网络错误阻止同步，会保留已经完成的切换并说明原因。合并冲突需在外部编辑器中解决，再回到应用完成合并；也可以在应用中中止合并。
+
+**1.10.0** 起，可通过侧栏编辑按钮修改项目、主工作区和关联工作树的显示名称，仅在本机生效，不改变仓库路径或 Git 分支。拖动手柄可调整项目顺序及同一项目内的工作树顺序，也可聚焦手柄后按 `↑` / `↓` 调整。新条目追加到对应列表末尾，名称和顺序在重启后保留。恢复默认名称和排序细节见[侧栏自定义说明](docs/zh-CN/user-manual.md#31-自定义显示名称1100)。
 
 **1.8.0** 起，可在 **设置 → 外观主题** 选择「浅色 / 深色 / 跟随系统」。工作台、代码区和原生窗口同步切换，并自动记住选择；当前工作区、Diff 阅读位置和提交草稿保持不变。
 
@@ -71,13 +73,13 @@ AI 文案功能自 **1.7.0** 起提供，使用 DeepSeek 与 `staged-commit-mess
 
 ## 安装与快速上手
 
-当前正式版本为 **1.9.0**，提供 **macOS Apple Silicon（arm64）** 安装包。
+当前正式版本为 **1.10.0**，提供 **macOS Apple Silicon（arm64）** 安装包。
 
 | 下载内容 | 链接 |
 | --- | --- |
-| macOS 安装包 | [GitWorkbench_1.9.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.9.0/GitWorkbench_1.9.0_macos_arm64.dmg) |
-| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.9.0/SHA256SUMS.txt) |
-| 版本说明 | [v1.9.0 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.9.0) |
+| macOS 安装包 | [GitWorkbench_1.10.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.10.0/GitWorkbench_1.10.0_macos_arm64.dmg) |
+| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.10.0/SHA256SUMS.txt) |
+| 版本说明 | [v1.10.0 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.10.0) |
 
 1. **安装应用**：使用同一 Release 的校验文件核对 DMG，将「代码管理」拖入 Applications。详见[安装说明](docs/zh-CN/installation.md)。
 2. **打开仓库**：先确认 `git --version` 可以运行，再点击应用中的「打开仓库」，选择已有的本地仓库。
@@ -149,7 +151,7 @@ pnpm test
 pnpm build
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --locked --manifest-path src-tauri/Cargo.toml
-pnpm release:check --tag v1.9.0
+pnpm release:check --tag v1.10.0
 ```
 
 ```sh

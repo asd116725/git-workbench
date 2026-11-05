@@ -11,9 +11,9 @@ export function commitAge(committedAt: number) {
   return unit ? relativeTime.format(-Math.trunc(seconds / unit[1]), unit[0]) : t("刚刚");
 }
 
-/** 按主工作区元数据翻译应用生成名称，普通目录名保持原文。 */
-export function worktreeLabel(worktree: Worktree): string {
-  return worktree.isMain ? t('主工作区') : worktree.name;
+/** 自定义名称保留原文；没有别名时按元数据翻译主工作区的默认名称。 */
+export function worktreeLabel(worktree: Worktree, customName?: string): string {
+  return customName ?? (worktree.isMain ? t('主工作区') : worktree.name);
 }
 
 /** 依据分离状态翻译 Git 生成的 HEAD 标签，普通分支名与提交 SHA 保持原文。 */

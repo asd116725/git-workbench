@@ -2,7 +2,7 @@ import { useAppearance } from './lib/appearance';
 import { startNativeAppearance } from './lib/native-appearance';
 import { AppearancePicker } from './components/AppearancePicker';
 import { languages, t, useI18n, type Language } from './lib/i18n';
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { translateMessage } from './lib/i18n-system';
 import { version as appVersion } from '../package.json';
 import { isTauri } from '@tauri-apps/api/core';
@@ -23,6 +23,10 @@ import { CommitComposer } from './components/CommitComposer';
 import { HistoryView } from './components/HistoryView';
 import { useHistory } from './lib/history-store';
 import { BranchPickerDialog } from './components/BranchPickerDialog';
+import { RenameDialog, type RenameTarget } from './components/RenameDialog';
+import { useDisplayNames } from './lib/display-names';
+import { orderedItems, useSidebarOrder, type SortEdge, type SortScope } from './lib/sidebar-order';
+import { useSidebarSorting } from './components/useSidebarSorting';
 import { BranchSyncCounts } from './components/BranchSyncStatus';
 import { MergeBranchDialog } from './components/MergeBranchDialog';
 import { MergeStatusBanner } from './components/MergeStatusBanner';
@@ -61,36 +65,87 @@ function firstAvailableWorktree(repository: Repository) { return repository.work
 function RepositorySidebar({ onOpen, onSettings }: { onOpen: () => void; onSettings: () => void }) {
   useI18n();
   const { repositories, activeWorktreeId, selectWorktree, busy } = useWorkbench();
+  const names = useDisplayNames(state => state.names);
+  const order = useSidebarOrder(state => state.order);
+  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
+  const [sortAnnouncement, setSortAnnouncement] = useState('');
+  const orderErrorShown = useRef(false);
+  const sortedRepositories = orderedItems(repositories, order.projects);
+  const repositoryIds = sortedRepositories.map(item => item.id);
+  const sorting = useSidebarSorting(busy, moveItem);
+
+  useEffect(() => {
+    try { useSidebarOrder.getState().observe(repositories); }
+    catch {
+      if (!orderErrorShown.current) {
+        toast.error(t('排序保存失败，请重试。'));
+        orderErrorShown.current = true;
+      }
+    }
+  }, [repositories]);
+
+  /** 以最新元数据限定同一列表，避免刷新期间的过期拖动跨组或恢复已删除项。 */
+  function moveItem(scope: SortScope, source: string, target: string, edge: SortEdge) {
+    const currentRepositories = useWorkbench.getState().repositories;
+    const { order: currentOrder, move } = useSidebarOrder.getState();
+    const items = scope === null ? currentRepositories : currentRepositories.find(item => item.id === scope)?.worktrees ?? [];
+    const ids = orderedItems<{ id: string }>(items, scope === null ? currentOrder.projects : currentOrder.worktrees[scope]).map(item => item.id);
+    try {
+      if (move(scope, ids, source, target, edge)) {
+        const saved = useSidebarOrder.getState().order;
+        const position = orderedItems<{ id: string }>(items, scope === null ? saved.projects : saved.worktrees[scope]).findIndex(item => item.id === source) + 1;
+        setSortAnnouncement(t('已移至第 {position} 位', { position }));
+      }
+    } catch { toast.error(t('排序保存失败，请重试。')); }
+  }
+
+  function sortHandle(scope: SortScope, id: string, name: string, ids: string[]) {
+    const label = t(scope === null ? '调整项目 {name} 的顺序' : '调整工作树 {name} 的顺序', { name });
+    return <Button variant="ghost" size="icon-xs" className="sidebar-sort-handle" aria-label={label} title={t('拖动排序，或按 ↑ / ↓ 调整')} {...sorting.handleProps(scope, id, ids)}><Icon name="gripper" /></Button>;
+  }
+
+  function renameButton(id: string, kind: RenameTarget['kind'], defaultName: string) {
+    const label = kind === 'project' ? t('修改项目名称') : kind === 'main' ? t('修改主工作区名称') : t('修改工作树名称');
+    return <Hint label={label}><Button variant="ghost" size="icon-xs" className="name-edit-button" disabled={busy} aria-label={label} onClick={event => setRenameTarget({ id, kind, defaultName, name: names[id] ?? defaultName, customized: names[id] !== undefined, trigger: event.currentTarget })}><Icon name="edit" /></Button></Hint>;
+  }
+
   return <aside className="repository-sidebar" aria-label={t("仓库导航")}>
     <div className="section-heading"><span>{t("仓库")}</span><Hint label={t("打开仓库")}><Button variant="ghost" size="icon-sm" aria-label={t("打开仓库")} disabled={busy} onClick={onOpen}><Icon name="add" /></Button></Hint></div>
     <nav className="repositories">
-      {repositories.map(repository => {
+      {sortedRepositories.map(repository => {
         const active = repository.worktrees.some(worktree => worktree.id === activeWorktreeId);
-        return <Collapsible className={`repository-group${active ? ' contains-current' : ''}`} defaultOpen={active} key={repository.id}>
+        const name = names[repository.id] ?? repository.name;
+        const worktrees = orderedItems(repository.worktrees, order.worktrees[repository.id]);
+        const worktreeIds = worktrees.map(item => item.id);
+        return <Collapsible className={`repository-group${active ? ' contains-current' : ''}`} defaultOpen={active} key={repository.id} {...sorting.rowProps(null, repository.id)}>
           <div className="repository-row">
-            <CollapsibleTrigger className="repository-toggle" aria-label={t("展开或收起仓库 {name}", { name: repository.name })}><Icon name="chevron-down" /></CollapsibleTrigger>
-            <button className="repository-select" disabled={busy} aria-label={t("选择仓库 {name}", { name: repository.name })} title={repository.name} onClick={() => {
+            <CollapsibleTrigger className="repository-toggle" aria-label={t("展开或收起仓库 {name}", { name })}><Icon name="chevron-down" /></CollapsibleTrigger>
+            <button className="repository-select" disabled={busy} aria-label={t("选择仓库 {name}", { name })} title={name} onClick={() => {
               const first = firstAvailableWorktree(repository);
               if (!active && first) selectWorktree(first.id);
-            }}><span className="repository-icon"><Icon name="folder" /><Icon name="folder-opened" /></span><span className="repository-name">{repository.name}</span><small className="repository-worktree-count" title={t("{value1} 个工作区", { value1: repository.worktrees.length })}><span className="repository-count-label">{t(repository.worktrees.length === 1 ? "1 工作树" : "{count} 工作树", { count: repository.worktrees.length })}</span>{active && <span className="repository-current-label">{t("当前 · {count}", { count: repository.worktrees.length })}</span>}</small></button>
+            }}><span className="repository-icon"><Icon name="folder" /><Icon name="folder-opened" /></span><span className="repository-name">{name}</span><small className="repository-worktree-count" title={t("{value1} 个工作区", { value1: repository.worktrees.length })}><span className="repository-count-label">{t(repository.worktrees.length === 1 ? "1 工作树" : "{count} 工作树", { count: repository.worktrees.length })}</span>{active && <span className="repository-current-label">{t("当前 · {count}", { count: repository.worktrees.length })}</span>}</small></button>
+            {sortHandle(null, repository.id, name, repositoryIds)}{renameButton(repository.id, 'project', repository.name)}
           </div>
-          <CollapsibleContent><div className="worktree-list">{repository.worktrees.map(worktree => {
+          <CollapsibleContent><div className="worktree-list">{worktrees.map(worktree => {
             const syncDescription = worktreeSyncDescription(worktree);
-            const details = [branchLabel(worktree), worktree.path, syncDescription, worktree.locked !== undefined && worktree.locked !== null ? t("锁定：{value1}", { value1: worktree.locked || t("已锁定") }) : '', worktree.prunable ? t("可清理：{value1}", { value1: worktree.prunable }) : ''].filter(Boolean).join('\n');
-            return <Tooltip key={worktree.id}><TooltipTrigger asChild><button
+            const name = worktreeLabel(worktree, names[worktree.id]);
+            const details = [name, worktree.isMain ? t('主工作区') : t('关联'), branchLabel(worktree), worktree.path, syncDescription, worktree.locked !== undefined && worktree.locked !== null ? t("锁定：{value1}", { value1: worktree.locked || t("已锁定") }) : '', worktree.prunable ? t("可清理：{value1}", { value1: worktree.prunable }) : ''].filter(Boolean).join('\n');
+            return <div className="worktree-row-container" key={worktree.id} {...sorting.rowProps(repository.id, worktree.id)}><Tooltip><TooltipTrigger asChild><button
             disabled={busy || worktree.available === false || worktree.bare}
             className={`worktree-row ${activeWorktreeId === worktree.id ? 'selected' : ''}`}
             aria-current={activeWorktreeId === worktree.id ? 'page' : undefined}
             onClick={() => selectWorktree(worktree.id)}
-          ><Icon name={worktree.isMain ? 'device-desktop' : 'worktree'} /><span className="worktree-copy"><span className="worktree-title"><span className="worktree-name">{worktreeLabel(worktree)}</span>{!worktree.isMain && <span className="worktree-kind">{t("关联")}</span>}{worktree.locked !== undefined && worktree.locked !== null && <Icon name="lock" className="worktree-lock" />}{activeWorktreeId === worktree.id && <span className="worktree-current">{t("当前")}</span>}</span><span className="worktree-branch"><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="worktree-branch-name">{worktree.bare ? t("裸仓库") : worktree.available === false ? t("目录不可用") : branchLabel(worktree)}</span>{syncDescription && <BranchSyncCounts sync={worktree.branchSync} />}</span></span>{syncDescription && <span className="sr-only">{syncDescription}</span>}</button></TooltipTrigger><TooltipContent className="worktree-tooltip">{details}</TooltipContent></Tooltip>;
+          ><Icon name={worktree.isMain ? 'device-desktop' : 'worktree'} /><span className="worktree-copy"><span className="worktree-title"><span className="worktree-name">{name}</span>{worktree.isMain && names[worktree.id] && <span className="worktree-kind" title={t('主工作区')}>{t('主')}</span>}{!worktree.isMain && <span className="worktree-kind">{t("关联")}</span>}{worktree.locked !== undefined && worktree.locked !== null && <Icon name="lock" className="worktree-lock" />}{activeWorktreeId === worktree.id && <span className="worktree-current">{t("当前")}</span>}</span><span className="worktree-branch"><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="worktree-branch-name">{worktree.bare ? t("裸仓库") : worktree.available === false ? t("目录不可用") : branchLabel(worktree)}</span>{syncDescription && <BranchSyncCounts sync={worktree.branchSync} />}</span></span>{syncDescription && <span className="sr-only">{syncDescription}</span>}</button></TooltipTrigger><TooltipContent className="worktree-tooltip">{details}</TooltipContent></Tooltip>{sortHandle(repository.id, worktree.id, name, worktreeIds)}{renameButton(worktree.id, worktree.isMain ? 'main' : 'worktree', worktreeLabel(worktree))}</div>;
           })}</div></CollapsibleContent>
         </Collapsible>;
       })}
     </nav>
+    <span className="sr-only" role="status">{sortAnnouncement}</span>
     <div className="sidebar-bottom">
       <button className="sidebar-action" onClick={onSettings}><Icon name="settings-gear" />{t("设置")}</button>
       <button className="sidebar-action" disabled={busy} onClick={onOpen}><Icon name="folder-opened" />{t("打开仓库")}</button>
     </div>
+    {renameTarget && <RenameDialog target={renameTarget} onClose={() => setRenameTarget(null)} />}
   </aside>;
 }
 
@@ -251,6 +306,8 @@ function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
 
 function OpenRepositoryDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   useI18n();
+  const names = useDisplayNames(state => state.names);
+  const projectOrder = useSidebarOrder(state => state.order.projects);
   const { repositories, selectWorktree, activeWorktreeId, openRepository, busy } = useWorkbench();
   const [path, setPath] = useState('');
   const [openingError, setOpeningError] = useState<string | null>(null);
@@ -283,9 +340,10 @@ function OpenRepositoryDialog({ open, onOpenChange }: { open: boolean; onOpenCha
       <div className="repository-open-actions"><Button type="button" variant="outline" disabled={busy || choosing} onClick={() => void browse()}><Icon name="folder-opened" />{t("选择文件夹")}</Button><Button type="submit" disabled={!path.trim() || busy || choosing}>{busy ? t("正在打开…") : t("打开仓库")}</Button></div>
       {openingError && <pre className="inline-error" role="alert">{translateMessage(openingError)}</pre>}
     </form>}
-    {repositories.length > 0 && <div className="repository-picker"><p className="picker-label">{t("已打开的仓库")}</p>{repositories.map(repository => {
+    {repositories.length > 0 && <div className="repository-picker"><p className="picker-label">{t("已打开的仓库")}</p>{orderedItems(repositories, projectOrder).map(repository => {
       const target = repository.worktrees.find(item => item.id === activeWorktreeId && item.available !== false && !item.bare) ?? firstAvailableWorktree(repository);
-      return <button className="picker-row" disabled={busy || choosing || !target} key={repository.id} onClick={() => { if (target) selectWorktree(target.id); onOpenChange(false); }}><Icon name="repo" /><span><strong>{repository.name}</strong><small title={target?.path}>{target?.path ?? t("工作区目录不可用")} · {t("{value1} 个工作区", { value1: repository.worktrees.length })}</small></span><Icon name={repository.worktrees.some(item => item.id === activeWorktreeId) ? 'check' : 'chevron-right'} /></button>;
+      const name = names[repository.id] ?? repository.name;
+      return <button className="picker-row" disabled={busy || choosing || !target} key={repository.id} onClick={() => { if (target) selectWorktree(target.id); onOpenChange(false); }}><Icon name="repo" /><span><strong title={name}>{name}</strong><small title={target?.path}>{target?.path ?? t("工作区目录不可用")} · {t("{value1} 个工作区", { value1: repository.worktrees.length })}</small></span><Icon name={repository.worktrees.some(item => item.id === activeWorktreeId) ? 'check' : 'chevron-right'} /></button>;
     })}</div>}
   </DialogContent></Dialog>;
 }
@@ -297,6 +355,7 @@ function WelcomeView({ onOpen }: { onOpen: () => void }) {
 
 export default function App() {
   useI18n();
+  const names = useDisplayNames(state => state.names);
   const resolvedTheme = useAppearance(state => state.resolvedTheme);
   const { repositories, activeWorktreeId, view, busy, restoring, refreshing, error, autoRefreshError } = useWorkbench();
   const { layout, setLayout, layoutResetKey } = usePreferences();
@@ -305,6 +364,7 @@ export default function App() {
   const [branchOpen, setBranchOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const repository = repositories.find(item => item.worktrees.some(worktree => worktree.id === activeWorktreeId));
+  const repositoryName = repository ? names[repository.id] ?? repository.name : t('本地 Git 工作台');
   const worktree = findWorktree(repositories, activeWorktreeId);
   const changedCount = worktree ? new Set([...getChanges(worktree, 'unstaged'), ...getChanges(worktree, 'staged')].map(item => item.id)).size : 0;
   const real = worktree?.source === 'native';
@@ -314,7 +374,7 @@ export default function App() {
   useEffect(() => startAutoRefresh(), []);
 
   return <TooltipProvider delayDuration={400}><div className={`workbench ${native ? 'native-window' : 'browser-window'}`}>
-    <header className="titlebar" data-tauri-drag-region><div className="app-title" data-tauri-drag-region>{!native && <Icon name="source-control" />}{t("代码管理")}</div><div className="window-context" data-tauri-drag-region>{repository?.name ?? t("本地 Git 工作台")}{worktree && <><span>/</span>{branchLabel(worktree)}</>}</div><span className="titlebar-version">Git Workbench</span></header>
+    <header className="titlebar" data-tauri-drag-region><div className="app-title" data-tauri-drag-region>{!native && <Icon name="source-control" />}{t("代码管理")}</div><div className="window-context" data-tauri-drag-region><span className="window-repository-name" title={repositoryName}>{repositoryName}</span>{worktree && <><span className="window-context-separator">/</span><span className="window-branch-name" title={branchLabel(worktree)}>{branchLabel(worktree)}</span></>}</div><span className="titlebar-version">Git Workbench</span></header>
     <Group key={layoutResetKey} orientation="horizontal" className="app-body" defaultLayout={layout.repositories ? { repositories: layout.repositories, workspace: layout.workspace } : undefined} onLayoutChanged={setLayout}>
       <Panel id="repositories" defaultSize="300px" minSize="240px" maxSize="360px"><RepositorySidebar onOpen={() => setRepositoryOpen(true)} onSettings={() => setSettingsOpen(true)} /></Panel>
       <ResizeHandle className="resize-handle" aria-label={t("调整仓库列表宽度")} />

@@ -2,9 +2,9 @@
 
 **English** | [简体中文](zh-CN/user-manual.md)
 
-This manual covers the stable `1.7.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.7.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.7.0). The browser uses separate demo data and does not access real repositories.
+This manual covers the stable `1.10.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.10.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.10.0). The browser uses separate demo data and does not access real repositories.
 
-Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-refreshing-and-settings). Screenshots show the English interface with fictional demo data.
+Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-refreshing-and-settings). Screenshots show the v1.8.0 English interface with fictional demo data; the naming and sorting controls added in v1.10.0 are described below.
 
 ## 1. Window layout
 
@@ -44,6 +44,22 @@ Each project has its own group, with a folder icon and worktree count in the hea
 Each worktree has its own files, index, and commit draft for the current session. Staging and committing affect only the selected worktree. Check the path in the bottom bar before switching targets.
 
 After worktrees are added or deleted externally, Git metadata watching updates the list. You can also click **Refresh** for an immediate read. Worktrees whose directories have moved or become inaccessible cannot be opened normally. Creating, deleting, or repairing worktrees still requires Git commands or another tool.
+
+### 3.1 Custom display names (1.10.0)
+
+Hover over a project or worktree row, or use `Tab` to reach its edit button. Choose **Rename project**, **Rename main worktree**, or **Rename worktree**, enter a name, then click **Save** or press `Enter`. Click **Cancel** or press `Esc` to leave without saving. Names cannot be empty.
+
+To restore the original display name, choose **Reset name**, then **Save**. Resetting is only applied when you save; canceling keeps the current name.
+
+Names are aliases saved on this device and remain after refreshes and restarts. They do not rename directories or Git branches, move repositories, or modify files. The main worktree keeps its role marker after being renamed; paths and branch labels still identify the Git target.
+
+### 3.2 Sidebar ordering (1.10.0)
+
+Drag a project's handle to move the entire project group. Drag a worktree's handle to move it within its own project; the main worktree can also move from the first position. An insertion line shows where it will land. Worktrees cannot move between projects.
+
+For keyboard control, use `Tab` to focus a handle, then press `↑` or `↓` to move the item one position. Dragging near the sidebar's top or bottom edge scrolls the list. Press `Esc` to cancel a drag; releasing without a valid destination leaves the order unchanged.
+
+The app remembers each list's order on this device across refreshes and restarts. Newly opened projects and newly discovered worktrees append to their respective lists without rearranging existing entries. Sorting preserves the active worktree, expanded groups, current diff, and commit draft; it does not change files, branches, or Git worktree registration.
 
 ## 4. Switch branches
 
@@ -258,6 +274,8 @@ Since 1.4.0, **Settings → Interface language** provides language options, with
 | --- | --- |
 | Commit form | `⌘ Enter` / `Ctrl Enter` commits staged content |
 | Branch selector | `↑` / `↓` selects, `Enter` switches, `Esc` closes |
+| Sidebar sort handle | `↑` / `↓` moves the focused item one position; `Esc` cancels a drag |
+| Rename dialog | `Enter` saves; `Esc` cancels |
 | Dialog | `Esc` closes |
 
 Manual refresh, file staging, and directory staging currently use the interface buttons.

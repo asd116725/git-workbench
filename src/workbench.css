@@ -26,8 +26,11 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .app-title { display: flex; align-items: center; gap: 11px; padding-left: 22px; font-size: 16px; font-weight: 600; letter-spacing: .3px; }
 .native-window .app-title { padding-left: 100px; }
 .app-title .codicon { color: var(--blue); font-size: 20px; }
-.window-context { display: flex; position: absolute; left: 50%; align-items: center; gap: 7px; transform: translateX(-50%); font-size: 14px; }
+.window-context { display: flex; position: absolute; left: 50%; align-items: center; gap: 7px; max-width: 46%; transform: translateX(-50%); font-size: 14px; white-space: nowrap; }
 .window-context span { color: var(--subtle-foreground); }
+.window-context .window-repository-name { color: inherit; }
+.window-repository-name, .window-branch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.window-context-separator { flex-shrink: 0; }
 .titlebar-version { margin-left: auto; margin-right: 18px; font-size: 11px; letter-spacing: .35px; }
 .app-body { flex: 1; min-width: 0; min-height: 0; }
 .resize-handle { position: relative; flex-shrink: 0; width: 1px; background: var(--border); }
@@ -36,7 +39,7 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .repository-sidebar { display: flex; flex-direction: column; height: 100%; min-width: 0; background: var(--sidebar); user-select: none; }
 .section-heading { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; height: 47px; padding: 0 12px 0 14px; color: var(--foreground); background: var(--section-header-background); font-size: 14px; }
 .repositories { flex: 1; overflow: auto; padding: 12px 10px; }
-.repository-group { margin-bottom: 9px; overflow: hidden; border: 1px solid var(--widget-border); border-radius: 7px; background: var(--sidebar); }
+.repository-group { position: relative; margin-bottom: 9px; overflow: hidden; border: 1px solid var(--widget-border); border-radius: 7px; background: var(--sidebar); }
 .repository-row { display: flex; align-items: center; width: 100%; height: 43px; background: var(--muted); }
 .repository-group[data-state='open'] > .repository-row { border-bottom: 1px solid var(--widget-border); }
 .repository-toggle, .repository-select { display: flex; align-items: center; height: 100%; padding: 0; border: 0; color: inherit; background: transparent; }
@@ -44,6 +47,24 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .repository-toggle > .codicon { font-size: 15px; }
 .repository-toggle[data-state='closed'] > .codicon { transform: rotate(-90deg); }
 .repository-select { flex: 1; min-width: 0; gap: 8px; padding-right: 8px; text-align: left; }
+/** 编辑入口和选择按钮并列，名称省略时仍保留独立的键盘焦点。 */
+.name-edit-button { flex-shrink: 0; width: 23px; height: 23px; opacity: 0; color: var(--muted-foreground); }
+.name-edit-button .codicon { font-size: 14px; }
+.repository-row > .name-edit-button { margin-right: 5px; }
+.repository-row:hover .name-edit-button, .repository-row:focus-within .name-edit-button, .worktree-row-container:hover .name-edit-button, .worktree-row-container:focus-within .name-edit-button { opacity: 1; }
+.worktree-row-container { position: relative; min-width: 0; }
+.worktree-row-container > .name-edit-button { position: absolute; top: 5px; right: 4px; }
+/** 两个操作入口只占标题行，第二行保留分支与同步信息的可用宽度。 */
+.worktree-row-container .worktree-title { padding-right: 45px; }
+.sidebar-sort-handle { flex-shrink: 0; width: 23px; height: 23px; color: var(--muted-foreground); cursor: grab; touch-action: none; }
+.sidebar-sort-handle .codicon { font-size: 14px; }
+.sidebar-sort-handle:active { cursor: grabbing; }
+.sidebar-sort-handle:disabled { opacity: .3; }
+.worktree-row-container > .sidebar-sort-handle { position: absolute; top: 5px; right: 27px; }
+[data-sort-dragging='true'] { opacity: .5; }
+[data-sort-edge]::after { position: absolute; z-index: 2; right: 0; left: 0; height: 2px; background: var(--ring); pointer-events: none; content: ''; }
+[data-sort-edge='before']::after { top: 0; }
+[data-sort-edge='after']::after { bottom: 0; }
 .repository-icon { display: flex; flex-shrink: 0; align-items: center; justify-content: center; width: 23px; height: 23px; border-radius: 5px; color: var(--yellow); background: color-mix(in srgb, var(--yellow) 8%, transparent); }
 .repository-icon > .codicon { font-size: 16px; }
 .repository-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--foreground-strong); font-size: 13px; font-weight: 600; }
@@ -221,7 +242,7 @@ input[type='range'] { padding: 0; border: 0; box-shadow: none; accent-color: var
 .picker-row:hover { background: var(--list-hover-background); }
 .picker-row > .codicon { color: var(--muted-foreground); font-size: 22px; }
 .picker-row span { display: flex; flex: 1; flex-direction: column; gap: 5px; }
-.picker-row strong { font-size: 14px; font-weight: 500; }
+.picker-row strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; font-weight: 500; }
 .picker-row small { color: var(--muted-foreground); font-size: 12px; }
 .spin { animation: spin 1s linear infinite; }
 .welcome-view, .diff-message { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 18px; height: 100%; padding: 40px; text-align: center; }
@@ -321,7 +342,13 @@ input[type='range'] { padding: 0; border: 0; box-shadow: none; accent-color: var
 .branch-management-row .branch-delete-action { opacity: 0; color: var(--destructive); }
 .branch-management-row:hover .branch-delete-action, .branch-management-row:focus-within .branch-delete-action { opacity: 1; }
 .branch-management-row .branch-delete-action:disabled { color: var(--subtle-foreground); }
-.branch-management-dialog .branch-demo-label { display: inline-block; margin-left: 12px; color: var(--yellow); font-size: 11px; }
+/** 名称和分支分别省略，长别名不能撑高标题或挤掉真实分支信息。 */
+.branch-worktree-context { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+.branch-context-name { min-width: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis; }
+.branch-context-current { display: flex; flex: 1; align-items: center; gap: 4px; min-width: 0; }
+.branch-context-current > span:first-child { flex-shrink: 0; }
+.branch-context-branch { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.branch-management-dialog .branch-demo-label { display: block; margin-top: 4px; color: var(--yellow); font-size: 11px; }
 .branch-operation-note { margin: 0 24px; color: var(--yellow); font-size: 12px; line-height: 1.6; }
 .branch-form-dialog { width: min(620px, calc(100vw - 48px)); max-width: 620px; gap: 24px; overflow-y: auto; }
 .branch-form-fields { display: flex; flex-direction: column; gap: 24px; padding: 0 24px 24px; }

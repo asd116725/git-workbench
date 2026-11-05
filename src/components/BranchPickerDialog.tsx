@@ -9,6 +9,7 @@ import { branchLabel, branchSyncDescription, commitAge, worktreeLabel } from './
 import { BranchSyncStatus } from './BranchSyncStatus';
 import { BranchCreateForm, BranchDeleteConfirmation } from './BranchForms';
 import { useWorkbench } from '../lib/store';
+import { useDisplayNames } from '../lib/display-names';
 import type { GitBranch, GitDeleteBranchPreview, Worktree } from '../lib/types';
 
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error); }
@@ -55,6 +56,9 @@ export function BranchPickerDialog({ worktree, open, onOpenChange }: {
   onOpenChange: (open: boolean) => void;
 }) {
   useI18n();
+  const customName = useDisplayNames(state => state.names[worktree.id]);
+  const displayName = worktreeLabel(worktree, customName);
+  const currentBranch = branchLabel(worktree);
   const { branches, loadBranches, checkoutBranch, createBranch, previewDeleteBranch, deleteBranch, busy } = useWorkbench();
   const [view, setView] = useState<'list' | 'create' | 'delete'>('list');
   const [search, setSearch] = useState('');
@@ -123,7 +127,7 @@ export function BranchPickerDialog({ worktree, open, onOpenChange }: {
       const result = await checkoutBranch(branch.fullName);
       if (!currentRequest(version)) return;
       if (result.warning) toast.warning(t("已切换到 {value1}", { value1: result.branch }), { description: translateMessage(result.warning) });
-      else toast.success(t("已切换到 {value1}", { value1: result.branch }), { description: demo ? t("演示操作，未修改本地仓库") : worktreeLabel(worktree) });
+      else toast.success(t("已切换到 {value1}", { value1: result.branch }), { description: demo ? t("演示操作，未修改本地仓库") : displayName });
       onOpenChange(false);
     } catch (cause) {
       if (currentRequest(version)) setError(errorMessage(cause));
@@ -226,7 +230,7 @@ export function BranchPickerDialog({ worktree, open, onOpenChange }: {
 
   return <Dialog open={open} onOpenChange={close}>
     <DialogContent ref={dialogRef} className={`branch-dialog branch-management-dialog ${view !== 'list' ? 'branch-form-dialog' : ''}`} onOpenAutoFocus={event => { event.preventDefault(); searchRef.current?.focus(); }}>
-      <DialogHeader><DialogTitle>{view === 'create' ? t("新建分支") : view === 'delete' ? t("删除本地分支") : t("分支管理")}</DialogTitle><DialogDescription>{view === 'create' ? t("在 {value1} 中创建本地分支", { value1: worktreeLabel(worktree) }) : t("{value1} · 当前 {value2}", { value1: worktreeLabel(worktree), value2: branchLabel(worktree) })}{demo && <span className="branch-demo-label">{t("演示模式 · 模拟数据")}</span>}</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>{view === 'create' ? t("新建分支") : view === 'delete' ? t("删除本地分支") : t("分支管理")}</DialogTitle><DialogDescription><span className="branch-worktree-context"><span className="branch-context-name" title={displayName}>{displayName}</span><span aria-hidden="true">·</span><span className="branch-context-current"><span>{t('当前')}</span><span className="branch-context-branch" title={currentBranch}>{currentBranch}</span></span></span>{demo && <span className="branch-demo-label">{t("演示模式 · 模拟数据")}</span>}</DialogDescription></DialogHeader>
       {blocked && <p className="branch-operation-note" role="status">{blocked}</p>}
       {view === 'list' && <>
         <div className="branch-list-toolbar"><div className="branch-search"><i className="codicon codicon-search" aria-hidden="true" /><Input ref={searchRef} aria-label={t("搜索分支")} placeholder={t("搜索本地或远程分支…")} value={search} disabled={locked} onChange={event => setSearch(event.target.value)} onKeyDown={navigate} autoComplete="off" spellCheck={false} /><kbd>↑ ↓</kbd></div><Button type="button" disabled={locked || Boolean(blocked) || branches.loading || !hasStart} title={!hasStart ? t("没有可用起点，请先完成首次提交。") : undefined} onClick={openCreate}><i className="codicon codicon-add" aria-hidden="true" />{t("新建分支")}</Button></div>
