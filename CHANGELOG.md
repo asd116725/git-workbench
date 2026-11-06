@@ -6,6 +6,16 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-11-06
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#1101---2026-11-06)
+
+- Validate AI-generated commit messages against supported static commitlint rules before returning a candidate. Resolve inherited rules in order and preserve local overrides and disabled rules.
+- Wrap long body and footer lines using the repository's limits and UTF-16 character counts. Preserve text, code identifiers, paths, URLs, and breaking-change markers; reject titles or tokens that cannot be safely shortened or wrapped.
+- Check supported title, type, scope, subject, and blank-line constraints. Keep drafts when validation fails, and explicitly report dynamic configurations, custom plugins, ambiguous configuration scopes, or unsupported rules instead of treating them as validated.
+
+Local macOS Apple Silicon (arm64) build. The application uses ad-hoc signing and is not Apple-notarized.
+
 ## [1.10.0] - 2026-11-05
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#1100---2026-11-05)

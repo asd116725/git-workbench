@@ -62,6 +62,8 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
   "暂存内容超出生成上限，请缩小本次暂存范围后重试。": {"en": "The staged content exceeds the generation limit. Stage fewer changes and try again.", "zh-TW": "暫存內容超出產生上限，請縮小本次暫存範圍後重試。"},
   "暂存内容或当前提交已变化，请重新生成。": {"en": "The staged content or current commit has changed. Generate again.", "zh-TW": "暫存內容或目前提交已變更，請重新產生。"},
   "未获得完整有效的提交文案，请重试。": {"en": "No complete, valid commit message was returned. Try again.", "zh-TW": "未取得完整有效的提交文案，請重試。"},
+  "生成文案未通过仓库规则校验，标题或不可拆分内容可能超限，请重新生成或手动调整。": {"en": "The generated message failed repository checks. The title or an unbreakable token may be too long. Generate again or edit manually.", "zh-TW": "生成文案未通過倉庫規則校驗，標題或不可拆分內容可能超限，請重新生成或手動調整。"},
+  "仓库包含暂不支持自动校验的提交规则，请手动填写提交信息。": {"en": "This repository has commit rules that cannot be checked automatically yet. Enter the commit message manually.", "zh-TW": "倉庫包含暫不支援自動校驗的提交規則，請手動填寫提交資訊。"},
   "无法读取提交规范，请检查本机 Skill 文件后重试。": {"en": "Cannot read the commit guidelines. Check your local Skill file and try again.", "zh-TW": "無法讀取提交規範，請檢查本機 Skill 檔案後重試。"},
   "生成已取消，原草稿保持不变。": {"en": "Generation cancelled. Your draft is unchanged.", "zh-TW": "產生已取消，原草稿保持不變。"},
   "无法读取暂存内容，请刷新仓库后重试。": {"en": "Cannot read the staged content. Refresh the repository and try again.", "zh-TW": "無法讀取暫存內容，請重新整理儲存庫後重試。"},

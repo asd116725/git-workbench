@@ -1,6 +1,7 @@
-use super::{AiResult, IndexEntry, MAX_RULE_BYTES, WorkControl, rule_document};
+use super::super::message_rules::MessageRules;
+use super::{AiError, AiResult, Document, IndexEntry, MAX_RULE_BYTES, WorkControl, rule_document};
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::{Component, Path},
 };
 
@@ -54,8 +55,8 @@ enum Token {
     Punctuation(char),
 }
 
-/// 只提取字面量 extends 数组，跳过注释；动态表达式交给模型参考原文，不求值。
-pub(super) fn literal_extends(content: &str) -> Vec<String> {
+/// 静态分词时跳过注释，模板和转义表达式保留为不可求值标记。
+fn tokens(content: &str) -> Vec<Token> {
     let mut chars = content.chars().peekable();
     let mut tokens = Vec::new();
     while let Some(ch) = chars.next() {
@@ -112,6 +113,12 @@ pub(super) fn literal_extends(content: &str) -> Vec<String> {
             ch => tokens.push(Token::Punctuation(ch)),
         }
     }
+    tokens
+}
+
+/// 只采集字面量继承引用，不对动态表达式求值。
+pub(super) fn literal_extends(content: &str) -> Vec<String> {
+    let tokens = tokens(content);
     let mut result = Vec::new();
     for (i, token) in tokens.iter().enumerate() {
         if !matches!(token, Token::Word(key) | Token::Literal(key) if key == "extends")
@@ -227,4 +234,213 @@ pub(super) fn resolve(
         }
     }
     Ok(None)
+}
+
+/// 仅识别直接导出的字面量配置；展开、函数和导出后修改均不能当作已解析规则。
+fn static_config(content: &str) -> AiResult<serde_json::Value> {
+    let tokens = tokens(content);
+    let error = || AiError::new("commit_rules_unsupported");
+    let start = if tokens.first() == Some(&Token::Punctuation('{')) {
+        0
+    } else {
+        tokens.windows(4).rposition(|items| matches!(items,
+            [Token::Word(module), Token::Punctuation('.'), Token::Word(exports), Token::Punctuation('=')]
+            if module == "module" && exports == "exports"))
+            .map(|index| index + 4)
+            .or_else(|| tokens.windows(2).rposition(|items| matches!(items,
+                [Token::Word(export), Token::Word(default)] if export == "export" && default == "default"))
+                .map(|index| index + 2))
+            .ok_or_else(error)?
+    };
+    let mut position = start;
+    let value = literal(&tokens, &mut position, 0).ok_or_else(error)?;
+    if !value.is_object()
+        || tokens[position..]
+            .iter()
+            .any(|token| *token != Token::Punctuation(';'))
+    {
+        return Err(error());
+    }
+    // 自定义解析器和插件可以改变同名规则的含义，静态校验不能声称与它们等价。
+    if value
+        .get("plugins")
+        .is_some_and(|value| value.as_array().is_none_or(|values| !values.is_empty()))
+        || value.get("parserOpts").is_some()
+        || value.get("parserPreset").is_some_and(|value| {
+            !matches!(
+                value.as_str(),
+                Some(
+                    "conventional-changelog-conventionalcommits" | "conventional-changelog-angular"
+                )
+            )
+        })
+    {
+        return Err(error());
+    }
+    Ok(value)
+}
+
+/// 解析 JSON 兼容的 JS 字面量；限制嵌套深度，避免配置文本造成递归耗尽。
+fn literal(tokens: &[Token], position: &mut usize, depth: usize) -> Option<serde_json::Value> {
+    use serde_json::{Map, Value};
+    if depth > 64 {
+        return None;
+    }
+    let token = tokens.get(*position)?;
+    *position += 1;
+    match token {
+        Token::Literal(value) => Some(Value::String(value.clone())),
+        Token::Word(value) => match value.as_str() {
+            "true" => Some(Value::Bool(true)),
+            "false" => Some(Value::Bool(false)),
+            "null" => Some(Value::Null),
+            _ => value.parse::<u64>().ok().map(|value| value.into()),
+        },
+        Token::Punctuation('[') => {
+            let mut result = Vec::new();
+            while tokens.get(*position)? != &Token::Punctuation(']') {
+                result.push(literal(tokens, position, depth + 1)?);
+                match tokens.get(*position)? {
+                    Token::Punctuation(',') => *position += 1,
+                    Token::Punctuation(']') => {}
+                    _ => return None,
+                }
+            }
+            *position += 1;
+            Some(Value::Array(result))
+        }
+        Token::Punctuation('{') => {
+            let mut result = Map::new();
+            while tokens.get(*position)? != &Token::Punctuation('}') {
+                let key = match tokens.get(*position)? {
+                    Token::Literal(key) | Token::Word(key) => key.clone(),
+                    _ => return None,
+                };
+                *position += 1;
+                if tokens.get(*position)? != &Token::Punctuation(':') {
+                    return None;
+                }
+                *position += 1;
+                result.insert(key, literal(tokens, position, depth + 1)?);
+                match tokens.get(*position)? {
+                    Token::Punctuation(',') => *position += 1,
+                    Token::Punctuation('}') => {}
+                    _ => return None,
+                }
+            }
+            *position += 1;
+            Some(Value::Object(result))
+        }
+        _ => None,
+    }
+}
+
+/// 选用暂存文件所在项目的配置；多个项目配置无法统一时拒绝把无关规则混在一起。
+pub(super) fn compile(
+    documents: &[Document],
+    roots: &BTreeSet<String>,
+    inheritance: &HashMap<String, Vec<Option<String>>>,
+    files: &[String],
+) -> AiResult<MessageRules> {
+    let documents: HashMap<&str, &str> = documents
+        .iter()
+        .map(|doc| (doc.path.as_str(), doc.content.as_str()))
+        .collect();
+    let roots: Vec<&str> = roots
+        .iter()
+        .map(String::as_str)
+        .filter(|path| documents.contains_key(path))
+        .collect();
+    let mut selected = BTreeSet::new();
+    for file in files {
+        let mut candidates: Vec<_> = roots
+            .iter()
+            .filter_map(|root| {
+                let directory = Path::new(root).parent()?.to_str()?;
+                if directory.is_empty() || directory == "common/autoinstallers/rush-commitlint" {
+                    Some((*root, 0))
+                } else if file.starts_with(&format!("{directory}/")) {
+                    Some((*root, directory.len()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        candidates.sort_by_key(|(_, depth)| *depth);
+        if let Some((_, depth)) = candidates.last() {
+            selected.extend(
+                candidates
+                    .iter()
+                    .filter(|(_, candidate)| candidate == depth)
+                    .map(|(path, _)| *path),
+            );
+        }
+    }
+    if selected.len() > 1 || (selected.is_empty() && !roots.is_empty()) {
+        return Err(AiError::new("commit_rules_unsupported"));
+    }
+    let mut rules = BTreeMap::new();
+    let mut preset = None;
+    if let Some(root) = selected.first() {
+        merge(
+            root,
+            &documents,
+            inheritance,
+            &mut BTreeSet::new(),
+            &mut rules,
+            &mut preset,
+        )?;
+    }
+    MessageRules::new(rules, preset.as_deref())
+}
+
+/// 后声明的 extends 覆盖前项，本地规则最后覆盖；[0] 必须保留到合并完成才移除。
+fn merge(
+    path: &str,
+    documents: &HashMap<&str, &str>,
+    inheritance: &HashMap<String, Vec<Option<String>>>,
+    visiting: &mut BTreeSet<String>,
+    rules: &mut BTreeMap<String, serde_json::Value>,
+    preset: &mut Option<String>,
+) -> AiResult<()> {
+    let error = || AiError::new("commit_rules_unsupported");
+    if !visiting.insert(path.to_owned()) {
+        return Err(error());
+    }
+    let config = static_config(documents.get(path).ok_or_else(error)?)?;
+    let dependencies = inheritance.get(path).ok_or_else(error)?;
+    if let Some(extends) = config.get("extends") {
+        let extends = extends.as_array().ok_or_else(error)?;
+        if extends.len() != dependencies.len() || !extends.iter().all(serde_json::Value::is_string)
+        {
+            return Err(error());
+        }
+    }
+    for dependency in dependencies {
+        merge(
+            dependency.as_deref().ok_or_else(error)?,
+            documents,
+            inheritance,
+            visiting,
+            rules,
+            preset,
+        )?;
+    }
+    if let Some(parser) = config
+        .get("parserPreset")
+        .and_then(serde_json::Value::as_str)
+    {
+        *preset = Some(parser.to_owned());
+    }
+    if let Some(local) = config.get("rules") {
+        rules.extend(
+            local
+                .as_object()
+                .ok_or_else(error)?
+                .iter()
+                .map(|(name, value)| (name.clone(), value.clone())),
+        );
+    }
+    visiting.remove(path);
+    Ok(())
 }

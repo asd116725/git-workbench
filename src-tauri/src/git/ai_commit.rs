@@ -10,6 +10,7 @@ use tokio::sync::watch;
 
 mod collection;
 mod credentials;
+mod message_rules;
 mod process;
 mod transport;
 
@@ -67,6 +68,8 @@ impl AiError {
             "input_too_large" => "本次暂存内容或提交规范超过生成上限，请缩小暂存范围后重试。",
             "stale_snapshot" => "暂存内容或分支已变化，请重新生成。",
             "invalid_response" => "DeepSeek 未返回完整有效的提交信息，请重试。",
+            "commit_rules_violation" => "生成的提交信息未通过仓库规则校验，请重新生成或手动调整。",
+            "commit_rules_unsupported" => "无法静态校验此仓库的提交规则，请手动填写提交信息。",
             "skill" => "无法读取有效的 staged-commit-message-zh 规则，请检查本机 Skill 文件。",
             "cancelled" => "已取消生成。",
             "git" => "无法读取完整暂存内容，请检查仓库后重试。",
@@ -247,12 +250,13 @@ async fn generate(
     .await
     .map_err(|_| AiError::new("internal"))??;
     control.check()?;
+    let message_rules = input.message_rules?;
     let key_control = control.clone();
     let key = tauri::async_runtime::spawn_blocking(move || credentials::read_key(&key_control))
         .await
         .map_err(|_| AiError::new("internal"))??;
     control.check()?;
-    let message = transport::generate(&key, input.prompt).await?;
+    let message = message_rules.prepare(&transport::generate(&key, input.prompt).await?)?;
     drop(key);
     let snapshot_id = input.snapshot_id;
     let expected = snapshot_id.clone();

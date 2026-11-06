@@ -24,6 +24,7 @@ pub(super) struct Input {
     pub snapshot_id: String,
     pub files: Vec<String>,
     pub prompt: Prompt,
+    pub message_rules: AiResult<super::message_rules::MessageRules>,
 }
 
 pub(super) struct Prompt {
@@ -338,6 +339,7 @@ fn collect_locked(
         MAX_DIFF_BYTES,
         control,
     )?)?;
+    let (repository_rules, message_rules) = rules(repo, &before.index, &files, control)?;
     let material = Material {
         staged_files: files.clone(),
         staged_name_status: text(staged(
@@ -356,7 +358,7 @@ fn collect_locked(
         )?)?,
         complete_staged_diff: diff,
         index_context: contexts(repo, &before.index, &files, control)?,
-        repository_rules: rules(repo, &before.index, &files, control)?,
+        repository_rules,
         recent_subjects_for_style_only: if let Some(head) = &before.head {
             text(git(
                 repo,
@@ -399,6 +401,7 @@ fn collect_locked(
         snapshot_id: before.id,
         files,
         prompt: Prompt { system, user },
+        message_rules,
     })
 }
 
@@ -458,7 +461,7 @@ fn rules(
     index: &HashMap<String, IndexEntry>,
     files: &[String],
     control: &WorkControl,
-) -> AiResult<Vec<Document>> {
+) -> AiResult<(Vec<Document>, AiResult<super::message_rules::MessageRules>)> {
     let mut paths = BTreeSet::from_iter(
         [
             "AGENTS.md",
@@ -470,6 +473,8 @@ fn rules(
         .map(str::to_owned),
     );
     let mut config_paths = commitlint::paths(index);
+    let mut roots = config_paths.clone();
+    let mut inheritance = HashMap::new();
     paths.extend(config_paths.iter().cloned());
     for file in files {
         for ancestor in Path::new(file).ancestors().skip(1) {
@@ -499,6 +504,7 @@ fn rules(
             match value.get("commitlint") {
                 Some(value) => {
                     config_paths.insert(path.clone());
+                    roots.insert(path.clone());
                     value.to_string()
                 }
                 None => continue,
@@ -510,18 +516,22 @@ fn rules(
             .checked_sub(content.len())
             .ok_or_else(|| AiError::new("input_too_large"))?;
         if config_paths.contains(&path) {
+            let mut dependencies = Vec::new();
             for reference in commitlint::literal_extends(&content) {
-                if let Some(dependency) =
-                    commitlint::resolve(repo, index, files, &path, &reference, control)?
-                {
+                let dependency =
+                    commitlint::resolve(repo, index, files, &path, &reference, control)?;
+                if let Some(dependency) = &dependency {
                     config_paths.insert(dependency.clone());
-                    pending.push_back(dependency);
+                    pending.push_back(dependency.clone());
                 }
+                dependencies.push(dependency);
             }
+            inheritance.insert(path.clone(), dependencies);
         }
         result.push(Document { path, content });
     }
-    Ok(result)
+    let compiled = commitlint::compile(&result, &roots, &inheritance, files);
+    Ok((result, compiled))
 }
 
 /// 索引优先，已暂存删除的文件不回退；本地规范及依赖仅允许读取仓库内普通文件。

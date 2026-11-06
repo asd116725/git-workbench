@@ -239,7 +239,7 @@ describe('AI 提交会话', () => {
     expect(mockedInvoke).not.toHaveBeenCalledWith('ai_commit_generate', expect.anything());
   });
 
-  it.each(['invalid_key', 'insufficient_balance', 'rate_limited', 'timeout', 'network', 'invalid_response', 'input_too_large', 'skill'])('%s 失败可显式重试，草稿始终保留', async code => {
+  it.each(['invalid_key', 'insufficient_balance', 'rate_limited', 'timeout', 'network', 'invalid_response', 'input_too_large', 'skill', 'commit_rules_violation', 'commit_rules_unsupported'])('%s 失败可显式重试，草稿始终保留', async code => {
     mockedInvoke.mockImplementation(command => command === 'ai_commit_generate' ? Promise.reject({ code, message: '不可显示的上游正文' }) : reply(command));
     await session.getState().generate();
     expect(session.getState()).toMatchObject({ phase: 'error', error: code });

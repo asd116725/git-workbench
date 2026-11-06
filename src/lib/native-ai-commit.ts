@@ -18,6 +18,8 @@ export const aiCommitErrors = {
   input_too_large: '暂存内容超出生成上限，请缩小本次暂存范围后重试。',
   stale_snapshot: '暂存内容或当前提交已变化，请重新生成。',
   invalid_response: '未获得完整有效的提交文案，请重试。',
+  commit_rules_violation: '生成文案未通过仓库规则校验，标题或不可拆分内容可能超限，请重新生成或手动调整。',
+  commit_rules_unsupported: '仓库包含暂不支持自动校验的提交规则，请手动填写提交信息。',
   skill: '无法读取提交规范，请检查本机 Skill 文件后重试。',
   cancelled: '生成已取消，原草稿保持不变。',
   git: '无法读取暂存内容，请刷新仓库后重试。',

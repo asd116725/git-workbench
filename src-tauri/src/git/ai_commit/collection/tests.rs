@@ -227,6 +227,93 @@ fn rush_commitlint_rules_include_index_config_and_installed_inheritance() {
 }
 
 #[test]
+fn generated_message_obeys_inherited_limits_and_local_overrides() {
+    let fixture = Fixture::new();
+    fixture.stage("common/autoinstallers/rush-commitlint/commitlint.config.js", "module.exports = { extends: ['./base'], rules: { 'header-max-length': [2, 'always', 30] } };");
+    fixture.stage("common/autoinstallers/rush-commitlint/base.js", "module.exports = { parserPreset: 'conventional-changelog-conventionalcommits', rules: { 'header-max-length': [2, 'always', 10], 'body-max-line-length': [2, 'always', 12], 'type-enum': [2, 'always', ['fix']] } };");
+    fixture.stage("src/a.ts", "export const a = 1;");
+    let rules = fixture.collect().unwrap().message_rules.unwrap();
+    assert_eq!(
+        rules
+            .prepare("fix: 修复按钮点击失效\n\n保留展开后的占位区域以避免按钮移动")
+            .unwrap(),
+        "fix: 修复按钮点击失效\n\n保留展开后的占位区域以避\n免按钮移动"
+    );
+    assert!(rules.prepare("feat: 新功能").is_err());
+    assert!(rules.prepare("fix!: 修改接口").is_ok());
+}
+
+#[test]
+fn config_outside_selected_project_requires_an_explicit_scope() {
+    let fixture = Fixture::new();
+    fixture.stage(
+        "other/commitlint.config.js",
+        "module.exports = { rules: { 'type-enum': [2, 'always', ['feat']] } };",
+    );
+    fixture.git(&["commit", "-m", "chore: 初始化"]);
+    fixture.stage("src/a.ts", "export const a = 1;");
+    assert_eq!(
+        fixture.collect().unwrap().message_rules.err().unwrap().code,
+        "commit_rules_unsupported"
+    );
+}
+
+#[test]
+fn local_disable_and_last_extends_override_inherited_limits() {
+    let fixture = Fixture::new();
+    fixture.stage("commitlint.config.js", "module.exports = { extends: ['./first', './second'], rules: { 'header-max-length': [0] } };");
+    fixture.stage("first.js", "module.exports = { rules: { 'header-max-length': [2, 'always', 5], 'body-max-line-length': [2, 'always', 8] } };");
+    fixture.stage(
+        "second.js",
+        "module.exports = { rules: { 'body-max-line-length': [2, 'always', 12] } };",
+    );
+    let rules = fixture.collect().unwrap().message_rules.unwrap();
+    assert_eq!(
+        rules
+            .prepare("fix: 修复按钮点击失效\n\n保留展开后的占位区域以避免按钮移动")
+            .unwrap(),
+        "fix: 修复按钮点击失效\n\n保留展开后的占位区域以避\n免按钮移动"
+    );
+}
+
+#[test]
+fn unrelated_subproject_rules_do_not_constrain_selected_files() {
+    let fixture = Fixture::new();
+    fixture.stage(
+        "commitlint.config.js",
+        "module.exports = { rules: { 'type-enum': [2, 'always', ['fix']] } };",
+    );
+    fixture.stage(
+        "other/commitlint.config.js",
+        "module.exports = { rules: { 'type-enum': [2, 'always', ['feat']] } };",
+    );
+    fixture.git(&["commit", "-m", "chore: 初始化"]);
+    fixture.stage("src/a.ts", "export const a = 1;");
+    let rules = fixture.collect().unwrap().message_rules.unwrap();
+    assert!(rules.prepare("fix: 修复").is_ok());
+    assert!(rules.prepare("feat: 新功能").is_err());
+}
+
+#[test]
+fn dynamic_unresolved_and_plugin_rules_are_not_silently_accepted() {
+    for config in [
+        "module.exports = { extends: ['missing'] };",
+        "module.exports = { rules: { 'body-max-line-length': () => [2, 'always', 10] } };",
+        "module.exports = { ...other, rules: {} };",
+        "module.exports = { plugins: ['team'], rules: {} };",
+        "module.exports = { rules: {} }; module.exports.rules = extra;",
+    ] {
+        let fixture = Fixture::new();
+        fixture.stage("commitlint.config.js", config);
+        assert_eq!(
+            fixture.collect().unwrap().message_rules.err().unwrap().code,
+            "commit_rules_unsupported",
+            "{config}"
+        );
+    }
+}
+
+#[test]
 fn nested_commitlint_config_follows_relative_extends_without_cycles() {
     let fixture = Fixture::new();
     fixture.stage(
