@@ -53,13 +53,13 @@ Git Workbench 是面向多项目、多分支开发的桌面 Git 客户端。把�
 
 ## 下载与快速上手
 
-**v1.10.0 · macOS Apple Silicon（arm64）**
+**v1.10.1 · macOS Apple Silicon（arm64）**
 
 | 下载内容 | 链接 |
 | --- | --- |
-| macOS 安装包 | [GitWorkbench_1.10.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.10.0/GitWorkbench_1.10.0_macos_arm64.dmg) |
-| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.10.0/SHA256SUMS.txt) |
-| 版本说明 | [v1.10.0 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.10.0) |
+| macOS 安装包 | [GitWorkbench_1.10.1_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.10.1/GitWorkbench_1.10.1_macos_arm64.dmg) |
+| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.10.1/SHA256SUMS.txt) |
+| 版本说明 | [v1.10.1 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.10.1) |
 
 1. **安装应用**：使用同一 Release 的校验文件核对 DMG，将「代码管理」拖入 Applications。[安装说明 →](docs/zh-CN/installation.md)
 2. **打开项目**：确认 `git --version` 可用，点击「打开仓库」，选择已有本地仓库，关联 worktree 会一并列出。
