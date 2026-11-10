@@ -1,10 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactNode } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AiCommitDialog } from './AiCommitDialog';
 import type { AiCommitState } from '../lib/ai-commit-session';
 import { aiCommitErrors } from '../lib/native-ai-commit';
 import { setLanguage, t } from '../lib/i18n';
+import { usePreferences } from '../lib/store';
 
 vi.mock('@/components/ui/dialog', () => ({
   Dialog: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -13,6 +14,15 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
   DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
 }));
+
+/** 静态渲染读取当前偏好，避免订阅钩子固定使用服务端初始快照。 */
+vi.mock('../lib/store', async importOriginal => {
+  const actual = await importOriginal<typeof import('../lib/store')>();
+  return { ...actual, usePreferences: Object.assign(
+    (selector: (state: ReturnType<typeof actual.usePreferences.getState>) => unknown) => selector(actual.usePreferences.getState()),
+    actual.usePreferences,
+  ) };
+});
 
 const result = { message: 'fix(core): 中文文案', snapshotId: 'snapshot', files: ['src/中文文件.ts', '换行\n文件.ts'] };
 
@@ -24,9 +34,25 @@ function render(patch: Partial<AiCommitState> = {}, hasDraft = true) {
   return renderToStaticMarkup(<AiCommitDialog state={state} stagedCount={2} hasDraft={hasDraft} blocked={false} onApply={vi.fn()} onCloseFocus={vi.fn()} />);
 }
 
+beforeEach(() => usePreferences.setState({ aiCommitMode: 'concise' }));
 afterEach(() => setLanguage('zh-CN'));
 
 describe('AI 提交预览', () => {
+  it('显示当前模式和重新生成提示，生成与校验期间禁用模式切换', () => {
+    const concise = render();
+    expect(concise).toMatch(/<button[^>]*aria-pressed="true"[^>]*>简洁<\/button>/);
+    expect(concise).toContain('简短标题，必要时补充 1–3 条要点');
+    expect(concise).toContain('切换模式后，点击');
+    usePreferences.setState({ aiCommitMode: 'detailed' });
+    expect(render()).toMatch(/<button[^>]*aria-pressed="true"[^>]*>详细（Skill）<\/button>/);
+    expect(render()).toContain('按 Skill 生成概述和详细要点');
+    for (const patch of [{ phase: 'generating' as const, result: null }, { validating: true }]) {
+      const html = render(patch);
+      expect(html).toMatch(/<button[^>]*disabled=""[^>]*>简洁<\/button>/);
+      expect(html).toMatch(/<button[^>]*disabled=""[^>]*>详细（Skill）<\/button>/);
+    }
+  });
+
   it('明确替换已有草稿，无草稿使用文案，结果和路径保持原文', () => {
     const html = render();
     expect(html).toContain('替换草稿');
@@ -61,14 +87,17 @@ describe('AI 提交预览', () => {
   });
 
   it.each([
-    ['zh-CN', 'AI 生成提交信息', '替换草稿'],
-    ['zh-TW', 'AI 產生提交訊息', '取代草稿'],
-    ['en', 'Generate commit message with AI', 'Replace draft'],
-  ] as const)('%s 翻译界面并保留已有候选和文件路径原文', (language, title, action) => {
+    ['zh-CN', 'AI 生成提交信息', '替换草稿', '简洁', '详细（Skill）', '重试'],
+    ['zh-TW', 'AI 產生提交訊息', '取代草稿', '簡潔', '詳細（Skill）', '重試'],
+    ['en', 'Generate commit message with AI', 'Replace draft', 'Concise', 'Detailed (Skill)', 'Retry'],
+  ] as const)('%s 翻译界面并保留已有候选和文件路径原文', (language, title, action, concise, detailed, retry) => {
     setLanguage(language);
     const html = render();
     expect(html).toContain(title);
     expect(html).toContain(action);
+    expect(html).toContain(concise);
+    expect(html).toContain(detailed);
+    expect(render({ phase: 'error', result: null, error: 'input_too_large' })).toContain(`>${retry}</button>`);
     expect(html).toContain('fix(core): 中文文案');
     expect(html).toContain('src/中文文件.ts');
     if (language === 'en') for (const source of Object.values(aiCommitErrors)) expect(t(source)).not.toBe(source);

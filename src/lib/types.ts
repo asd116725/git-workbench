@@ -1,6 +1,9 @@
 /** 文件差异的来源，决定比较的两份快照。 */
 export type ChangeArea = 'unstaged' | 'staged';
 
+/** 简洁模式提炼提交结果，详细模式沿用本机 Skill 的写作规则。 */
+export type AiCommitMode = 'concise' | 'detailed';
+
 /** Git 状态独立于文本，重命名、权限变更和二进制文件也必须出现在列表中。 */
 export interface GitFileStatus {
   statusIndex: string;

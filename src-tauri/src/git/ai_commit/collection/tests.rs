@@ -107,6 +107,63 @@ fn interface_language_overrides_skill_language_without_changing_staged_evidence(
 }
 
 #[test]
+fn concise_mode_preserves_evidence_language_and_commit_rules_without_detailed_skill() {
+    let fixture = Fixture::new();
+    fixture.stage(
+        "src/filter.ts",
+        "export const matches = (value: string) => value.trim();\n",
+    );
+    fixture.stage("commitlint.config.js", "module.exports = { rules: { 'type-enum': [2, 'always', ['fix']], 'body-max-line-length': [2, 'always', 12] } };");
+    fixture.write("src/filter.ts", "worktree-secret-must-not-be-sent\n");
+    let detailed = fixture.collect().unwrap();
+    for language in [
+        CommitLanguage::SimplifiedChinese,
+        CommitLanguage::TraditionalChinese,
+        CommitLanguage::English,
+    ] {
+        let concise = collect(
+            fixture.path().to_str().unwrap(),
+            language,
+            CommitMode::Concise,
+            &WorkControl::standalone(Duration::from_secs(15)),
+        )
+        .unwrap();
+        assert_eq!(concise.prompt.user, detailed.prompt.user);
+        assert_eq!(concise.files, detailed.files);
+        assert_eq!(concise.snapshot_id, detailed.snapshot_id);
+        assert!(concise.prompt.system.contains(CONCISE_RULES));
+        assert!(!concise.prompt.system.contains(BUNDLED_SKILL));
+        assert!(
+            concise
+                .prompt
+                .system
+                .contains(language.prompt_instruction())
+        );
+        let rules = concise.message_rules.unwrap();
+        assert!(rules.prepare("feat: 新功能").is_err());
+        assert_eq!(
+            rules
+                .prepare("fix: 修复筛选\n\n保留展开后的占位区域以避免按钮移动")
+                .unwrap(),
+            "fix: 修复筛选\n\n保留展开后的占位区域以避\n免按钮移动"
+        );
+    }
+    fixture.stage("large.txt", "x".repeat(MAX_DIFF_BYTES + 1));
+    assert_eq!(
+        collect(
+            fixture.path().to_str().unwrap(),
+            CommitLanguage::SimplifiedChinese,
+            CommitMode::Concise,
+            &WorkControl::standalone(Duration::from_secs(15)),
+        )
+        .err()
+        .unwrap()
+        .code,
+        "input_too_large"
+    );
+}
+
+#[test]
 fn object_change_head_change_and_branch_change_invalidate_equal_file_count() {
     let fixture = Fixture::new();
     fixture.stage("file.txt", "initial\n");

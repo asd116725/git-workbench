@@ -1,7 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import { getChanges } from './demo-git';
 import { aiCommitErrorCode, nativeAiCommit, type AiCommitErrorCode, type AiCommitResult } from './native-ai-commit';
-import { findWorktree, useWorkbench } from './store';
+import { findWorktree, usePreferences, useWorkbench } from './store';
 import type { Worktree } from './types';
 
 /** 普通本地提交可生成文案；首次提交无需已有 HEAD。 */
@@ -125,7 +125,7 @@ export function createAiCommitSession(owner: Worktree) {
         requestId = id;
         set({ phase: 'generating', result: null, candidate: '', error: null, validating: false, draftChanged: false });
         try {
-          const result = await nativeAiCommit.generate(owner.path, id);
+          const result = await nativeAiCommit.generate(owner.path, id, usePreferences.getState().aiCommitMode);
           if (!current(version)) return;
           if (!result.message.trim()) { fail({ code: 'invalid_response' }); return; }
           set({ phase: 'preview', result, candidate: result.message });

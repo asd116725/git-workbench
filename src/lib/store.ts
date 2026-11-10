@@ -10,7 +10,7 @@ import { commitBlockReason } from './merge-view';
 import { remoteBlockReason } from './remote-view';
 import { useHistory } from './history-store';
 import type { NativeRepository } from './native-git';
-import type { ChangeArea, FileSnapshot, GitDiscardPreview, GitBranch, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitMergePreview, GitMergeResult, GitOperation, GitRemoteAction, GitRemoteResult, Repository, Worktree } from './types';
+import type { AiCommitMode, ChangeArea, FileSnapshot, GitDiscardPreview, GitBranch, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitMergePreview, GitMergeResult, GitOperation, GitRemoteAction, GitRemoteResult, Repository, Worktree } from './types';
 
 /** 文件与比较区域共同标识一个差异视图。 */
 export interface Selection { fileId: string; area: ChangeArea }
@@ -783,12 +783,14 @@ interface Preferences {
   fileView: 'tree' | 'list';
   diffMode: 'split' | 'inline';
   historyDiffMode: 'split' | 'inline';
+  aiCommitMode: AiCommitMode;
   layout: Record<string, number>;
   layoutResetKey: number;
   setFontSize: (value: number) => void;
   setFileView: (value: 'tree' | 'list') => void;
   setDiffMode: (value: 'split' | 'inline') => void;
   setHistoryDiffMode: (value: 'split' | 'inline') => void;
+  setAiCommitMode: (value: AiCommitMode) => void;
   setLayout: (value: Record<string, number>) => void;
   resetLayout: () => void;
 }
@@ -799,12 +801,14 @@ export const usePreferences = create<Preferences>()(persist(set => ({
   fileView: 'tree',
   diffMode: 'split',
   historyDiffMode: 'inline',
+  aiCommitMode: 'concise',
   layout: {},
   layoutResetKey: 0,
   setFontSize: fontSize => set({ fontSize }),
   setFileView: fileView => set({ fileView }),
   setDiffMode: diffMode => set({ diffMode }),
   setHistoryDiffMode: historyDiffMode => set({ historyDiffMode }),
+  setAiCommitMode: aiCommitMode => set({ aiCommitMode }),
   setLayout: layout => set(state => Object.entries(layout).every(([key, value]) => state.layout[key] === value) ? state : { layout: { ...state.layout, ...layout } }),
   resetLayout: () => set(state => ({ layout: {}, layoutResetKey: state.layoutResetKey + 1, fontSize: 15, diffMode: 'split', historyDiffMode: 'inline' })),
 }), { name: 'git-workbench.preferences' }));

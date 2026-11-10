@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { t, useI18n } from '../lib/i18n';
 import { aiCommitErrors } from '../lib/native-ai-commit';
 import type { AiCommitState } from '../lib/ai-commit-session';
+import { usePreferences } from '../lib/store';
 
 /** 弹窗仅编辑临时候选；应用和取消由绑定工作区的会话处理。 */
 export function AiCommitDialog({ state, stagedCount, hasDraft, blocked, onApply, onCloseFocus }: {
@@ -16,6 +17,8 @@ export function AiCommitDialog({ state, stagedCount, hasDraft, blocked, onApply,
   onCloseFocus: () => void;
 }) {
   useI18n();
+  const mode = usePreferences(state => state.aiCommitMode);
+  const setMode = usePreferences(state => state.setAiCommitMode);
   const { phase, result, error, validating, candidate } = state;
   const loading = phase === 'checking' || phase === 'generating';
   const missingKey = error === 'missing_key';
@@ -28,6 +31,15 @@ export function AiCommitDialog({ state, stagedCount, hasDraft, blocked, onApply,
       </DialogHeader>
       <div className="ai-commit-body">
         <div className="ai-commit-context"><span>DeepSeek</span><span>{t('已暂存 {count} 个文件', { count: stagedCount })}</span></div>
+        <div className="ai-commit-mode">
+          <div className="ai-commit-mode-row"><span id="ai-commit-mode-label">{t('生成模式')}</span>
+            <div role="group" aria-labelledby="ai-commit-mode-label" aria-describedby="ai-commit-mode-description">
+              <Button type="button" size="sm" variant={mode === 'concise' ? 'secondary' : 'ghost'} aria-pressed={mode === 'concise'} disabled={blocked || loading || validating} onClick={() => setMode('concise')}>{t('简洁')}</Button>
+              <Button type="button" size="sm" variant={mode === 'detailed' ? 'secondary' : 'ghost'} aria-pressed={mode === 'detailed'} disabled={blocked || loading || validating} onClick={() => setMode('detailed')}>{t('详细（Skill）')}</Button>
+            </div>
+          </div>
+          <p id="ai-commit-mode-description">{mode === 'concise' ? t('简短标题，必要时补充 1–3 条要点。') : t('按 Skill 生成概述和详细要点。')}{preview && <> {t('切换模式后，点击“重新生成”更新文案。')}</>}</p>
+        </div>
         {loading && <div className="ai-commit-status" role="status"><i className="codicon codicon-loading spin" aria-hidden="true" /><strong>{phase === 'checking' ? t('正在检测 API Key…') : t('正在生成提交文案…')}</strong><p>{t('原草稿保持不变，可随时取消。')}</p></div>}
         {phase === 'ready' && <div className="ai-commit-status" role="status"><i className="codicon codicon-check" aria-hidden="true" /><strong>{t('已检测到 API Key')}</strong><p>{t('可以开始生成；检测到配置不代表已通过服务鉴权。')}</p></div>}
         {error && <div className="ai-commit-notice" role="alert"><i className="codicon codicon-warning" aria-hidden="true" /><div><strong>{t(aiCommitErrors[error])}</strong>{missingKey ? <>

@@ -6,6 +6,15 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-10
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.11.0/CHANGELOG.zh-CN.md#1110---2026-11-10)
+
+- AI commit messages now default to **Concise**. Generate a short title and add up to three bullets when needed. **Detailed (Skill)** keeps the existing Skill-based format.
+- The dialog remembers your mode. Select a different mode and choose **Generate again** to update the candidate. Both modes check repository commit rules before showing a candidate.
+
+The macOS Apple Silicon (arm64) installer uses ad-hoc signing and has not been notarized by Apple. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
 ## [1.10.1] - 2026-11-06
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/main/CHANGELOG.zh-CN.md#1101---2026-11-06)

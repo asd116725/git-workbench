@@ -116,6 +116,14 @@ pub enum CommitLanguage {
     English,
 }
 
+/// 仅接受预定义模式；简洁模式不加载详细 Skill，但仍遵守仓库提交约束。
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CommitMode {
+    Concise,
+    Detailed,
+}
+
 impl CommitLanguage {
     fn prompt_instruction(self) -> &'static str {
         match self {
@@ -221,6 +229,7 @@ pub async fn ai_commit_generate(
     repo_path: String,
     request_id: String,
     language: CommitLanguage,
+    mode: CommitMode,
     state: tauri::State<'_, AiCommitState>,
 ) -> AiResult<GeneratedCommit> {
     let (_guard, mut cancellation) = state.begin(request_id)?;
@@ -231,7 +240,7 @@ pub async fn ai_commit_generate(
     tokio::select! {
         biased;
         _ = cancelled(&mut cancellation) => Err(AiError::new("cancelled")),
-        result = tokio::time::timeout(Duration::from_secs(100), generate(repo_path, language, control)) => {
+        result = tokio::time::timeout(Duration::from_secs(100), generate(repo_path, language, mode, control)) => {
             result.map_err(|_| AiError::new("timeout"))?
         }
     }
@@ -240,12 +249,13 @@ pub async fn ai_commit_generate(
 async fn generate(
     repo_path: String,
     language: CommitLanguage,
+    mode: CommitMode,
     control: WorkControl,
 ) -> AiResult<GeneratedCommit> {
     let input_path = repo_path.clone();
     let collection_control = control.clone();
     let input = tauri::async_runtime::spawn_blocking(move || {
-        collection::collect(&input_path, language, &collection_control)
+        collection::collect(&input_path, language, mode, &collection_control)
     })
     .await
     .map_err(|_| AiError::new("internal"))??;

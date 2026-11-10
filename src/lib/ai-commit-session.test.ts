@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { aiCommitBlockReason, createAiCommitSession } from './ai-commit-session';
 import { aiCommitErrorCode, type AiCommitResult } from './native-ai-commit';
 import { setLanguage } from './i18n';
-import { findWorktree, useWorkbench } from './store';
+import { findWorktree, usePreferences, useWorkbench } from './store';
 import type { Worktree } from './types';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(), isTauri: vi.fn(() => true) }));
@@ -43,6 +43,7 @@ function draft() { return useWorkbench.getState().drafts[owner.id].message; }
 
 beforeEach(() => {
   setLanguage('zh-CN');
+  usePreferences.setState({ aiCommitMode: 'concise' });
   mockedInvoke.mockReset().mockImplementation(reply);
   useWorkbench.setState({ repositories: [{ id: 'repo', name: 'repo', worktrees: [owner, other] }], activeWorktreeId: owner.id, busy: false, refreshing: false, drafts: { [owner.id]: { message: '手写草稿' }, [other.id]: { message: '其他工作区草稿' } } });
   session = createAiCommitSession(owner);
@@ -65,13 +66,13 @@ describe('AI 提交会话', () => {
     expect(session.getState().phase).toBe('closed');
     expect(mockedInvoke.mock.calls.filter(([command]) => command === 'ai_commit_validate')).toHaveLength(2);
     expect(mockedInvoke.mock.calls.every(([command]) => command.startsWith('ai_commit_'))).toBe(true);
-    expect(mockedInvoke).toHaveBeenCalledWith('ai_commit_generate', { repoPath: owner.path, requestId: expect.any(String), language: 'zh-CN' });
+    expect(mockedInvoke).toHaveBeenCalledWith('ai_commit_generate', { repoPath: owner.path, requestId: expect.any(String), language: 'zh-CN', mode: 'concise' });
   });
 
   it.each(['zh-CN', 'zh-TW', 'en'] as const)('%s 按当前界面语言发起生成', async language => {
     setLanguage(language);
     await session.getState().generate();
-    expect(mockedInvoke).toHaveBeenCalledWith('ai_commit_generate', { repoPath: owner.path, requestId: expect.any(String), language });
+    expect(mockedInvoke).toHaveBeenCalledWith('ai_commit_generate', { repoPath: owner.path, requestId: expect.any(String), language, mode: 'concise' });
     expect(session.getState().phase).toBe('preview');
     expect(draft()).toBe('手写草稿');
   });
@@ -84,8 +85,8 @@ describe('AI 提交会话', () => {
     await session.getState().generate();
     const requests = mockedInvoke.mock.calls.filter(([command]) => command === 'ai_commit_generate').map(([, args]) => args);
     expect(requests).toEqual([
-      { repoPath: owner.path, requestId: expect.any(String), language: 'zh-CN' },
-      { repoPath: owner.path, requestId: expect.any(String), language: 'en' },
+      { repoPath: owner.path, requestId: expect.any(String), language: 'zh-CN', mode: 'concise' },
+      { repoPath: owner.path, requestId: expect.any(String), language: 'en', mode: 'concise' },
     ]);
   });
 
@@ -96,7 +97,25 @@ describe('AI 提交会话', () => {
     setLanguage('zh-TW');
     pending.resolve({ available: true });
     await opening;
-    expect(mockedInvoke).toHaveBeenCalledWith('ai_commit_generate', { repoPath: owner.path, requestId: expect.any(String), language: 'zh-TW' });
+    expect(mockedInvoke).toHaveBeenCalledWith('ai_commit_generate', { repoPath: owner.path, requestId: expect.any(String), language: 'zh-TW', mode: 'concise' });
+  });
+
+  it('切换模式不发送请求或改写候选，重新生成和新会话读取已保存的模式', async () => {
+    await session.getState().open();
+    session.getState().edit('fix: 已手动修改的候选');
+    const calls = mockedInvoke.mock.calls.length;
+    usePreferences.getState().setAiCommitMode('detailed');
+    expect(mockedInvoke.mock.calls).toHaveLength(calls);
+    expect(session.getState().candidate).toBe('fix: 已手动修改的候选');
+    expect(draft()).toBe('手写草稿');
+    await session.getState().generate();
+    session.getState().close();
+    const reopened = createAiCommitSession(owner);
+    await reopened.getState().open();
+    reopened.getState().close();
+    const modes = mockedInvoke.mock.calls.filter(([command]) => command === 'ai_commit_generate').map(([, args]) => (args as { mode: string }).mode);
+    expect(modes).toEqual(['concise', 'detailed', 'detailed']);
+    expect(draft()).toBe('手写草稿');
   });
 
   it('取消实际通知原生端，迟到结果不能恢复预览或覆盖草稿', async () => {
