@@ -784,6 +784,10 @@ interface Preferences {
   diffMode: 'split' | 'inline';
   historyDiffMode: 'split' | 'inline';
   aiCommitMode: AiCommitMode;
+  sidebarSide: 'left' | 'right';
+  sidebarCollapsed: boolean;
+  /** 展开宽度以像素保存，收起为 44px 时保留原宽度。 */
+  sidebarWidth: number;
   layout: Record<string, number>;
   layoutResetKey: number;
   setFontSize: (value: number) => void;
@@ -791,6 +795,12 @@ interface Preferences {
   setDiffMode: (value: 'split' | 'inline') => void;
   setHistoryDiffMode: (value: 'split' | 'inline') => void;
   setAiCommitMode: (value: AiCommitMode) => void;
+  /** 换侧仅保存位置，组件状态由稳定面板维护。 */
+  setSidebarSide: (value: 'left' | 'right') => void;
+  /** 收起状态单独保存，不覆盖展开宽度。 */
+  setSidebarCollapsed: (value: boolean) => void;
+  /** 仅保存用户拖动后的展开宽度，单位为像素。 */
+  setSidebarWidth: (value: number) => void;
   setLayout: (value: Record<string, number>) => void;
   resetLayout: () => void;
 }
@@ -802,6 +812,9 @@ export const usePreferences = create<Preferences>()(persist(set => ({
   diffMode: 'split',
   historyDiffMode: 'inline',
   aiCommitMode: 'concise',
+  sidebarSide: 'left',
+  sidebarCollapsed: false,
+  sidebarWidth: 300,
   layout: {},
   layoutResetKey: 0,
   setFontSize: fontSize => set({ fontSize }),
@@ -809,6 +822,9 @@ export const usePreferences = create<Preferences>()(persist(set => ({
   setDiffMode: diffMode => set({ diffMode }),
   setHistoryDiffMode: historyDiffMode => set({ historyDiffMode }),
   setAiCommitMode: aiCommitMode => set({ aiCommitMode }),
+  setSidebarSide: sidebarSide => set({ sidebarSide }),
+  setSidebarCollapsed: sidebarCollapsed => set({ sidebarCollapsed }),
+  setSidebarWidth: sidebarWidth => set({ sidebarWidth }),
   setLayout: layout => set(state => Object.entries(layout).every(([key, value]) => state.layout[key] === value) ? state : { layout: { ...state.layout, ...layout } }),
-  resetLayout: () => set(state => ({ layout: {}, layoutResetKey: state.layoutResetKey + 1, fontSize: 15, diffMode: 'split', historyDiffMode: 'inline' })),
+  resetLayout: () => set(state => ({ layout: {}, layoutResetKey: state.layoutResetKey + 1, sidebarSide: 'left', sidebarCollapsed: false, sidebarWidth: 300, fontSize: 15, diffMode: 'split', historyDiffMode: 'inline' })),
 }), { name: 'git-workbench.preferences' }));

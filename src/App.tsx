@@ -2,17 +2,19 @@ import { useAppearance } from './lib/appearance';
 import { startNativeAppearance } from './lib/native-appearance';
 import { AppearancePicker } from './components/AppearancePicker';
 import { languages, t, useI18n, type Language } from './lib/i18n';
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { translateMessage } from './lib/i18n-system';
 import { version as appVersion } from '../package.json';
 import { isTauri } from '@tauri-apps/api/core';
 import { open as chooseDirectory } from '@tauri-apps/plugin-dialog';
-import { Group, Panel, Separator as ResizeHandle } from 'react-resizable-panels';
+import { Group, Panel, Separator as ResizeHandle, usePanelRef } from 'react-resizable-panels';
+import { PanelLeft, PanelRight } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Field, FieldLabel, FieldDescription } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
@@ -62,9 +64,10 @@ function errorMessage(error: unknown) { return error instanceof Error ? error.me
 function firstAvailableWorktree(repository: Repository) { return repository.worktrees.find(worktree => worktree.available !== false && !worktree.bare); }
 
 /** 仓库展开只由箭头控制，名称与工作区按钮只负责选择。 */
-function RepositorySidebar({ onOpen, onSettings }: { onOpen: () => void; onSettings: () => void }) {
+function RepositorySidebar({ onOpen, onSettings, onMove }: { onOpen: () => void; onSettings: () => void; onMove: () => void }) {
   useI18n();
   const { repositories, activeWorktreeId, selectWorktree, busy } = useWorkbench();
+  const { sidebarSide, sidebarCollapsed, sidebarWidth, setSidebarCollapsed } = usePreferences();
   const names = useDisplayNames(state => state.names);
   const order = useSidebarOrder(state => state.order);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
@@ -73,6 +76,8 @@ function RepositorySidebar({ onOpen, onSettings }: { onOpen: () => void; onSetti
   const sortedRepositories = orderedItems(repositories, order.projects);
   const repositoryIds = sortedRepositories.map(item => item.id);
   const sorting = useSidebarSorting(busy, moveItem);
+  const toggleLabel = t(sidebarCollapsed ? '展开仓库栏' : '收起仓库栏');
+  const SidebarIcon = sidebarSide === 'left' ? PanelLeft : PanelRight;
 
   useEffect(() => {
     try { useSidebarOrder.getState().observe(repositories); }
@@ -109,9 +114,18 @@ function RepositorySidebar({ onOpen, onSettings }: { onOpen: () => void; onSetti
     return <Hint label={label}><Button variant="ghost" size="icon-xs" className="name-edit-button" disabled={busy} aria-label={label} onClick={event => setRenameTarget({ id, kind, defaultName, name: names[id] ?? defaultName, customized: names[id] !== undefined, trigger: event.currentTarget })}><Icon name="edit" /></Button></Hint>;
   }
 
-  return <aside className="repository-sidebar" aria-label={t("仓库导航")}>
-    <div className="section-heading"><span>{t("仓库")}</span><Hint label={t("打开仓库")}><Button variant="ghost" size="icon-sm" aria-label={t("打开仓库")} disabled={busy} onClick={onOpen}><Icon name="add" /></Button></Hint></div>
-    <nav className="repositories">
+  return <aside className={`repository-sidebar${sidebarCollapsed ? ' is-collapsed' : ''}`} style={{ '--repository-expanded-width': `${sidebarWidth}px` } as CSSProperties} aria-label={t("仓库导航")}>
+    <div className="section-heading repository-heading"><span className="repository-heading-title">{t("仓库")}</span><div className="repository-heading-actions">
+      <Hint label={t("打开仓库")}><Button variant="ghost" size="icon-sm" className="repository-heading-open" aria-label={t("打开仓库")} disabled={busy} onClick={onOpen}><Icon name="add" /></Button></Hint>
+      <DropdownMenu>
+        <Hint label={t('仓库栏选项')}><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" className="repository-heading-menu" aria-label={t('仓库栏选项')}><Icon name="ellipsis" /></Button></DropdownMenuTrigger></Hint>
+        <DropdownMenuContent align="end" className="repository-layout-menu">
+          <DropdownMenuItem onSelect={onMove}><Icon name={sidebarSide === 'left' ? 'arrow-right' : 'arrow-left'} />{t(sidebarSide === 'left' ? '移至右侧面板' : '移至左侧面板')}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Hint label={toggleLabel}><Button variant="ghost" size="icon-sm" aria-label={toggleLabel} aria-expanded={!sidebarCollapsed} aria-controls="repository-tree" onClick={() => setSidebarCollapsed(!sidebarCollapsed)}><SidebarIcon aria-hidden="true" /></Button></Hint>
+    </div></div>
+    <nav id="repository-tree" className="repositories" inert={sidebarCollapsed} aria-hidden={sidebarCollapsed}>
       {sortedRepositories.map(repository => {
         const active = repository.worktrees.some(worktree => worktree.id === activeWorktreeId);
         const name = names[repository.id] ?? repository.name;
@@ -142,8 +156,8 @@ function RepositorySidebar({ onOpen, onSettings }: { onOpen: () => void; onSetti
     </nav>
     <span className="sr-only" role="status">{sortAnnouncement}</span>
     <div className="sidebar-bottom">
-      <button className="sidebar-action" onClick={onSettings}><Icon name="settings-gear" />{t("设置")}</button>
-      <button className="sidebar-action" disabled={busy} onClick={onOpen}><Icon name="folder-opened" />{t("打开仓库")}</button>
+      <Hint label={t("设置")}><button className="sidebar-action" aria-label={t("设置")} onClick={onSettings}><Icon name="settings-gear" /><span>{t("设置")}</span></button></Hint>
+      <Hint label={t("打开仓库")}><button className="sidebar-action" aria-label={t("打开仓库")} disabled={busy} onClick={onOpen}><Icon name="folder-opened" /><span>{t("打开仓库")}</span></button></Hint>
     </div>
     {renameTarget && <RenameDialog target={renameTarget} onClose={() => setRenameTarget(null)} />}
   </aside>;
@@ -295,7 +309,7 @@ function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
         </Field>
       </div>
       <Separator />
-      <div className="settings-row"><div><strong>{t("恢复默认布局")}</strong><p>{t("重置分栏宽度、字号与 Diff 显示方式。")}</p></div><Button variant="outline" onClick={() => { resetLayout(); onOpenChange(false); toast.success(t("已恢复默认布局")); }}>{t("恢复")}</Button></div>
+      <div className="settings-row"><div><strong>{t("恢复默认布局")}</strong><p>{t("重置仓库栏位置与展开状态、分栏宽度、字号与 Diff 显示方式。")}</p></div><Button variant="outline" onClick={() => { resetLayout(); onOpenChange(false); toast.success(t("已恢复默认布局")); }}>{t("恢复")}</Button></div>
       {!native && <div className="settings-row"><div><strong>{t("重置示例数据")}</strong><p>{t("恢复最初的文件更改与提交记录。")}</p></div><Button variant="outline" onClick={() => { useWorkbench.getState().reset(); useHistory.getState().reset(); onOpenChange(false); toast.success(t("示例数据已重置")); }}>{t("重置")}</Button></div>}
       <Separator />
       <div className="settings-row"><div><strong>Git Workbench</strong><p>{t("当前版本")}</p></div><span>v{appVersion}</span></div>
@@ -358,7 +372,11 @@ export default function App() {
   const names = useDisplayNames(state => state.names);
   const resolvedTheme = useAppearance(state => state.resolvedTheme);
   const { repositories, activeWorktreeId, view, busy, restoring, refreshing, error, autoRefreshError } = useWorkbench();
-  const { layout, setLayout, layoutResetKey } = usePreferences();
+  const { sidebarSide, sidebarCollapsed, sidebarWidth, setSidebarSide, setSidebarCollapsed, setSidebarWidth, layoutResetKey } = usePreferences();
+  const repositoryPanel = usePanelRef();
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const layoutScroll = useRef<Array<{ element: HTMLElement; top: number; left: number }>>([]);
+  const [initialSidebarWidth] = useState(() => sidebarCollapsed ? 44 : sidebarWidth);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [repositoryOpen, setRepositoryOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
@@ -372,21 +390,56 @@ export default function App() {
   useEffect(() => startNativeAppearance(), []);
   useEffect(() => { void useWorkbench.getState().restoreSession(); }, []);
   useEffect(() => startAutoRefresh(), []);
+  useEffect(() => {
+    /** 换侧后分栏库会按顺序重新注册，等它完成后再应用已保存的宽度。 */
+    const frame = requestAnimationFrame(() => {
+      if (sidebarCollapsed) repositoryPanel.current?.collapse();
+      else repositoryPanel.current?.resize(sidebarWidth);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [repositoryPanel, sidebarCollapsed, sidebarWidth, sidebarSide, layoutResetKey]);
+  useLayoutEffect(() => {
+    layoutScroll.current.forEach(({ element, top, left }) => element.scrollTo(left, top));
+    layoutScroll.current = [];
+  }, [sidebarSide]);
+
+  /** 浏览器移动已有 DOM 时会清空滚动位置，换侧前记录并在绘制前恢复。 */
+  function moveSidebar() {
+    layoutScroll.current = [...bodyRef.current!.querySelectorAll<HTMLElement>('*')]
+      .filter(element => element.scrollTop || element.scrollLeft)
+      .map(element => ({ element, top: element.scrollTop, left: element.scrollLeft }));
+    setSidebarSide(sidebarSide === 'left' ? 'right' : 'left');
+  }
+
+  /** 面板使用稳定的 key 调整顺序，保留仓库树、编辑器与 AI 会话的组件状态。 */
+  const sidebarPanel = <Panel key="repositories" id="repositories" panelRef={repositoryPanel} defaultSize={initialSidebarWidth} minSize="240px" maxSize="360px" collapsible collapsedSize="44px" groupResizeBehavior="preserve-pixel-size"><RepositorySidebar onOpen={() => setRepositoryOpen(true)} onSettings={() => setSettingsOpen(true)} onMove={moveSidebar} /></Panel>;
+  const sidebarHandle = <ResizeHandle key="repository-resize" className="resize-handle" disabled={sidebarCollapsed} disableDoubleClick aria-label={t("调整仓库列表宽度")} onDoubleClick={() => {
+    if (!sidebarCollapsed) setSidebarWidth(usePreferences.getInitialState().sidebarWidth);
+  }} />;
+  const workspacePanel = <Panel key="workspace" id="workspace" minSize="690px"><main className="workspace">
+    {error && <div className="git-error" role="alert"><Icon name="warning" /><pre>{translateMessage(error)}</pre></div>}
+    {autoRefreshError && <div className="git-error" role="status"><Icon name="warning" /><pre>{translateMessage(autoRefreshError)}</pre></div>}
+    {repository && worktree ? <>
+      <WorkbenchToolbar worktree={worktree} onBranchOpen={() => setBranchOpen(true)} onMergeOpen={() => setMergeOpen(true)} />
+      {worktree.operation && <MergeStatusBanner key={`${worktree.id}:${worktree.operation.kind}:${worktree.operation.head}:${worktree.operation.mergeHeads.join(',')}`} worktree={worktree} />}
+      {view === 'changes' ? <ChangesView key={activeWorktreeId} worktree={worktree} shortcutsEnabled={!settingsOpen && !repositoryOpen && !branchOpen && !mergeOpen} /> : <HistoryView key={activeWorktreeId} worktree={worktree} />}
+      <footer className="statusbar"><span className="status-branch"><Icon name="git-branch" />{branchLabel(worktree)}</span><span className="status-divider" /><span>{view === 'history' ? t("历史只读") : busy ? t("Git 操作进行中…") : refreshing ? t("正在刷新…") : changedCount ? t("{value1} 个文件有更改", { value1: changedCount }) : t("工作区干净")}</span><span className={`status-demo ${real ? 'status-native' : ''}`}><Icon name={real ? 'repo' : 'beaker'} />{real ? t("本地 Git") : t("演示模式")}</span><span className="status-spacer" /><span className="status-path" title={worktree.path}>{worktree.path}</span></footer>
+    </> : restoring ? <div className="diff-message" role="status"><Icon name="loading spin" />{t("正在恢复上次打开的仓库…")}</div> : <WelcomeView onOpen={() => setRepositoryOpen(true)} />}
+  </main></Panel>;
 
   return <TooltipProvider delayDuration={400}><div className={`workbench ${native ? 'native-window' : 'browser-window'}`}>
     <header className="titlebar" data-tauri-drag-region><div className="app-title" data-tauri-drag-region>{!native && <Icon name="source-control" />}{t("代码管理")}</div><div className="window-context" data-tauri-drag-region><span className="window-repository-name" title={repositoryName}>{repositoryName}</span>{worktree && <><span className="window-context-separator">/</span><span className="window-branch-name" title={branchLabel(worktree)}>{branchLabel(worktree)}</span></>}</div><span className="titlebar-version">Git Workbench</span></header>
-    <Group key={layoutResetKey} orientation="horizontal" className="app-body" defaultLayout={layout.repositories ? { repositories: layout.repositories, workspace: layout.workspace } : undefined} onLayoutChanged={setLayout}>
-      <Panel id="repositories" defaultSize="300px" minSize="240px" maxSize="360px"><RepositorySidebar onOpen={() => setRepositoryOpen(true)} onSettings={() => setSettingsOpen(true)} /></Panel>
-      <ResizeHandle className="resize-handle" aria-label={t("调整仓库列表宽度")} />
-      <Panel id="workspace" minSize="850px"><main className="workspace">
-        {error && <div className="git-error" role="alert"><Icon name="warning" /><pre>{translateMessage(error)}</pre></div>}
-        {autoRefreshError && <div className="git-error" role="status"><Icon name="warning" /><pre>{translateMessage(autoRefreshError)}</pre></div>}
-        {repository && worktree ? <>
-        <WorkbenchToolbar worktree={worktree} onBranchOpen={() => setBranchOpen(true)} onMergeOpen={() => setMergeOpen(true)} />
-        {worktree.operation && <MergeStatusBanner key={`${worktree.id}:${worktree.operation.kind}:${worktree.operation.head}:${worktree.operation.mergeHeads.join(',')}`} worktree={worktree} />}
-        {view === 'changes' ? <ChangesView key={activeWorktreeId} worktree={worktree} shortcutsEnabled={!settingsOpen && !repositoryOpen && !branchOpen && !mergeOpen} /> : <HistoryView key={activeWorktreeId} worktree={worktree} />}
-        <footer className="statusbar"><span className="status-branch"><Icon name="git-branch" />{branchLabel(worktree)}</span><span className="status-divider" /><span>{view === 'history' ? t("历史只读") : busy ? t("Git 操作进行中…") : refreshing ? t("正在刷新…") : changedCount ? t("{value1} 个文件有更改", { value1: changedCount }) : t("工作区干净")}</span><span className={`status-demo ${real ? 'status-native' : ''}`}><Icon name={real ? 'repo' : 'beaker'} />{real ? t("本地 Git") : t("演示模式")}</span><span className="status-spacer" /><span className="status-path" title={worktree.path}>{worktree.path}</span></footer>
-      </> : restoring ? <div className="diff-message" role="status"><Icon name="loading spin" />{t("正在恢复上次打开的仓库…")}</div> : <WelcomeView onOpen={() => setRepositoryOpen(true)} />}</main></Panel>
+    <Group key={layoutResetKey} elementRef={bodyRef} orientation="horizontal" className="app-body" onLayoutChanged={(layout, { isUserInteraction }) => {
+      if (!isUserInteraction) return;
+      const collapsed = repositoryPanel.current!.isCollapsed();
+      if (collapsed !== sidebarCollapsed) setSidebarCollapsed(collapsed);
+      if (!collapsed) {
+        /** 键盘调整同步触发布局回调，此时面板 DOM 可能仍是上一帧宽度。 */
+        const availableWidth = bodyRef.current!.clientWidth - bodyRef.current!.querySelector<HTMLElement>(':scope > [data-separator]')!.offsetWidth;
+        setSidebarWidth(availableWidth * layout.repositories / 100);
+      }
+    }}>
+      {sidebarSide === 'left' ? [sidebarPanel, sidebarHandle, workspacePanel] : [workspacePanel, sidebarHandle, sidebarPanel]}
     </Group>
     <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} /><OpenRepositoryDialog open={repositoryOpen} onOpenChange={setRepositoryOpen} /><Toaster theme={resolvedTheme} position="bottom-right" closeButton richColors containerAriaLabel={t("通知")} toastOptions={{ closeButtonAriaLabel: t("关闭通知") }} />
     {branchOpen && worktree && <BranchPickerDialog key={worktree.id} worktree={worktree} open onOpenChange={setBranchOpen} />}

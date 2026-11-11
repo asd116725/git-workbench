@@ -459,6 +459,12 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
     "en": "Resize repository sidebar",
     "zh-TW": "調整儲存庫清單寬度"
   },
+  "仓库栏选项": { "en": "Repository sidebar options", "zh-TW": "儲存庫欄選項" },
+  "收起仓库栏": { "en": "Collapse repository sidebar", "zh-TW": "收合儲存庫欄" },
+  "展开仓库栏": { "en": "Expand repository sidebar", "zh-TW": "展開儲存庫欄" },
+  "移至右侧面板": { "en": "Move to right panel", "zh-TW": "移至右側面板" },
+  "移至左侧面板": { "en": "Move to left panel", "zh-TW": "移至左側面板" },
+  "重置仓库栏位置与展开状态、分栏宽度、字号与 Diff 显示方式。": { "en": "Reset sidebar position and visibility, panel widths, font size and diff display mode.", "zh-TW": "重設儲存庫欄位置與展開狀態、分欄寬度、字級與 Diff 顯示方式。" },
   "历史只读": {
     "en": "Read-only history",
     "zh-TW": "歷史唯讀"

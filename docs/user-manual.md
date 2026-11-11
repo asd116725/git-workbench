@@ -10,7 +10,7 @@ Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-re
 
 ![Project groups, staged changes, and an inline diff](screenshots/workbench-v1.8.0-en.jpg)
 
-- The left sidebar contains repositories and their linked worktrees.
+- The repository sidebar contains repositories and their linked worktrees. It starts on the left and can be moved to the right.
 - The middle pane contains unstaged/staged file trees or lists and the commit form.
 - The right pane shows a read-only diff of the selected file.
 - The top bar has branch switching and manual refresh. The bottom bar shows the current worktree, changed-file count, and path.
@@ -60,6 +60,12 @@ Drag a project's handle to move the entire project group. Drag a worktree's hand
 For keyboard control, use `Tab` to focus a handle, then press `↑` or `↓` to move the item one position. Dragging near the sidebar's top or bottom edge scrolls the list. Press `Esc` to cancel a drag; releasing without a valid destination leaves the order unchanged.
 
 The app remembers each list's order on this device across refreshes and restarts. Newly opened projects and newly discovered worktrees append to their respective lists without rearranging existing entries. Sorting preserves the active worktree, expanded groups, current diff, and commit draft; it does not change files, branches, or Git worktree registration.
+
+### 3.3 Sidebar layout (1.12.0)
+
+Open **⋯** in the repository header and choose **Move to right panel** or **Move to left panel**. The file list and diff retain their order. Use the panel icon beside **⋯** to collapse the sidebar into a 44px rail, then use the same icon at the top of the rail to expand it. **Settings** and **Open repository** remain at the bottom of the rail.
+
+The app remembers the side, collapsed state, and expanded width. Moving or collapsing the sidebar preserves the selected worktree, repository tree, and current commit draft. **Settings → Reset layout** restores the sidebar to its default expanded position on the left.
 
 ## 4. Switch branches
 
@@ -260,7 +266,7 @@ The app watches files and Git metadata for the active worktree, including shared
 
 **Refresh** in the top bar reads the latest state for the current view. In history, it reloads the first page as described above. If watching fails, refresh manually, then relaunch the app to restore watching. Automatic refresh does not contact remote servers; click **Fetch** to update remote refs.
 
-**Settings** at the bottom left shows the current version and lets you change code font size or restore the default layout, font size, and diff mode. Layout, reading preferences, and repository paths are saved on the current device; commit drafts last only for the current session. Restoring the default layout does not clear remembered repositories.
+**Settings** at the bottom of the repository sidebar shows the current version and lets you change code font size or restore the default layout, font size, and diff mode. Layout, reading preferences, and repository paths are saved on the current device; commit drafts last only for the current session. Restoring the default layout does not clear remembered repositories.
 
 Since **1.8.0**, **Settings → Appearance** offers **Light / Dark / System**. Choose a card to apply it immediately; the app remembers the choice for the next launch. Existing installations start in Dark. System follows operating-system appearance changes. The interface, code highlighting, diff backgrounds, notifications, and native window match the selected appearance.
 

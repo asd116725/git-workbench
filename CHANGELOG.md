@@ -6,6 +6,16 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-11-11
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.12.0/CHANGELOG.zh-CN.md#1120---2026-11-11)
+
+- Move the repository sidebar to either side from its menu using **Move to right panel** or **Move to left panel**. The file list and diff keep their reading order.
+- Collapse the sidebar into a 44px rail using the panel icon. Expand it from the rail, which also keeps Settings and Open repository within reach.
+- Remember sidebar position, visibility, and expanded width across restarts. Switching layouts keeps the current workspace, repository tree, and commit draft. **Reset layout** restores the default left sidebar.
+
+The macOS Apple Silicon (arm64) installer uses ad-hoc signing and has not been notarized by Apple. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
 ## [1.11.0] - 2026-11-10
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.11.0/CHANGELOG.zh-CN.md#1110---2026-11-10)
