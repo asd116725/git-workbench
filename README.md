@@ -53,13 +53,13 @@ Recorded in the native app with an English interface, captions, and fictional ex
 
 ## Download and get started
 
-**v1.12.0 · macOS Apple Silicon (arm64)**
+**v1.13.0 · macOS Apple Silicon (arm64)**
 
 | Download | Link |
 | --- | --- |
-| macOS installer | [GitWorkbench_1.12.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.12.0/GitWorkbench_1.12.0_macos_arm64.dmg) |
-| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.12.0/SHA256SUMS.txt) |
-| Release notes | [What's new in v1.12.0](https://github.com/asd116725/git-workbench/releases/tag/v1.12.0) |
+| macOS installer | [GitWorkbench_1.13.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.13.0/GitWorkbench_1.13.0_macos_arm64.dmg) |
+| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.13.0/SHA256SUMS.txt) |
+| Release notes | [What's new in v1.13.0](https://github.com/asd116725/git-workbench/releases/tag/v1.13.0) |
 
 1. **Install.** Verify the DMG with the checksum file from the same release, then drag **代码管理** (Git Workbench) into Applications. [Installation guide →](docs/installation.md)
 2. **Open your project.** Make sure `git --version` works, choose **Open repository**, and select an existing local repository. Its linked worktrees appear alongside it.
