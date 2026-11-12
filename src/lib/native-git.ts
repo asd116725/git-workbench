@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ChangeArea, FileSnapshot, GitDiscardPreview, GitBranch, GitBranchSync, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitFileStatus, GitMergePreview, GitMergeResult, GitOperation, GitRemoteResult, GitRemoteStatus, Repository, Worktree } from './types';
+import type { ChangeArea, FileSnapshot, GitDiffContent, GitDiscardPreview, GitBranch, GitBranchSync, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitFileStatus, GitMergePreview, GitMergeResult, GitOperation, GitRemoteResult, GitRemoteStatus, Repository, Worktree } from './types';
 
 /** 工作目录元数据不携带文件正文，未选中的目录保持懒加载。 */
 export interface NativeWorktree {
@@ -27,13 +27,6 @@ export interface NativeRepository {
   operation: GitOperation | null;
   remote: GitRemoteStatus;
   files: Array<GitFileStatus & { path: string }>;
-}
-
-/** notice 表示二进制、大文件或冲突等无法直接进行文本比较的原因。 */
-interface NativeDiff {
-  original: string | null;
-  modified: string | null;
-  notice: string | null;
 }
 
 const languages: Record<string, string> = {
@@ -116,7 +109,7 @@ export const nativeGit = {
   merge: (repoPath: string, preview: GitMergePreview, noFf: boolean) => invoke<GitMergeResult>('git_merge', { repoPath, preview, noFf }),
   continueMerge: (repoPath: string, expectedHead: string, expectedMergeHeads: string[], message: string) => invoke<GitMergeResult>('git_merge_continue', { repoPath, expectedHead, expectedMergeHeads, message }),
   abortMerge: (repoPath: string, expectedHead: string, expectedMergeHeads: string[]) => invoke<GitMergeResult>('git_merge_abort', { repoPath, expectedHead, expectedMergeHeads }),
-  diff: (repoPath: string, path: string, area: ChangeArea) => invoke<NativeDiff>('git_diff', { repoPath, path, area }),
+  diff: (repoPath: string, path: string, area: ChangeArea) => invoke<GitDiffContent>('git_diff', { repoPath, path, area }),
   stage: (repoPath: string, paths: string[]) => invoke<void>('git_stage', { repoPath, paths }),
   unstage: (repoPath: string, paths: string[]) => invoke<void>('git_unstage', { repoPath, paths }),
   previewDiscard: (repoPath: string, paths: string[]) => invoke<GitDiscardPreview>('git_discard_preview', { repoPath, paths }),

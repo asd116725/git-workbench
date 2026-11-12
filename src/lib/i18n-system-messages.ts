@@ -180,6 +180,7 @@ export const systemMessages: Record<string, { en: string; 'zh-TW': string }> = {
   "此文件不是 UTF-8 文本，暂不支持文本 Diff。": { en: "This file is not UTF-8 text, so text diff is unavailable.", 'zh-TW': "此檔案不是 UTF-8 文字，暫不支援文字 Diff。" },
   "子模块或目录变更暂不支持文本 Diff。": { en: "Text diff is unavailable for submodule or directory changes.", 'zh-TW': "子模組或目錄變更暫不支援文字 Diff。" },
   "文件超过 2 MiB，已跳过文本 Diff。": { en: "This file exceeds 2 MiB, so text diff was skipped.", 'zh-TW': "檔案超過 2 MiB，已略過文字 Diff。" },
+  "图片超过 8 MiB，无法预览。": { en: "This image exceeds the 8 MiB preview limit.", 'zh-TW': "圖片超過 8 MiB，無法預覽。" },
   "文件监听发现非 UTF-8 路径，当前版本暂不支持。": { en: "File watching found non-UTF-8 paths, which are not supported yet.", 'zh-TW': "檔案監聽發現非 UTF-8 路徑，目前版本暫不支援。" },
   "文件忽略检查已中断。": { en: "The file ignore check was interrupted.", 'zh-TW': "檔案忽略檢查已中斷。" },
   "文件变化过多，部分监听事件已丢失，正在重新读取仓库状态。": { en: "Too many file changes caused some watch events to be lost. Reloading repository status.", 'zh-TW': "檔案變更過多，部分監聽事件已遺失，正在重新讀取儲存庫狀態。" },

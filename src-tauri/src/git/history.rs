@@ -429,15 +429,17 @@ fn historical_content(
     repo: &Path,
     oid: &str,
     mode: &str,
-) -> GitResult<Result<Option<String>, String>> {
+    path: &str,
+) -> GitResult<Result<Option<DiffContent>, String>> {
     if mode == "000000" {
         return Ok(Ok(None));
     }
     if mode == "160000" {
         return Ok(Err("子模块变更暂不支持文本 Diff。".into()));
     }
-    Ok(match blob_content(repo, oid)? {
-        Ok(text) => Ok(Some(text)),
+    let image = ImageFormat::from_path(path).filter(|_| mode != "120000");
+    Ok(match blob_content(repo, oid, image)? {
+        Ok(content) => Ok(Some(content)),
         Err(notice) => Err(notice.replace("，可直接暂存和提交", "")),
     })
 }
@@ -450,34 +452,28 @@ fn historical_diff(repo: &Path, oid: &str, parent_index: usize, path: &str) -> G
         .into_iter()
         .find(|record| record.file.path == path)
         .ok_or("文件不在当前提交的变更列表中。")?;
-    let original = historical_content(repo, &selected.old_oid, &selected.file.old_mode)?;
-    let modified = historical_content(repo, &selected.new_oid, &selected.file.new_mode)?;
-    let notice = |text: String| {
-        Ok(GitDiff {
-            original: None,
-            modified: None,
-            notice: Some(text),
-        })
-    };
+    let old_path = selected.file.old_path.as_deref().unwrap_or(path);
+    let original = historical_content(repo, &selected.old_oid, &selected.file.old_mode, old_path)?;
+    let modified = historical_content(repo, &selected.new_oid, &selected.file.new_mode, path)?;
     let (original, modified) = match (original, modified) {
         (Ok(original), Ok(modified)) => (original, modified),
-        (Err(message), _) | (_, Err(message)) => return notice(message),
+        (Err(message), _) | (_, Err(message)) => return Ok(GitDiff::notice(message)),
     };
-    if original == modified {
-        return notice(if selected.file.old_mode != selected.file.new_mode {
-            format!(
-                "文本内容未变化，文件模式从 {} 变为 {}。",
-                selected.file.old_mode, selected.file.new_mode
-            )
-        } else {
-            "文本内容未变化，仅文件路径发生变化。".into()
-        });
+    let equal = original == modified;
+    let diff = GitDiff::from_contents(original, modified);
+    if equal && diff.image_preview.is_none() {
+        return Ok(GitDiff::notice(
+            if selected.file.old_mode != selected.file.new_mode {
+                format!(
+                    "文本内容未变化，文件模式从 {} 变为 {}。",
+                    selected.file.old_mode, selected.file.new_mode
+                )
+            } else {
+                "文本内容未变化，仅文件路径发生变化。".into()
+            },
+        ));
     }
-    Ok(GitDiff {
-        original,
-        modified,
-        notice: None,
-    })
+    Ok(diff)
 }
 
 /// 读取历史快照及待推送集合，引用固定后不再持有公共仓库锁。

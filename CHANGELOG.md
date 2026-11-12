@@ -6,6 +6,15 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-11-12
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.13.0/CHANGELOG.zh-CN.md#1130---2026-11-12)
+
+- Select an image in Commit History or Local Changes to preview it. Modified images appear side by side, additions show the new version, and deletions show the previous version.
+- Supports PNG, JPEG, GIF, WebP, BMP, ICO, and SVG, up to 8 MiB per version. SVG previews can switch to source diff when the source fits the text diff limit.
+
+The macOS Apple Silicon (arm64) installer uses ad-hoc signing and has not been notarized by Apple. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
 ## [1.12.0] - 2026-11-11
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.12.0/CHANGELOG.zh-CN.md#1120---2026-11-11)

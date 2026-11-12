@@ -12,6 +12,20 @@ export interface GitFileStatus {
   conflicted: boolean;
 }
 
+/** 图片数据由 Git 读取层按比较来源提供，只在选中文件时加载。 */
+export interface ImagePreview {
+  original: string | null;
+  modified: string | null;
+}
+
+/** 本地和历史共用差异协议；SVG 可以同时提供源码与图片。 */
+export interface GitDiffContent {
+  original: string | null;
+  modified: string | null;
+  notice: string | null;
+  imagePreview?: ImagePreview;
+}
+
 /** null 表示该版本不存在；原生列表未加载正文时也为 null，不能据此推导 Git 状态。 */
 export interface FileSnapshot {
   id: string;
@@ -20,6 +34,7 @@ export interface FileSnapshot {
   head: string | null;
   index: string | null;
   working: string | null;
+  imagePreview?: ImagePreview;
   git?: GitFileStatus;
 }
 

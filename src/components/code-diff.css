@@ -53,6 +53,13 @@
 .code-diff-compare-inline .code-diff-modified-heading { border-left: none; }
 .code-diff-editor { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .code-diff-editor > section { height: 100%; }
+.code-diff-image-mode { align-self: center; margin-right: 10px; }
+.code-diff-images { display: flex; flex: 1; min-height: 0; overflow: auto; }
+.code-diff-image { display: flex; flex: 1; flex-direction: column; min-width: 0; margin: 0; }
+.code-diff-image + .code-diff-image { border-left: 1px solid var(--border); }
+.code-diff-image figcaption { display: block; flex-shrink: 0; padding-block: 8px; border-bottom: 1px solid var(--border); background: var(--muted); }
+.code-diff-image-canvas { display: grid; flex: 1; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; min-height: 0; padding: 16px; color: var(--muted-foreground); font-size: 13px; }
+.code-diff-image-canvas img { max-width: 100%; max-height: 100%; object-fit: contain; background: conic-gradient(#8882 25%, #8884 0 50%, #8882 0 75%, #8884 0) 0 0 / 16px 16px; }
 .code-diff-loading { display: flex; align-items: center; gap: 8px; height: 100%; color: var(--muted-foreground); font-size: 13px; }
 .code-diff-loading .codicon { animation: code-diff-spin 1s linear infinite; }
 .code-diff-empty { align-items: center; justify-content: center; padding: 30px; text-align: center; }

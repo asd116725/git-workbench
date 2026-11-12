@@ -244,11 +244,13 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       const result = await nativeGit.diff(worktree.path, file.path, selection.area);
       if (version !== diffVersion) return;
       const snapshot = selection.area === 'staged'
-        ? { ...file, head: result.original, index: result.modified }
-        : { ...file, index: result.original, working: result.modified };
+        ? { ...file, head: result.original, index: result.modified, imagePreview: result.imagePreview }
+        : { ...file, index: result.original, working: result.modified, imagePreview: result.imagePreview };
       const before = previous.file;
       const unchanged = keepVisible && before && !previous.error && previous.notice === result.notice
         && before.head === snapshot.head && before.index === snapshot.index && before.working === snapshot.working
+        && before.imagePreview?.original === snapshot.imagePreview?.original
+        && before.imagePreview?.modified === snapshot.imagePreview?.modified
         && before.git?.statusIndex === snapshot.git?.statusIndex && before.git?.statusWorktree === snapshot.git?.statusWorktree
         && before.git?.originalPath === snapshot.git?.originalPath && before.git?.conflicted === snapshot.git?.conflicted;
       if (!unchanged) set({ diff: { file: snapshot, loading: false, notice: result.notice, error: null } });

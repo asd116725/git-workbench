@@ -12,6 +12,8 @@ use std::{
 };
 
 const MAX_DIFF_BYTES: u64 = 2 * 1024 * 1024;
+/// 图片正文通过 IPC 按需传输，单侧限制为 8 MiB。
+const MAX_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
 type GitResult<T> = Result<T, String>;
 type RepositoryLocks = Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>;
 static REPOSITORY_LOCKS: OnceLock<RepositoryLocks> = OnceLock::new();
@@ -24,6 +26,8 @@ pub mod watch;
 pub use watch::GitWatchState;
 pub mod discard;
 pub mod history;
+mod image;
+use image::ImageFormat;
 pub mod merge;
 pub mod remote;
 use merge::{GitOperation, operation};
@@ -65,12 +69,55 @@ pub enum ChangeArea {
     Staged,
 }
 
-/// null 表示该版本不存在；notice 表示该文件不能按普通文本展示。
+/// 文本和图片分别传给对应的查看器，SVG 可以同时提供两种表示。
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GitDiff {
     pub original: Option<String>,
     pub modified: Option<String>,
     pub notice: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_preview: Option<ImagePreview>,
+}
+
+/// 两侧数据来自同一次差异读取；缺少一侧时只展示可预览的版本。
+#[derive(Debug, Serialize)]
+struct ImagePreview {
+    original: Option<String>,
+    modified: Option<String>,
+}
+
+#[derive(Default, PartialEq)]
+struct DiffContent {
+    text: Option<String>,
+    image: Option<String>,
+}
+
+impl GitDiff {
+    fn notice(message: impl Into<String>) -> Self {
+        Self {
+            original: None,
+            modified: None,
+            notice: Some(message.into()),
+            image_preview: None,
+        }
+    }
+
+    fn from_contents(original: Option<DiffContent>, modified: Option<DiffContent>) -> Self {
+        let original = original.unwrap_or_default();
+        let modified = modified.unwrap_or_default();
+        let image_preview =
+            (original.image.is_some() || modified.image.is_some()).then_some(ImagePreview {
+                original: original.image,
+                modified: modified.image,
+            });
+        Self {
+            original: original.text,
+            modified: modified.text,
+            notice: None,
+            image_preview,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -271,16 +318,52 @@ fn selected_change(repo: &Path, path: &str) -> GitResult<GitChange> {
         .ok_or_else(|| "该文件已不在变更列表中，请刷新后重试。".into())
 }
 
-fn text_content(bytes: Vec<u8>) -> Result<String, &'static str> {
+fn text_content(bytes: Vec<u8>) -> Result<DiffContent, &'static str> {
     if bytes.contains(&0) {
         return Err("二进制文件暂不支持文本 Diff，可直接暂存和提交。");
     }
     String::from_utf8(bytes)
+        .map(|text| DiffContent {
+            text: Some(text),
+            image: None,
+        })
         .map_err(|_| "此文件不是 UTF-8 文本，暂不支持文本 Diff，可直接暂存和提交。")
 }
 
+type FileContent = Result<DiffContent, &'static str>;
+
+fn content_limit(image: Option<ImageFormat>) -> (u64, &'static str) {
+    if image.is_some() {
+        (MAX_IMAGE_BYTES, "图片超过 8 MiB，无法预览。")
+    } else {
+        (
+            MAX_DIFF_BYTES,
+            "文件超过 2 MiB，已跳过文本 Diff，可直接暂存和提交。",
+        )
+    }
+}
+
+fn diff_content(bytes: Vec<u8>, format: Option<ImageFormat>) -> FileContent {
+    if let Some(image) = format.and_then(|format| format.data_url(&bytes)) {
+        let text =
+            if matches!(format, Some(ImageFormat::Svg)) && bytes.len() as u64 <= MAX_DIFF_BYTES {
+                String::from_utf8(bytes).ok()
+            } else {
+                None
+            };
+        return Ok(DiffContent {
+            text,
+            image: Some(image),
+        });
+    }
+    if bytes.len() as u64 > MAX_DIFF_BYTES {
+        return Err(content_limit(None).1);
+    }
+    text_content(bytes)
+}
+
 /// 先固定对象 ID 再检查大小，避免读取过程中 HEAD 或索引变化绕过体积限制。
-fn blob_content(repo: &Path, spec: &str) -> GitResult<Result<String, &'static str>> {
+fn blob_content(repo: &Path, spec: &str, image: Option<ImageFormat>) -> GitResult<FileContent> {
     let object = git_line(repo, &["rev-parse", "--verify", spec])?;
     if git_line(repo, &["cat-file", "-t", &object])? != "blob" {
         return Ok(Err("子模块或目录变更暂不支持文本 Diff，可直接暂存和提交。"));
@@ -288,13 +371,17 @@ fn blob_content(repo: &Path, spec: &str) -> GitResult<Result<String, &'static st
     let size: u64 = git_line(repo, &["cat-file", "-s", &object])?
         .parse()
         .map_err(|_| "无法读取 Git 对象大小。")?;
-    if size > MAX_DIFF_BYTES {
-        return Ok(Err("文件超过 2 MiB，已跳过文本 Diff，可直接暂存和提交。"));
+    let (limit, notice) = content_limit(image);
+    if size > limit {
+        return Ok(Err(notice));
     }
-    Ok(text_content(git(repo, &["cat-file", "blob", &object])?))
+    Ok(diff_content(
+        git(repo, &["cat-file", "blob", &object])?,
+        image,
+    ))
 }
 
-fn working_content(repo: &Path, path: &str) -> GitResult<Result<String, &'static str>> {
+fn working_content(repo: &Path, path: &str) -> GitResult<FileContent> {
     let full = repo.join(path);
     let parent = fs::canonicalize(full.parent().unwrap())
         .map_err(|error| format!("无法读取文件目录：{error}"))?;
@@ -304,35 +391,34 @@ fn working_content(repo: &Path, path: &str) -> GitResult<Result<String, &'static
     let metadata = fs::symlink_metadata(&full).map_err(|error| format!("无法读取文件：{error}"))?;
     if metadata.file_type().is_symlink() {
         let target = fs::read_link(full).map_err(|error| format!("无法读取符号链接：{error}"))?;
-        return Ok(Ok(target.to_string_lossy().into_owned()));
+        return Ok(Ok(DiffContent {
+            text: Some(target.to_string_lossy().into_owned()),
+            image: None,
+        }));
     }
     if !metadata.is_file() {
         return Ok(Err("子模块或目录变更暂不支持文本 Diff，可直接暂存和提交。"));
     }
-    if metadata.len() > MAX_DIFF_BYTES {
-        return Ok(Err("文件超过 2 MiB，已跳过文本 Diff，可直接暂存和提交。"));
+    let image = ImageFormat::from_path(path);
+    let (limit, notice) = content_limit(image);
+    if metadata.len() > limit {
+        return Ok(Err(notice));
     }
     let mut bytes = Vec::new();
     fs::File::open(full)
         .map_err(|error| format!("无法打开文件：{error}"))?
-        .take(MAX_DIFF_BYTES + 1)
+        .take(limit + 1)
         .read_to_end(&mut bytes)
         .map_err(|error| format!("无法读取文件：{error}"))?;
-    if bytes.len() as u64 > MAX_DIFF_BYTES {
-        return Ok(Err("文件超过 2 MiB，已跳过文本 Diff，可直接暂存和提交。"));
+    if bytes.len() as u64 > limit {
+        return Ok(Err(notice));
     }
-    Ok(text_content(bytes))
+    Ok(diff_content(bytes, image))
 }
 
 fn diff(repo: &Path, path: &str, area: ChangeArea) -> GitResult<GitDiff> {
     let file = selected_change(repo, path)?;
-    let notice = |message: &str| {
-        Ok(GitDiff {
-            original: None,
-            modified: None,
-            notice: Some(message.into()),
-        })
-    };
+    let notice = |message: &str| Ok(GitDiff::notice(message));
     if file.conflicted {
         return notice("此文件包含合并冲突，请先在外部编辑器中解决并暂存，再继续当前 Git 操作。");
     }
@@ -368,12 +454,16 @@ fn diff(repo: &Path, path: &str, area: ChangeArea) -> GitResult<GitDiff> {
             let original = if file.status_index == "A" {
                 None
             } else {
-                Some(blob_content(repo, &format!("HEAD:{old_path}"))?)
+                let image = ImageFormat::from_path(old_path)
+                    .filter(|_| !head_entry.starts_with(b"120000 "));
+                Some(blob_content(repo, &format!("HEAD:{old_path}"), image)?)
             };
             let modified = if file.status_index == "D" {
                 None
             } else {
-                Some(blob_content(repo, &format!(":{path}"))?)
+                let image =
+                    ImageFormat::from_path(path).filter(|_| !index_entry.starts_with(b"120000 "));
+                Some(blob_content(repo, &format!(":{path}"), image)?)
             };
             (original, modified)
         }
@@ -389,7 +479,9 @@ fn diff(repo: &Path, path: &str, area: ChangeArea) -> GitResult<GitDiff> {
             let original = if file.status_worktree == "?" || file.status_index == "D" {
                 None
             } else {
-                Some(blob_content(repo, &format!(":{old_path}"))?)
+                let image = ImageFormat::from_path(old_path)
+                    .filter(|_| !index_entry.starts_with(b"120000 "));
+                Some(blob_content(repo, &format!(":{old_path}"), image)?)
             };
             let modified = if file.status_worktree == "D" {
                 None
@@ -404,7 +496,9 @@ fn diff(repo: &Path, path: &str, area: ChangeArea) -> GitResult<GitDiff> {
             return notice(message);
         }
     }
-    if original == modified {
+    let equal = original == modified;
+    let diff = GitDiff::from_contents(original.map(Result::unwrap), modified.map(Result::unwrap));
+    if equal && diff.image_preview.is_none() {
         let mut args = vec![
             "diff",
             "--no-ext-diff",
@@ -427,11 +521,7 @@ fn diff(repo: &Path, path: &str, area: ChangeArea) -> GitResult<GitDiff> {
             ));
         }
     }
-    Ok(GitDiff {
-        original: original.map(Result::unwrap),
-        modified: modified.map(Result::unwrap),
-        notice: None,
-    })
+    Ok(diff)
 }
 
 /// 在独立索引中完成整批操作，成功后原子替换；Git 的标准锁阻止其他进程同时写索引。

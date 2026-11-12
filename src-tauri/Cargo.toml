@@ -1,6 +1,6 @@
 [package]
 name = "git-workbench"
-version = "1.12.0"
+version = "1.13.0"
 description = "本地 Git 仓库管理桌面工具"
 edition = "2024"
 license = "MIT"
@@ -15,6 +15,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+base64 = "0.23.1"
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }

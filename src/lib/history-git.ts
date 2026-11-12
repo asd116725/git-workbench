@@ -11,6 +11,7 @@ export function historyFileSnapshot(file: HistoryChangedFile, content?: HistoryD
     id: file.path, path: file.path,
     language: fileLanguage(file.path),
     head: content?.original ?? null, index: content?.modified ?? null, working: null,
+    imagePreview: content?.imagePreview,
     git: { statusIndex: file.status, statusWorktree: ' ', originalPath: file.oldPath, conflicted: false },
   };
 }

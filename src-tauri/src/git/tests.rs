@@ -52,6 +52,40 @@ impl Fixture {
 }
 
 #[test]
+fn image_diff_distinguishes_head_index_and_worktree() {
+    let fixture = Fixture::new();
+    let path = "image file.png";
+    let head = include_bytes!("../../icons/32x32.png");
+    let index = include_bytes!("../../icons/64x64.png");
+    let working = include_bytes!("../../icons/128x128.png");
+    fixture.write(path, head);
+    fixture.initial_commit();
+    fixture.write(path, index);
+    stage(fixture.path(), path).unwrap();
+    fixture.write(path, working);
+
+    let staged = diff(fixture.path(), path, ChangeArea::Staged)
+        .unwrap()
+        .image_preview
+        .unwrap();
+    let unstaged = diff(fixture.path(), path, ChangeArea::Unstaged)
+        .unwrap()
+        .image_preview
+        .unwrap();
+    assert_eq!(staged.original, ImageFormat::Png.data_url(head));
+    assert_eq!(staged.modified, ImageFormat::Png.data_url(index));
+    assert_eq!(unstaged.original, staged.modified);
+    assert_eq!(unstaged.modified, ImageFormat::Png.data_url(working));
+
+    fixture.write(path, vec![0; MAX_IMAGE_BYTES as usize + 1]);
+    let oversized = diff(fixture.path(), path, ChangeArea::Unstaged).unwrap();
+    assert_eq!(
+        oversized.notice.as_deref(),
+        Some("图片超过 8 MiB，无法预览。")
+    );
+}
+
+#[test]
 fn unborn_stage_unstage_and_commit_preserves_working_changes() {
     let fixture = Fixture::new();
     fixture.write("说明 文件.txt", "第一版\n");

@@ -44,12 +44,63 @@ export function CodeDiff(props: CodeDiffProps) {
   }
 
   return (
-    <ActiveCodeDiff
+    <SelectedFileDiff
       key={`${props.worktreeId}:${props.file.id}:${props.area}`}
       {...props}
       file={props.file}
     />
   );
+}
+
+type SelectedDiffProps = CodeDiffProps & { file: FileSnapshot };
+
+function SelectedFileDiff(props: SelectedDiffProps) {
+  const { t } = useI18n();
+  const [showSource, setShowSource] = useState(false);
+  const { file, area, onClose } = props;
+  const fileName = file.path.slice(file.path.lastIndexOf('/') + 1);
+  const originalLabel = props.originalLabel ?? (area === 'staged' ? t("HEAD（上次提交）") : t("暂存区（当前版本）"));
+  const modifiedLabel = props.modifiedLabel ?? (area === 'staged' ? t("暂存区（已暂存的更改）") : t("工作区（未暂存的更改）"));
+  const preview = file.imagePreview;
+  const canShowSource = preview && (!preview.original || (area === 'staged' ? file.head : file.index) !== null)
+    && (!preview.modified || (area === 'staged' ? file.index : file.working) !== null);
+  const showImage = preview && !(canShowSource && showSource);
+
+  return (
+    <section className="code-diff-root" aria-label={showImage ? t("图片预览") : t("{value1} 的代码差异", { value1: fileName })}>
+      <div className="code-diff-tabs">
+        <div className="code-diff-tab" title={file.path}>
+          <FileIcon path={file.path} language={file.language} />
+          <span className="code-diff-tab-name">{fileName}</span>
+          <button className="code-diff-icon-button code-diff-close" onClick={onClose} title={t("关闭文件")} aria-label={t("关闭文件")}>
+            <CodeIcon name="close" />
+          </button>
+        </div>
+        <span className="code-diff-readonly"><CodeIcon name="lock" />{t("只读")}</span>
+        {canShowSource && <div className="code-diff-mode code-diff-image-mode">
+          <button onClick={() => setShowSource(!showSource)}>{t(showSource ? "图片预览" : "查看源码")}</button>
+        </div>}
+      </div>
+      {showImage ? <div className="code-diff-images">
+        {preview.original && <ImageVersion src={preview.original} label={originalLabel} />}
+        {preview.modified && <ImageVersion src={preview.modified} label={modifiedLabel} />}
+      </div> : <ActiveCodeDiff {...props} originalLabel={originalLabel} modifiedLabel={modifiedLabel} />}
+    </section>
+  );
+}
+
+/** img 仅解码图片资源，SVG 源码不会插入页面 DOM。 */
+function ImageVersion({ src, label }: { src: string; label: string }) {
+  const { t } = useI18n();
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  return <figure className="code-diff-image">
+    <figcaption className="code-diff-comparison-label" title={label}>{label}</figcaption>
+    <div className="code-diff-image-canvas">
+      {failedSrc === src
+        ? <span role="status">{t("无法显示图片")}</span>
+        : <img src={src} alt={label} onError={() => setFailedSrc(src)} draggable={false} />}
+    </div>
+  </figure>;
 }
 
 function ActiveCodeDiff({
@@ -60,10 +111,9 @@ function ActiveCodeDiff({
   fontSize,
   onModeChange,
   onStageHunk,
-  originalLabel: originalLabelOverride,
-  modifiedLabel: modifiedLabelOverride,
-  onClose,
-}: CodeDiffProps & { file: FileSnapshot }) {
+  originalLabel,
+  modifiedLabel,
+}: SelectedDiffProps & { originalLabel: string; modifiedLabel: string }) {
   const { t } = useI18n();
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const contentUpdaterRef = useRef<ReturnType<typeof createDiffContentUpdater> | null>(null);
@@ -89,8 +139,6 @@ function ActiveCodeDiff({
   const activeHunk = Math.min(selectedHunk, Math.max(0, hunks.length - 1));
   const pathParts = file.path.split('/').slice(0, -1);
   const fileName = file.path.slice(file.path.lastIndexOf('/') + 1);
-  const originalLabel = originalLabelOverride ?? (area === 'staged' ? t("HEAD（上次提交）") : t("暂存区（当前版本）"));
-  const modifiedLabel = modifiedLabelOverride ?? (area === 'staged' ? t("暂存区（已暂存的更改）") : t("工作区（未暂存的更改）"));
   const canStageHunk = area === 'unstaged' && onStageHunk !== undefined;
   /** 两侧模型必须使用不同 URI，防止不同 worktree 或暂存状态复用内容。 */
   const modelRoot = `git-workbench://diff/${encodeURIComponent(worktreeId)}/${encodeURIComponent(file.id)}/${area}`;
@@ -190,18 +238,7 @@ function ActiveCodeDiff({
   }
 
   return (
-    <section className="code-diff-root" aria-label={t("{value1} 的代码差异", { value1: fileName })}>
-      <div className="code-diff-tabs">
-        <div className="code-diff-tab">
-          <FileIcon path={file.path} language={file.language} />
-          <span className="code-diff-tab-name">{fileName}</span>
-          <button className="code-diff-icon-button code-diff-close" onClick={onClose} title={t("关闭文件")} aria-label={t("关闭文件")}>
-            <CodeIcon name="close" />
-          </button>
-        </div>
-        <span className="code-diff-readonly"><CodeIcon name="lock" />{t("只读")}</span>
-      </div>
-
+    <>
       <div className="code-diff-toolbar">
         <div className="code-diff-breadcrumb" title={file.path}>
           {pathParts.map((part, index) => (
@@ -243,6 +280,6 @@ function ActiveCodeDiff({
       </div>
 
       <div className="code-diff-editor" ref={containerRef} />
-    </section>
+    </>
   );
 }

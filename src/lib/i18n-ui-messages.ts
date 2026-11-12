@@ -789,6 +789,9 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
     "en": "Read-only",
     "zh-TW": "唯讀"
   },
+  "图片预览": { "en": "Image preview", "zh-TW": "圖片預覽" },
+  "查看源码": { "en": "View source", "zh-TW": "檢視原始碼" },
+  "无法显示图片": { "en": "Unable to display image", "zh-TW": "無法顯示圖片" },
   "差异显示方式": {
     "en": "Diff display mode",
     "zh-TW": "差異顯示方式"

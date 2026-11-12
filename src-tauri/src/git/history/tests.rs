@@ -520,6 +520,38 @@ fn merge_files_and_diff_follow_selected_parent() {
 }
 
 #[test]
+fn image_history_reads_selected_versions_after_rename_and_deletion() {
+    let repo = Repo::new();
+    let before = include_bytes!("../../../icons/32x32.png");
+    let after = include_bytes!("../../../icons/64x64.png");
+    repo.save("旧图.PNG", before);
+    let added = repo.commit("add image");
+    git(&repo.root, &["mv", "旧图.PNG", "新图.png"]).unwrap();
+    let renamed = repo.commit("rename image");
+    repo.save("新图.png", after);
+    let changed = repo.commit("change image");
+    git(&repo.root, &["rm", "新图.png"]).unwrap();
+    let deleted = repo.commit("remove image");
+    fs::write(repo.root.join("新图.png"), b"untracked").unwrap();
+
+    let before = ImageFormat::Png.data_url(before);
+    let after = ImageFormat::Png.data_url(after);
+    for (oid, path, original, modified) in [
+        (&added, "旧图.PNG", None, before.as_ref()),
+        (&renamed, "新图.png", before.as_ref(), before.as_ref()),
+        (&changed, "新图.png", before.as_ref(), after.as_ref()),
+        (&deleted, "新图.png", after.as_ref(), None),
+    ] {
+        let preview = historical_diff(&repo.root, oid, 0, path)
+            .unwrap()
+            .image_preview
+            .unwrap();
+        assert_eq!(preview.original.as_ref(), original);
+        assert_eq!(preview.modified.as_ref(), modified);
+    }
+}
+
+#[test]
 fn binary_large_non_utf8_and_submodules_show_history_notices() {
     let repo = Repo::new();
     let base = repo.initial();

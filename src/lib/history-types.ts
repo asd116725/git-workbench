@@ -1,4 +1,4 @@
-import type { FileSnapshot } from './types';
+import type { FileSnapshot, GitDiffContent } from './types';
 
 /** 提交列表只携带摘要；完整说明和文件正文按选择另行读取。 */
 export interface HistoryCommitSummary {
@@ -47,11 +47,7 @@ export interface HistoryReference {
   outgoing: HistoryOutgoing | null;
 }
 
-export interface HistoryDiff {
-  original: string | null;
-  modified: string | null;
-  notice: string | null;
-}
+export type HistoryDiff = GitDiffContent;
 
 /** 会话缓存与暂存业务隔离，文件正文只驻留内存。 */
 export interface HistorySession {
