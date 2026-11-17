@@ -6,6 +6,16 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-11-17
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.14.0/CHANGELOG.zh-CN.md#1140---2026-11-17)
+
+- Check the active worktree's remotes when opened and roughly every minute while the window is focused and idle. Update incoming and outgoing commit counts from fetched refs without changing files or merging automatically; warn when a check fails and counts may be stale.
+- Guide diverged branches to merge their upstream before pushing, or pull when only the remote has new commits. Fetch remains available for an immediate update; its button does not guess the number of commits not yet fetched.
+- Before pushing a tracked branch, check the actual push destination. Stop with recovery guidance if the destination has commits not integrated locally, including when fetch and push URLs differ.
+
+The macOS Apple Silicon (arm64) installer uses ad-hoc signing and has not been notarized by Apple. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
 ## [1.13.0] - 2026-11-12
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.13.0/CHANGELOG.zh-CN.md#1130---2026-11-12)
