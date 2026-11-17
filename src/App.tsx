@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Field, FieldLabel, FieldDescription } from '@/components/ui/field';
 import { Separator } from '@/components/ui/separator';
@@ -27,6 +27,7 @@ import { useHistory } from './lib/history-store';
 import { BranchPickerDialog } from './components/BranchPickerDialog';
 import { RenameDialog, type RenameTarget } from './components/RenameDialog';
 import { useDisplayNames } from './lib/display-names';
+import { openFolder } from './lib/native-folder';
 import { orderedItems, useSidebarOrder, type SortEdge, type SortScope } from './lib/sidebar-order';
 import { useSidebarSorting } from './components/useSidebarSorting';
 import { BranchSyncCounts } from './components/BranchSyncStatus';
@@ -62,6 +63,37 @@ function fileName(file: FileSnapshot) { return file.path.split('/').pop()!; }
 function directory(file: FileSnapshot) { return file.path.split('/').slice(0, -1).join('/') || t("仓库根目录"); }
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error); }
 function firstAvailableWorktree(repository: Repository) { return repository.worktrees.find(worktree => worktree.available !== false && !worktree.bare); }
+
+/** 操作绑定入口所在的工作树，不改变侧栏选择。 */
+function WorktreeActions({ worktree, name, busy, onRename }: { worktree: Worktree; name: string; busy: boolean; onRename: (trigger: HTMLButtonElement) => void }) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const renameTrigger = useRef<HTMLButtonElement | null>(null);
+  /** 跨过按钮下方剩余的 26px 卡片高度，再留 4px 间距。 */
+  const menuOffset = 30;
+
+  async function copyPath() {
+    try {
+      await navigator.clipboard.writeText(worktree.path);
+      toast.success(t('已复制文件夹路径'));
+    } catch { toast.error(t('无法复制文件夹路径，请重试。')); }
+  }
+
+  return <DropdownMenu>
+    <DropdownMenuTrigger asChild><Button ref={trigger} variant="ghost" size="icon-xs" className="worktree-actions" disabled={busy} aria-label={t('工作树 {name} 的更多操作', { name })}><Icon name="ellipsis" /></Button></DropdownMenuTrigger>
+    <DropdownMenuContent align="end" sideOffset={menuOffset} className="worktree-actions-menu" onCloseAutoFocus={event => {
+      if (!renameTrigger.current) return;
+      /** 菜单完成关闭后交给弹窗聚焦，避免菜单回焦抢走输入焦点。 */
+      event.preventDefault();
+      onRename(renameTrigger.current);
+      renameTrigger.current = null;
+    }}>
+      <DropdownMenuItem onSelect={copyPath}><Icon name="copy" />{t('复制文件夹路径')}</DropdownMenuItem>
+      <DropdownMenuItem disabled={worktree.available === false} onSelect={() => void openFolder(worktree.path).catch(error => toast.error(t('无法打开文件夹'), { description: translateMessage(errorMessage(error)) }))}><Icon name="folder-opened" />{t('打开文件夹')}</DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={() => { renameTrigger.current = trigger.current; }}><Icon name="edit" />{t('自定义名称')}</DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>;
+}
 
 /** 仓库展开只由箭头控制，名称与工作区按钮只负责选择。 */
 function RepositorySidebar({ onOpen, onSettings, onMove }: { onOpen: () => void; onSettings: () => void; onMove: () => void }) {
@@ -109,9 +141,8 @@ function RepositorySidebar({ onOpen, onSettings, onMove }: { onOpen: () => void;
     return <Button variant="ghost" size="icon-xs" className="sidebar-sort-handle" aria-label={label} title={t('拖动排序，或按 ↑ / ↓ 调整')} {...sorting.handleProps(scope, id, ids)}><Icon name="gripper" /></Button>;
   }
 
-  function renameButton(id: string, kind: RenameTarget['kind'], defaultName: string) {
-    const label = kind === 'project' ? t('修改项目名称') : kind === 'main' ? t('修改主工作区名称') : t('修改工作树名称');
-    return <Hint label={label}><Button variant="ghost" size="icon-xs" className="name-edit-button" disabled={busy} aria-label={label} onClick={event => setRenameTarget({ id, kind, defaultName, name: names[id] ?? defaultName, customized: names[id] !== undefined, trigger: event.currentTarget })}><Icon name="edit" /></Button></Hint>;
+  function rename(id: string, kind: RenameTarget['kind'], defaultName: string, trigger: HTMLButtonElement) {
+    setRenameTarget({ id, kind, defaultName, name: names[id] ?? defaultName, customized: names[id] !== undefined, trigger });
   }
 
   return <aside className={`repository-sidebar${sidebarCollapsed ? ' is-collapsed' : ''}`} style={{ '--repository-expanded-width': `${sidebarWidth}px` } as CSSProperties} aria-label={t("仓库导航")}>
@@ -138,7 +169,7 @@ function RepositorySidebar({ onOpen, onSettings, onMove }: { onOpen: () => void;
               const first = firstAvailableWorktree(repository);
               if (!active && first) selectWorktree(first.id);
             }}><span className="repository-icon"><Icon name="folder" /><Icon name="folder-opened" /></span><span className="repository-name">{name}</span><small className="repository-worktree-count" title={t("{value1} 个工作区", { value1: repository.worktrees.length })}><span className="repository-count-label">{t(repository.worktrees.length === 1 ? "1 工作树" : "{count} 工作树", { count: repository.worktrees.length })}</span>{active && <span className="repository-current-label">{t("当前 · {count}", { count: repository.worktrees.length })}</span>}</small></button>
-            {sortHandle(null, repository.id, name, repositoryIds)}{renameButton(repository.id, 'project', repository.name)}
+            {sortHandle(null, repository.id, name, repositoryIds)}<Hint label={t('修改项目名称')}><Button variant="ghost" size="icon-xs" className="name-edit-button" disabled={busy} aria-label={t('修改项目名称')} onClick={event => rename(repository.id, 'project', repository.name, event.currentTarget)}><Icon name="edit" /></Button></Hint>
           </div>
           <CollapsibleContent><div className="worktree-list">{worktrees.map(worktree => {
             const syncDescription = worktreeSyncDescription(worktree);
@@ -149,7 +180,9 @@ function RepositorySidebar({ onOpen, onSettings, onMove }: { onOpen: () => void;
             className={`worktree-row ${activeWorktreeId === worktree.id ? 'selected' : ''}`}
             aria-current={activeWorktreeId === worktree.id ? 'page' : undefined}
             onClick={() => selectWorktree(worktree.id)}
-          ><Icon name={worktree.isMain ? 'device-desktop' : 'worktree'} /><span className="worktree-copy"><span className="worktree-title"><span className="worktree-name">{name}</span>{worktree.isMain && names[worktree.id] && <span className="worktree-kind" title={t('主工作区')}>{t('主')}</span>}{!worktree.isMain && <span className="worktree-kind">{t("关联")}</span>}{worktree.locked !== undefined && worktree.locked !== null && <Icon name="lock" className="worktree-lock" />}{activeWorktreeId === worktree.id && <span className="worktree-current">{t("当前")}</span>}</span><span className="worktree-branch"><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="worktree-branch-name">{worktree.bare ? t("裸仓库") : worktree.available === false ? t("目录不可用") : branchLabel(worktree)}</span>{syncDescription && <BranchSyncCounts sync={worktree.branchSync} />}</span></span>{syncDescription && <span className="sr-only">{syncDescription}</span>}</button></TooltipTrigger><TooltipContent className="worktree-tooltip">{details}</TooltipContent></Tooltip>{sortHandle(repository.id, worktree.id, name, worktreeIds)}{renameButton(worktree.id, worktree.isMain ? 'main' : 'worktree', worktreeLabel(worktree))}</div>;
+          ><Icon name={worktree.isMain ? 'device-desktop' : 'worktree'} /><span className="worktree-copy"><span className="worktree-title"><span className="worktree-name">{name}</span>{worktree.isMain && names[worktree.id] && <span className="worktree-kind" title={t('主工作区')}>{t('主')}</span>}{!worktree.isMain && <span className="worktree-kind">{t("关联")}</span>}{worktree.locked !== undefined && worktree.locked !== null && <Icon name="lock" className="worktree-lock" />}{activeWorktreeId === worktree.id && <span className="worktree-current">{t("当前")}</span>}</span><span className="worktree-branch"><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="worktree-branch-name">{worktree.bare ? t("裸仓库") : worktree.available === false ? t("目录不可用") : branchLabel(worktree)}</span>{syncDescription && <BranchSyncCounts sync={worktree.branchSync} />}</span></span>{syncDescription && <span className="sr-only">{syncDescription}</span>}</button></TooltipTrigger><TooltipContent className="worktree-tooltip">{details}</TooltipContent></Tooltip>
+              {sortHandle(repository.id, worktree.id, name, worktreeIds)}<WorktreeActions worktree={worktree} name={name} busy={busy} onRename={trigger => rename(worktree.id, worktree.isMain ? 'main' : 'worktree', worktreeLabel(worktree), trigger)} />
+            </div>;
           })}</div></CollapsibleContent>
         </Collapsible>;
       })}

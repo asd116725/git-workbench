@@ -451,12 +451,16 @@ fn conflicting_files_are_reported_and_commit_is_rejected() {
             .success()
     );
     assert!(changes(fixture.path()).unwrap()[0].conflicted);
+    let preview = diff(fixture.path(), "conflict.txt", ChangeArea::Unstaged).unwrap();
+    assert!(preview.notice.is_none(), "冲突文件应返回可查看的正文");
+    let preview = serde_json::to_value(preview).unwrap();
+    assert_eq!(preview["conflictPreview"]["ours"]["text"], "main\n");
+    assert_eq!(preview["conflictPreview"]["theirs"]["text"], "other\n");
     assert!(
-        diff(fixture.path(), "conflict.txt", ChangeArea::Unstaged)
+        preview["conflictPreview"]["working"]["text"]
+            .as_str()
             .unwrap()
-            .notice
-            .unwrap()
-            .contains("冲突")
+            .contains("<<<<<<<")
     );
     assert!(
         commit(fixture.path(), "尚未解决", "")
@@ -464,6 +468,11 @@ fn conflicting_files_are_reported_and_commit_is_rejected() {
             .contains("冲突")
     );
     fixture.write("conflict.txt", "resolved\n");
+    let edited =
+        serde_json::to_value(diff(fixture.path(), "conflict.txt", ChangeArea::Unstaged).unwrap())
+            .unwrap();
+    assert_eq!(edited["conflictPreview"]["working"]["text"], "resolved\n");
+    assert_eq!(edited["conflictPreview"]["ours"]["text"], "main\n");
     stage(fixture.path(), "conflict.txt").unwrap();
     assert!(!changes(fixture.path()).unwrap()[0].conflicted);
     assert!(commit(fixture.path(), "解决冲突", "").is_err());
@@ -480,6 +489,131 @@ fn conflicting_files_are_reported_and_commit_is_rejected() {
         git_line(fixture.path(), &["show", "-s", "--format=%P", "HEAD"]).unwrap(),
         format!("{} {}", pending.head, pending.merge_heads[0])
     );
+}
+
+#[test]
+fn conflict_preview_handles_deleted_sides_and_missing_working_file() {
+    for deleted_ours in [true, false] {
+        let fixture = Fixture::new();
+        let path = "目录/冲突 文件.txt";
+        fixture.write(path, "base\n");
+        fixture.initial_commit();
+        git(fixture.path(), &["checkout", "-b", "other"]).unwrap();
+        if deleted_ours {
+            fixture.write(path, "theirs\n");
+        } else {
+            fs::remove_file(fixture.path().join(path)).unwrap();
+        }
+        fixture.initial_commit();
+        git(fixture.path(), &["checkout", "main"]).unwrap();
+        if deleted_ours {
+            fs::remove_file(fixture.path().join(path)).unwrap();
+        } else {
+            fixture.write(path, "ours\n");
+        }
+        fixture.initial_commit();
+        assert!(
+            !run_git(fixture.path(), &["merge", "other"])
+                .unwrap()
+                .status
+                .success()
+        );
+        let deleted = if deleted_ours { "ours" } else { "theirs" };
+        let kept = if deleted_ours { "theirs" } else { "ours" };
+        let result =
+            serde_json::to_value(diff(fixture.path(), path, ChangeArea::Unstaged).unwrap())
+                .unwrap();
+        assert!(result["conflictPreview"][deleted]["text"].is_null());
+        assert!(result["conflictPreview"][deleted]["notice"].is_null());
+        assert_eq!(result["conflictPreview"][kept]["text"], format!("{kept}\n"));
+        fs::remove_file(fixture.path().join(path)).unwrap();
+        let removed =
+            serde_json::to_value(diff(fixture.path(), path, ChangeArea::Unstaged).unwrap())
+                .unwrap();
+        assert!(removed["conflictPreview"]["working"]["text"].is_null());
+        assert!(removed["conflictPreview"]["working"]["notice"].is_null());
+    }
+}
+
+#[test]
+fn conflict_preview_reads_custom_markers_without_changing_index_or_working_file() {
+    let fixture = Fixture::new();
+    fixture.write(".gitattributes", "file.txt conflict-marker-size=11\n");
+    fixture.write("file.txt", "base\n");
+    fixture.initial_commit();
+    git(fixture.path(), &["config", "merge.conflictstyle", "diff3"]).unwrap();
+    git(fixture.path(), &["checkout", "-b", "other"]).unwrap();
+    fixture.write("file.txt", "theirs\n");
+    fixture.initial_commit();
+    git(fixture.path(), &["checkout", "main"]).unwrap();
+    fixture.write("file.txt", "ours\n");
+    fixture.initial_commit();
+    assert!(
+        !run_git(fixture.path(), &["merge", "other"])
+            .unwrap()
+            .status
+            .success()
+    );
+    let index = fs::read(fixture.path().join(".git/index")).unwrap();
+    let working = fs::read_to_string(fixture.path().join("file.txt")).unwrap();
+    let result =
+        serde_json::to_value(diff(fixture.path(), "file.txt", ChangeArea::Unstaged).unwrap())
+            .unwrap();
+    assert_eq!(result["conflictPreview"]["markerSize"], 11);
+    assert_eq!(result["conflictPreview"]["working"]["text"], working);
+    assert!(working.contains("|||||||||||"));
+    assert_eq!(index, fs::read(fixture.path().join(".git/index")).unwrap());
+    assert_eq!(
+        working,
+        fs::read_to_string(fixture.path().join("file.txt")).unwrap()
+    );
+}
+
+#[test]
+fn conflict_preview_does_not_treat_binary_and_oversized_versions_as_deleted() {
+    for (path, base, ours, theirs) in [
+        (
+            "file.bin",
+            b"\0base".to_vec(),
+            b"\0ours".to_vec(),
+            b"\0theirs".to_vec(),
+        ),
+        (
+            "file.txt",
+            b"base\n".to_vec(),
+            vec![b'a'; MAX_DIFF_BYTES as usize + 1],
+            b"theirs\n".to_vec(),
+        ),
+        (
+            "file.png",
+            include_bytes!("../../icons/32x32.png").to_vec(),
+            include_bytes!("../../icons/64x64.png").to_vec(),
+            include_bytes!("../../icons/128x128.png").to_vec(),
+        ),
+    ] {
+        let fixture = Fixture::new();
+        fixture.write(path, base);
+        fixture.initial_commit();
+        git(fixture.path(), &["checkout", "-b", "other"]).unwrap();
+        fixture.write(path, theirs);
+        fixture.initial_commit();
+        git(fixture.path(), &["checkout", "main"]).unwrap();
+        fixture.write(path, ours);
+        fixture.initial_commit();
+        assert!(
+            !run_git(fixture.path(), &["merge", "other"])
+                .unwrap()
+                .status
+                .success()
+        );
+        let result =
+            serde_json::to_value(diff(fixture.path(), path, ChangeArea::Unstaged).unwrap())
+                .unwrap();
+        assert!(result["notice"].is_null());
+        assert!(result["conflictPreview"]["ours"]["text"].is_null());
+        assert!(result["conflictPreview"]["ours"]["notice"].is_string());
+        assert!(result["conflictPreview"]["working"]["notice"].is_string());
+    }
 }
 
 #[test]

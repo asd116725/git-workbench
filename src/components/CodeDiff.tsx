@@ -3,12 +3,13 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { editor } from 'monaco-editor';
 import { structuredPatch } from 'diff';
 import { getDiff, getHunks } from '../lib/demo-git';
-import type { ChangeArea, FileSnapshot } from '../lib/types';
+import type { ChangeArea, ConflictPreview, FileSnapshot } from '../lib/types';
 import { monaco } from '../lib/monaco';
 import { editorThemes, useAppearance } from '../lib/appearance';
 import { getEditorLanguage } from '../lib/syntax-highlighter';
 import { createDiffContentUpdater } from '../lib/diff-content';
 import { FileIcon } from './FileIcon';
+import { ConflictContent } from './ConflictContent';
 import './code-diff.css';
 
 /** 差异面板只负责展示与选择，暂存操作交给仓库业务层。 */
@@ -54,6 +55,12 @@ export function CodeDiff(props: CodeDiffProps) {
 
 type SelectedDiffProps = CodeDiffProps & { file: FileSnapshot };
 
+/** 缺失版本与无法读取的版本分开展示，避免把二进制或超限内容当作删除。 */
+function conflictSideLabel(side: 'ours' | 'theirs', preview: ConflictPreview): string {
+  const label = t(side === 'ours' ? '当前侧（ours）' : '另一侧（theirs）');
+  return preview[side].text === null && !preview[side].notice ? `${label} · ${t('此侧不存在')}` : label;
+}
+
 function SelectedFileDiff(props: SelectedDiffProps) {
   const { t } = useI18n();
   const [showSource, setShowSource] = useState(false);
@@ -62,6 +69,7 @@ function SelectedFileDiff(props: SelectedDiffProps) {
   const originalLabel = props.originalLabel ?? (area === 'staged' ? t("HEAD（上次提交）") : t("暂存区（当前版本）"));
   const modifiedLabel = props.modifiedLabel ?? (area === 'staged' ? t("暂存区（已暂存的更改）") : t("工作区（未暂存的更改）"));
   const preview = file.imagePreview;
+  const conflict = file.conflictPreview;
   const canShowSource = preview && (!preview.original || (area === 'staged' ? file.head : file.index) !== null)
     && (!preview.modified || (area === 'staged' ? file.index : file.working) !== null);
   const showImage = preview && !(canShowSource && showSource);
@@ -81,7 +89,11 @@ function SelectedFileDiff(props: SelectedDiffProps) {
           <button onClick={() => setShowSource(!showSource)}>{t(showSource ? "图片预览" : "查看源码")}</button>
         </div>}
       </div>
-      {showImage ? <div className="code-diff-images">
+      {conflict ? <ConflictContent file={file} preview={conflict} sideLabels={{ ours: conflictSideLabel('ours', conflict), theirs: conflictSideLabel('theirs', conflict) }} worktreeId={props.worktreeId} fontSize={props.fontSize}>
+        <ActiveCodeDiff {...props} area="unstaged" onStageHunk={undefined}
+          file={{ ...file, index: conflict.ours.text, working: conflict.theirs.text }}
+          originalLabel={conflictSideLabel('ours', conflict)} modifiedLabel={conflictSideLabel('theirs', conflict)} />
+      </ConflictContent> : showImage ? <div className="code-diff-images">
         {preview.original && <ImageVersion src={preview.original} label={originalLabel} />}
         {preview.modified && <ImageVersion src={preview.modified} label={modifiedLabel} />}
       </div> : <ActiveCodeDiff {...props} originalLabel={originalLabel} modifiedLabel={modifiedLabel} />}

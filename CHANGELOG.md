@@ -6,6 +6,15 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-11-17
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.15.0/CHANGELOG.zh-CN.md#1150---2026-11-17)
+
+- Inspect conflicted files in a read-only view with highlighted conflict blocks, actual line numbers, and navigation between conflicts. Compare Git's ours and theirs versions side by side or inline; resolve and stage the file using an external editor.
+- Open a worktree's more-actions menu to copy its folder path, open the folder, or customize its display name.
+
+The macOS Apple Silicon (arm64) installer uses ad-hoc signing and has not been notarized by Apple. See the [installation guide](https://github.com/asd116725/git-workbench/blob/main/docs/installation.md).
+
 ## [1.14.0] - 2026-11-17
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.14.0/CHANGELOG.zh-CN.md#1140---2026-11-17)

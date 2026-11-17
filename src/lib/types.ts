@@ -18,12 +18,27 @@ export interface ImagePreview {
   modified: string | null;
 }
 
+/** text/notice 同为 null 表示该侧已删除或不存在，空字符串表示存在的空文件。 */
+export interface ConflictVersion {
+  text: string | null;
+  notice: string | null;
+}
+
+/** Git 未合并索引双方快照与当前工作区；不参与普通暂存区 Diff 的版本映射。 */
+export interface ConflictPreview {
+  ours: ConflictVersion;
+  theirs: ConflictVersion;
+  working: ConflictVersion;
+  markerSize: number;
+}
+
 /** 本地和历史共用差异协议；SVG 可以同时提供源码与图片。 */
 export interface GitDiffContent {
   original: string | null;
   modified: string | null;
   notice: string | null;
   imagePreview?: ImagePreview;
+  conflictPreview?: ConflictPreview;
 }
 
 /** null 表示该版本不存在；原生列表未加载正文时也为 null，不能据此推导 Git 状态。 */
@@ -35,6 +50,7 @@ export interface FileSnapshot {
   index: string | null;
   working: string | null;
   imagePreview?: ImagePreview;
+  conflictPreview?: ConflictPreview;
   git?: GitFileStatus;
 }
 

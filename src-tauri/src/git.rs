@@ -24,6 +24,7 @@ use navigation::{GitBranch, GitWorktreeInfo, branches, checkout, common_director
 pub mod branch_management;
 pub mod watch;
 pub use watch::GitWatchState;
+mod conflict;
 pub mod discard;
 pub mod history;
 mod image;
@@ -78,6 +79,8 @@ pub struct GitDiff {
     pub notice: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     image_preview: Option<ImagePreview>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    conflict_preview: Option<conflict::ConflictPreview>,
 }
 
 /// 两侧数据来自同一次差异读取；缺少一侧时只展示可预览的版本。
@@ -100,6 +103,7 @@ impl GitDiff {
             modified: None,
             notice: Some(message.into()),
             image_preview: None,
+            conflict_preview: None,
         }
     }
 
@@ -116,6 +120,7 @@ impl GitDiff {
             modified: modified.text,
             notice: None,
             image_preview,
+            conflict_preview: None,
         }
     }
 }
@@ -420,7 +425,7 @@ fn diff(repo: &Path, path: &str, area: ChangeArea) -> GitResult<GitDiff> {
     let file = selected_change(repo, path)?;
     let notice = |message: &str| Ok(GitDiff::notice(message));
     if file.conflicted {
-        return notice("此文件包含合并冲突，请先在外部编辑器中解决并暂存，再继续当前 Git 操作。");
+        return conflict::diff(repo, path);
     }
     // 子模块提交对象通常只存在于子模块对象库，不能交给父仓库 cat-file 读取。
     let index_entry = git(repo, &["ls-files", "--stage", "-z", "--", path])?;

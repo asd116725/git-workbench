@@ -1,5 +1,11 @@
 /** 应用自有提示的完整原文与模板；参数保留仓库数据和 Git 输出原文。 */
 export const systemMessages: Record<string, { en: string; 'zh-TW': string }> = {
+  "无法读取冲突索引。": {"en": "Cannot read the conflict index.", "zh-TW": "無法讀取衝突索引。"},
+  "子模块冲突需在外部工具中查看。": {"en": "Inspect submodule conflicts in an external tool.", "zh-TW": "子模組衝突需在外部工具中檢視。"},
+  "图片文件无法显示文本冲突。": {"en": "Image files cannot display text conflicts.", "zh-TW": "圖片檔案無法顯示文字衝突。"},
+  "无法访问文件夹：{error}": { en: "Cannot access folder: {error}", 'zh-TW': "無法存取資料夾：{error}" },
+  "指定路径不是文件夹。": { en: "The specified path is not a folder.", 'zh-TW': "指定路徑不是資料夾。" },
+  "打开文件夹失败：{error}": { en: "Failed to open folder: {error}", 'zh-TW': "開啟資料夾失敗：{error}" },
   "请先完成或中止当前 Git 操作，再撤销修改。": {"en": "Complete or abort the current Git operation before discarding changes.", "zh-TW": "請先完成或中止目前 Git 操作，再撤銷修改。"},
   "文件或暂存状态已变化，请重新预览并确认撤销。": {"en": "Files or staged changes have changed. Preview and confirm again.", "zh-TW": "檔案或暫存狀態已變更，請重新預覽並確認撤銷。"},
   "无法撤销“{path}”：父目录不是普通目录。": {"en": "Cannot discard “{path}”: its parent is not a regular directory.", "zh-TW": "無法撤銷「{path}」：父目錄不是一般目錄。"},

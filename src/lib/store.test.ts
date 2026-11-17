@@ -58,6 +58,25 @@ beforeEach(() => {
 });
 
 describe('真实仓库状态与正文', () => {
+  it('冲突正文随外部编辑刷新，暂存后清除冲突预览', async () => {
+    let conflicted = true;
+    let working = '<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> feature\n';
+    mockedInvoke.mockImplementation(async command => {
+      if (command === 'git_open' || command === 'git_status') return { ...baseRepository, files: [{ ...baseRepository.files[0], statusIndex: conflicted ? 'U' : 'M', statusWorktree: conflicted ? 'U' : ' ', conflicted }] };
+      if (command === 'git_diff') return conflicted ? { original: null, modified: null, notice: null, conflictPreview: { ours: { text: 'ours', notice: null }, theirs: { text: 'theirs', notice: null }, working: { text: working, notice: null }, markerSize: 7 } } : textDiff;
+      return undefined;
+    });
+    await useWorkbench.getState().openRepository('/test/repository');
+    await vi.waitFor(() => expect(useWorkbench.getState().diff.file?.conflictPreview?.working.text).toBe(working));
+    working = 'resolved\n';
+    await useWorkbench.getState().refresh({ silent: true });
+    expect(useWorkbench.getState().diff.file?.conflictPreview?.working.text).toBe(working);
+    conflicted = false;
+    await useWorkbench.getState().refresh({ silent: true });
+    expect(useWorkbench.getState().diff.file?.conflictPreview).toBeUndefined();
+    expect(useWorkbench.getState().diff.file?.index).toBe(textDiff.modified);
+  });
+
   it('桌面端从空状态开始；打开路径后只加载当前文件的差异', async () => {
     expect(useWorkbench.getState().repositories).toEqual([]);
     expect(findWorktree([], '')).toBeUndefined();

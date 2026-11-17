@@ -2,7 +2,7 @@
 
 **English** | [简体中文](zh-CN/user-manual.md)
 
-This manual covers the stable `1.10.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.10.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.10.0). The browser uses separate demo data and does not access real repositories.
+This manual covers the stable `1.15.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.15.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.15.0). The browser uses separate demo data and does not access real repositories.
 
 Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-refreshing-and-settings). Screenshots show the v1.8.0 English interface with fictional demo data; the naming and sorting controls added in v1.10.0 are described below.
 
@@ -47,7 +47,7 @@ After worktrees are added or deleted externally, Git metadata watching updates t
 
 ### 3.1 Custom display names (1.10.0)
 
-Hover over a project or worktree row, or use `Tab` to reach its edit button. Choose **Rename project**, **Rename main worktree**, or **Rename worktree**, enter a name, then click **Save** or press `Enter`. Click **Cancel** or press `Esc` to leave without saving. Names cannot be empty.
+Use the pencil button on a project row to rename the project. For a main or linked worktree, choose **⋯ → Customize name**; `Tab` also reaches these controls. Enter a name, then click **Save** or press `Enter`. Click **Cancel** or press `Esc` to leave without saving. Names cannot be empty.
 
 To restore the original display name, choose **Reset name**, then **Save**. Resetting is only applied when you save; canceling keeps the current name.
 
@@ -66,6 +66,10 @@ The app remembers each list's order on this device across refreshes and restarts
 Open **⋯** in the repository header and choose **Move to right panel** or **Move to left panel**. The file list and diff retain their order. Use the panel icon beside **⋯** to collapse the sidebar into a 44px rail, then use the same icon at the top of the rail to expand it. **Settings** and **Open repository** remain at the bottom of the rail.
 
 The app remembers the side, collapsed state, and expanded width. Moving or collapsing the sidebar preserves the selected worktree, repository tree, and current commit draft. **Settings → Reset layout** restores the sidebar to its default expanded position on the left.
+
+### 3.4 More worktree actions
+
+Open **⋯** on a main or linked worktree to copy its full folder path, open the folder in the system file manager, or customize its display name. Actions target that row without switching the active worktree. **Open folder** is disabled for unavailable directories; the registered path can still be copied and the display name changed. The six-dot handle remains available for sorting.
 
 ## 4. Switch branches
 
@@ -95,7 +99,8 @@ The source can be a local branch, a fetched remote branch, or a branch in use by
 
 **If conflicts occur:**
 
-- The top bar shows the active merge, and the file pane lists **Merge conflicts** separately. Resolve conflicts in an external editor, save, and click `+` beside each file to stage it. The app does not provide a three-way conflict editor. Staging confirms that a file is resolved, so inspect its content first.
+- The top bar shows the active merge, and the file pane lists **Merge conflicts** separately. Select a conflicted file to see its working content, highlighted conflict blocks, and actual line numbers in **Conflict locations**. Use the up/down arrows to jump between blocks. **Compare sides** compares Git's ours / theirs versions in split or inline mode. During a rebase, ours is the rebase target and theirs is the commit being replayed; deletion conflicts explicitly label the missing side.
+- Conflict views are read-only. Resolve conflicts in an external editor, save, and click `+` beside each file to stage it. Removing conflict markers does not stage the resolution: the file remains marked unmerged until staged, so inspect its content first.
 - Directory and whole-group actions in the regular **Unstaged** section exclude the conflict group to avoid accidentally marking conflicts as resolved in bulk.
 - After resolving all conflicts and staging all changes to tracked files, review the **Merge commit message** and click **Complete merge** or press `⌘ Enter`. You can complete a merge even if the resolved files are identical to the current HEAD.
 - The merge message has its own draft; the ordinary commit draft is preserved. After relaunch, the app restores the merge state and Git's default message from disk. Drafts typed in the app last only for the current session.
@@ -160,7 +165,7 @@ Select an unstaged file to compare **index → worktree**, or a staged file to c
 
 Use **Side by side / Inline** at the top right to change the view. The arrows jump to the previous or next changed hunk. Green marks additions and red marks deletions. The diff retains the full context for reading.
 
-Diffs are read-only. Edit source files in your editor; the app refreshes after you save, or you can refresh manually. Binary files, non-UTF-8 text, oversized text, submodules, and unresolved conflicts may show an explanation instead of a normal text diff. Resolve conflicts with an external tool.
+Diffs are read-only. Edit source files in your editor; the app refreshes after you save, or you can refresh manually. Conflicted files provide **Conflict locations** and **Compare sides** views. Binary files, non-UTF-8 text, oversized text, and submodules show an explanation instead of a normal text diff. Edit and resolve conflicts with an external tool.
 
 Real Git operations currently support staging whole files only. Hunk staging in the browser demo does not mean it is available in the desktop app.
 

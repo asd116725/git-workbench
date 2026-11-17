@@ -1,3 +1,4 @@
+mod folder;
 mod git;
 
 #[cfg(target_os = "macos")]
@@ -11,6 +12,7 @@ pub fn run() {
         .manage(git::ai_commit::AiCommitState::default())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            folder::open_folder,
             git::git_open,
             git::git_status,
             git::git_diff,

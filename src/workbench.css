@@ -65,9 +65,14 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .name-edit-button { flex-shrink: 0; width: 23px; height: 23px; opacity: 0; color: var(--muted-foreground); }
 .name-edit-button .codicon { font-size: 14px; }
 .repository-row > .name-edit-button { margin-right: 5px; }
-.repository-row:hover .name-edit-button, .repository-row:focus-within .name-edit-button, .worktree-row-container:hover .name-edit-button, .worktree-row-container:focus-within .name-edit-button { opacity: 1; }
+.repository-row:hover .name-edit-button, .repository-row:focus-within .name-edit-button { opacity: 1; }
 .worktree-row-container { position: relative; min-width: 0; }
-.worktree-row-container > .name-edit-button { position: absolute; top: 5px; right: 4px; }
+.worktree-actions { position: absolute; top: 5px; right: 4px; width: 23px; height: 23px; color: var(--muted-foreground); }
+.worktree-actions .codicon { font-size: 14px; }
+.worktree-actions[data-state='open'] { color: var(--accent-foreground); background: var(--accent); }
+.worktree-actions-menu { width: auto; min-width: 152px; }
+.worktree-actions-menu [role='menuitem'] { gap: 8px; padding: 6px 8px; white-space: nowrap; }
+.worktree-actions-menu [role='separator'] { margin-inline: 8px; }
 /** 两个操作入口只占标题行，第二行保留分支与同步信息的可用宽度。 */
 .worktree-row-container .worktree-title { padding-right: 45px; }
 .sidebar-sort-handle { flex-shrink: 0; width: 23px; height: 23px; color: var(--muted-foreground); cursor: grab; touch-action: none; }
