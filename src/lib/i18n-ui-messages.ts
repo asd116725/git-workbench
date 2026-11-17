@@ -111,9 +111,9 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
     "en": "Commit differences from upstream {upstream} are unavailable. Fetch remote updates first.",
     "zh-TW": "無法確定與上游 {upstream} 的提交差異；請先擷取遠端更新。"
   },
-  "已与上游 {upstream} 同步。数量基于最近获取的引用。": {
-    "en": "In sync with upstream {upstream}. Counts use the most recently fetched refs.",
-    "zh-TW": "已與上游 {upstream} 同步。數量以最近擷取的引用為準。"
+  "已与上游 {upstream} 的本地跟踪引用同步。": {
+    "en": "In sync with the local tracking ref for {upstream}.",
+    "zh-TW": "已與上游 {upstream} 的本機追蹤引用同步。"
   },
   "相对上游 {upstream}：待拉取 {behind} 个提交，待推送 {ahead} 个提交。数量基于最近获取的引用。": {
     "en": "Compared with upstream {upstream}: commits to pull: {behind}; commits to push: {ahead}. Counts use the most recently fetched refs.",
@@ -1248,17 +1248,17 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
     "en": "{value1}, commits to pull: {value2}",
     "zh-TW": "{value1}，{value2} 個待拉取提交"
   },
-  "待上传数量未知": {
+  "待推送数量未知": {
     "en": "Pending commit count unknown",
-    "zh-TW": "待上傳數量未知"
+    "zh-TW": "待推送數量未知"
   },
-  "{value1} 个待上传提交": {
+  "{value1} 个待推送提交": {
     "en": "Commits to push: {value1}",
-    "zh-TW": "{value1} 個待上傳提交"
+    "zh-TW": "{value1} 個待推送提交"
   },
-  "没有待上传提交": {
+  "没有待推送提交": {
     "en": "No commits to push",
-    "zh-TW": "沒有待上傳提交"
+    "zh-TW": "沒有待推送提交"
   },
   "推送到 {value1}": {
     "en": "Push to {value1}",
@@ -1272,6 +1272,20 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
     "en": "Count based on the most recently fetched references",
     "zh-TW": "數量依據最近擷取的遠端參照"
   },
+  "正在检查远程…": { en: "Checking remotes…", 'zh-TW': "正在檢查遠端…" },
+  "尚未检查远程，计数可能过期": { en: "Remotes not checked; counts may be outdated", 'zh-TW': "尚未檢查遠端，計數可能過期" },
+  "远程检查失败，计数可能过期": { en: "Remote check failed; counts may be outdated", 'zh-TW': "遠端檢查失敗，計數可能過期" },
+  "点击「获取」可重试。": { en: "Select Fetch to retry.", 'zh-TW': "選取「擷取」可重試。" },
+  "远端领先 {behind} 个提交，请先拉取。": { en: "The remote is ahead by {behind} commits. Pull first.", 'zh-TW': "遠端領先 {behind} 個提交，請先拉取。" },
+  "本地领先 {ahead} / 远端领先 {behind}，请先合并。": {
+    en: "Local ahead by {ahead} / remote ahead by {behind}. Merge first.", 'zh-TW': "本機領先 {ahead} / 遠端領先 {behind}，請先合併。",
+  },
+  "按最近获取的引用：本地领先 {ahead} / 远端领先 {behind}。": {
+    en: "Last fetched refs: local ahead by {ahead} / remote ahead by {behind}.", 'zh-TW': "依最近擷取的引用：本機領先 {ahead} / 遠端領先 {behind}。",
+  },
+  "当前分支与远端已分叉，请先合并。": { en: "This branch has diverged from the remote. Merge first.", 'zh-TW': "目前分支與遠端已分歧，請先合併。" },
+  "合并上游": { en: "Merge upstream", 'zh-TW': "合併上游" },
+  "检查合并": { en: "Check merge", 'zh-TW': "檢查合併" },
   "{value1}已完成，请查看仓库状态中的警告": {
     "en": "{value1} completed. Check the repository status for warnings",
     "zh-TW": "{value1}已完成，請查看儲存庫狀態中的警告"
@@ -1288,9 +1302,9 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
     "en": "{value1} in progress",
     "zh-TW": "{value1}中"
   },
-  "{value1}，{value2} 个待上传提交": {
+  "{value1}，{value2} 个待推送提交": {
     "en": "{value1}, commits to push: {value2}",
-    "zh-TW": "{value1}，{value2} 個待上傳提交"
+    "zh-TW": "{value1}，{value2} 個待推送提交"
   },
   "{value1}中，请稍候…": {
     "en": "{value1} in progress, please wait…",

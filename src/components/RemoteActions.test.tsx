@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { RemoteActions } from './RemoteActions';
+import { RemoteActions, RemoteCheckIndicator, RemoteIntegrationNotice } from './RemoteActions';
 import { setLanguage } from '../lib/i18n';
 import { remoteBlockReason } from '../lib/remote-view';
 import type { Worktree } from '../lib/types';
@@ -20,6 +20,10 @@ const unpublished: Worktree = {
 };
 
 function render(target = worktree) { return renderToStaticMarkup(<TooltipProvider><RemoteActions worktree={target} /></TooltipProvider>); }
+
+function renderStatus(target = worktree) {
+  return renderToStaticMarkup(<TooltipProvider><RemoteCheckIndicator worktree={target} /><RemoteIntegrationNotice worktree={target} onMerge={vi.fn()} /></TooltipProvider>);
+}
 
 beforeEach(() => { hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteOperation: null, runRemote: vi.fn() }); });
 
@@ -49,7 +53,7 @@ describe('远程工具栏', () => {
     expect(html).not.toContain('remote-count');
     expect(html).toContain('aria-label="发布分支"');
   });
-  it.each([['en', 'Fetch', 'Pull', 'Push, commits to push: 3'], ['zh-TW', '擷取', '拉取', '推送，3 個待上傳提交']] as const)('%s 更新三个操作及动态数量的无障碍名称', (language, fetch, pull, push) => {
+  it.each([['en', 'Fetch', 'Pull', 'Push, commits to push: 3'], ['zh-TW', '擷取', '拉取', '推送，3 個待推送提交']] as const)('%s 更新三个操作及动态数量的无障碍名称', (language, fetch, pull, push) => {
     setLanguage(language);
     const html = render();
     expect(html).toContain(`aria-label="${fetch}"`);
@@ -62,7 +66,7 @@ describe('远程工具栏', () => {
     const html = render();
     expect(html).toContain('aria-label="获取"');
     expect(html).toContain('aria-label="拉取"');
-    expect(html).toContain('aria-label="推送，3 个待上传提交"');
+    expect(html).toContain('aria-label="推送，3 个待推送提交"');
     expect(html).toMatch(/codicon-arrow-up[^]*?remote-count[^]*?>3<\/span><\/span>推送/);
     expect(html).not.toContain('disabled=""');
   });
@@ -108,6 +112,49 @@ describe('远程工具栏', () => {
     expect(html).toContain('aria-label="推送中"');
     expect(html.match(/codicon-loading spin/g)).toHaveLength(1);
     expect(html.match(/disabled=""/g)).toHaveLength(3);
+  });
+
+  it('确认分叉后提示合并并限制快进拉取，仍可向可能不同的推送目标发起预检', () => {
+    const target = { ...worktree, remote: { ...worktree.remote!, behind: 9, upstreamRef: 'refs/remotes/cache/custom-main' } };
+    hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteCheck: { worktreeId: target.id, checking: false, error: null } });
+    expect(renderStatus(target)).toContain('本地领先 3 / 远端领先 9');
+    expect(renderStatus(target)).toContain('合并上游');
+    expect(render(target).match(/disabled=""/g)).toHaveLength(1);
+    const push = render(target).match(/<button[^>]*aria-label="推送[^>]*>/)?.[0];
+    expect(push).toBeTruthy();
+    expect(push).not.toContain('disabled=""');
+    expect(render(target).match(/remote-count/g)).toHaveLength(2);
+  });
+
+  it('仅落后时引导拉取，过期数字不会禁用推送或触发合并引导', () => {
+    const target = { ...worktree, remote: { ...worktree.remote!, ahead: 0, behind: 9 } };
+    const check = { worktreeId: target.id, checking: false, error: null };
+    hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteCheck: check });
+    expect(renderStatus(target)).toContain('远端领先 9 个提交，请先拉取。');
+    expect(render(target)).not.toContain('disabled=""');
+    hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteCheck: { ...check, error: '无网络' } });
+    expect(renderStatus(target)).toContain('远程检查失败，计数可能过期');
+    expect(renderStatus(target)).not.toContain('请先拉取');
+    expect(render(target)).not.toContain('disabled=""');
+  });
+
+  it('尚未通过后台检查时，已有分叉引用也能打开合并，但数量明确来自上次获取', () => {
+    const target = { ...worktree, remote: { ...worktree.remote!, behind: 2, upstreamRef: 'refs/remotes/cache/custom-main' } };
+    hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteCheck: { worktreeId: target.id, checking: false, error: '无网络' } });
+    const html = renderStatus(target);
+    expect(html).toContain('远程检查失败，计数可能过期');
+    expect(html).toContain('按最近获取的引用：本地领先 3 / 远端领先 2。');
+    expect(html).toContain('合并上游');
+    expect(html).not.toContain('请先合并');
+  });
+
+  it('尚未检查和检查中均有状态，不凭上次的零计数声称已同步', () => {
+    const target = { ...worktree, remote: { ...worktree.remote!, ahead: 0 } };
+    hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteCheck: { worktreeId: 'old', checking: false, error: '无网络' } });
+    expect(renderStatus(target)).toContain('尚未检查远程，计数可能过期');
+    hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteCheck: { worktreeId: target.id, checking: true, error: null } });
+    expect(renderStatus(target)).toContain('正在检查远程…');
+    expect(render(target)).not.toContain('disabled=""');
   });
 
   it('演示模式和无远程禁用全部操作，无上游只禁用拉取', () => {

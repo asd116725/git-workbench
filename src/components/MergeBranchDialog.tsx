@@ -11,7 +11,8 @@ import type { GitBranch, GitMergePreview, Worktree } from '../lib/types';
 import { commitAge } from './branch-display';
 import './merge-dialog.css';
 
-type MergeSource = Pick<GitBranch, 'fullName' | 'name'>;
+/** 合并预览使用 Git 返回的完整引用，而不是界面显示名。 */
+export type MergeSource = Pick<GitBranch, 'fullName' | 'name'>;
 
 function MergeBranchOption({ branch, selected, disabled, targetPath, onSelect }: {
   branch: GitBranch;
@@ -32,17 +33,18 @@ function MergeBranchOption({ branch, selected, disabled, targetPath, onSelect }:
 }
 
 /** 先预览来源与目标，只有显式确认才执行合并；其他工作区使用中的分支仍可作为来源。 */
-export function MergeBranchDialog({ worktree, open, onOpenChange }: {
+export function MergeBranchDialog({ worktree, open, onOpenChange, initialSource }: {
   worktree: Worktree;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialSource?: MergeSource;
 }) {
   useI18n();
   const { branches, loadBranches, previewMerge, mergeBranch, busy } = useWorkbench();
   /** 固定打开弹窗时的目标，避免外部检出后确认按钮悄悄变成另一个分支。 */
   const [target] = useState({ id: worktree.id, path: worktree.path, branch: worktree.branch });
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<MergeSource | null>(null);
+  const [selected, setSelected] = useState<MergeSource | null>(initialSource ?? null);
   const [preview, setPreview] = useState<GitMergePreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -155,7 +157,7 @@ export function MergeBranchDialog({ worktree, open, onOpenChange }: {
                 : preview ? preview.upToDate ? <span><i className="codicon codicon-check" aria-hidden="true" />{t("当前分支已包含来源提交，无需合并。")}</span>
                   : <><span><i className={`codicon codicon-${preview.fastForward && !noFf ? 'arrow-right' : 'git-merge'}`} aria-hidden="true" />{preview.fastForward && !noFf ? t("可快进合并") : t("将创建合并提交")}</span>
                     {(!preview.fastForward || noFf) && <span className="merge-conflict-hint"><i className="codicon codicon-warning" aria-hidden="true" />{t("执行时仍可能出现冲突")}</span>}</>
-                  : <Button variant="outline" size="sm" disabled={locked || Boolean(blocked)} onClick={() => void selectSource(selected)}>{t("重新检查合并")}</Button>}
+                  : <Button variant="outline" size="sm" disabled={locked || Boolean(blocked)} onClick={() => void selectSource(selected)}>{error ? t("重新检查合并") : t("检查合并")}</Button>}
             </div>
           </> : <p className="merge-preview-placeholder"><i className="codicon codicon-git-merge" aria-hidden="true" />{t("请先选择要合入的来源分支。")}</p>}
         </div>

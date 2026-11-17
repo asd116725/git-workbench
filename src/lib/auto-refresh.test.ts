@@ -22,6 +22,7 @@ const setError = vi.fn();
 const cleanups: Array<() => void> = [];
 const main: Worktree = { id: 'main', path: '/test/main', source: 'native', name: 'main', branch: 'main', files: [], commits: [] };
 const linked: Worktree = { ...main, id: 'linked', path: '/test/linked' };
+const remoteMain: Worktree = { ...main, remote: { remotes: ['origin'], upstream: null, upstreamRemote: null, upstreamBranch: null, defaultRemote: 'origin', ahead: null, behind: null } };
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -248,6 +249,81 @@ describe('原生自动刷新生命周期', () => {
     expect(watchedPaths()).toEqual([]);
     expect(refresh).not.toHaveBeenCalled();
     expect(listen).toHaveBeenCalledOnce();
+  });
+});
+
+describe('远程引用检查调度', () => {
+  const checkRemote = vi.fn<(signal: AbortSignal) => Promise<void>>(async () => {});
+
+  beforeEach(() => {
+    checkRemote.mockClear();
+    useWorkbench.setState({
+      repositories: [{ id: 'repo', name: 'test', worktrees: [remoteMain, { ...remoteMain, id: linked.id, path: linked.path }] }],
+      checkRemote,
+    });
+  });
+
+  it('首轮检查后节流焦点事件，文件变动不会触发网络请求', async () => {
+    start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(checkRemote).toHaveBeenCalledTimes(1);
+    change();
+    focus(false);
+    focus(true);
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(checkRemote).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(checkRemote).toHaveBeenCalledTimes(2);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('失焦暂停，到期且重新聚焦后仍要等待正在执行的操作', async () => {
+    start();
+    await vi.advanceTimersByTimeAsync(0);
+    focus(false);
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(checkRemote).toHaveBeenCalledTimes(1);
+    useWorkbench.setState({ busy: true });
+    focus(true);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(checkRemote).toHaveBeenCalledTimes(1);
+    useWorkbench.setState({ busy: false });
+    expect(checkRemote).toHaveBeenCalledTimes(2);
+  });
+
+  it('切换和清理都会使旧远程检查失效', async () => {
+    const stop = start();
+    await vi.advanceTimersByTimeAsync(0);
+    const oldSignal = checkRemote.mock.calls[0][0];
+    useWorkbench.setState({ activeWorktreeId: linked.id });
+    expect(oldSignal.aborted).toBe(true);
+    expect(checkRemote).toHaveBeenCalledTimes(2);
+    const newSignal = checkRemote.mock.calls[1][0];
+    stop();
+    expect(newSignal.aborted).toBe(true);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(checkRemote).toHaveBeenCalledTimes(2);
+  });
+
+  it('本地文件订阅失败时仍能检查远程引用', async () => {
+    vi.mocked(listen).mockRejectedValueOnce(new Error('事件订阅不可用'));
+    start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(checkRemote).toHaveBeenCalledOnce();
+    expect(watchedPaths()).toEqual([]);
+    expect(setError).toHaveBeenLastCalledWith('自动刷新监听失败：事件订阅不可用');
+  });
+
+  it('远程首查不等待本地文件订阅注册完成', async () => {
+    const registration = deferred<UnlistenFn>();
+    vi.mocked(listen).mockReturnValueOnce(registration.promise);
+    start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(checkRemote).toHaveBeenCalledOnce();
+    expect(watchedPaths()).toEqual([]);
+    registration.resolve(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(watchedPaths()).toEqual([main.path]);
   });
 });
 

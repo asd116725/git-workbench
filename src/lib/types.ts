@@ -83,6 +83,8 @@ export interface GitRemoteStatus {
   upstream: string | null;
   upstreamRemote: string | null;
   upstreamBranch: string | null;
+  /** Git 根据 fetch refspec 解析出的真实跟踪引用，用于精确选择合并来源。 */
+  upstreamRef?: string | null;
   defaultRemote: string | null;
   ahead: number | null;
   behind: number | null;

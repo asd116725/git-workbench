@@ -24,6 +24,9 @@ export interface DiffState { file: FileSnapshot | null; loading: boolean; notice
 /** 分支请求随当前工作目录切换而失效，错误只影响分支选择器。 */
 export interface BranchState { items: GitBranch[]; loading: boolean; error: string | null }
 
+/** 检查结果只属于该工作区；网络失败独立于本地读取错误。 */
+export interface RemoteCheckState { worktreeId: string; checking: boolean; error: string | null }
+
 const emptyBranches: BranchState = { items: [], loading: false, error: null };
 const emptyDiff: DiffState = { file: null, loading: false, notice: null, error: null };
 const emptyDraft: CommitDraft = { message: '' };
@@ -98,6 +101,9 @@ interface WorkbenchState {
   diff: DiffState;
   branches: BranchState;
   remoteOperation: GitRemoteAction | null;
+  remoteCheck: RemoteCheckState | null;
+  /** 后台获取不锁界面，取消信号用于丢弃旧工作区或已卸载的响应。 */
+  checkRemote: (signal: AbortSignal) => Promise<void>;
   runRemote: (action: GitRemoteAction, remote?: string) => Promise<GitRemoteResult>;
   loadBranches: () => Promise<void>;
   checkoutBranch: (fullName: string) => Promise<GitCheckoutResult>;
@@ -149,6 +155,7 @@ function initialState() {
     error: null,
     branches: emptyBranches,
     remoteOperation: null as GitRemoteAction | null,
+    remoteCheck: null as RemoteCheckState | null,
     diff: { ...emptyDiff, file: worktree?.files.find(file => file.id === selection?.fileId) ?? null },
   };
 }
@@ -164,6 +171,8 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   let statusVersion = 0;
   let branchVersion = 0;
   let autoRefreshVersion = 0;
+  let remoteCheckVersion = 0;
+  let previousRemoteCheck: RemoteCheckState | null = null;
   let restorePromise: Promise<void> | undefined;
   const mergePreviewWorktrees = new WeakMap<GitMergePreview, string>();
   const deletePreviewWorktrees = new WeakMap<GitDeleteBranchPreview, string>();
@@ -291,6 +300,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
         ? state.repositories.map(item => item.id === repositoryId ? repository : item)
         : [...state.repositories, repository],
       activeWorktreeId: worktree.id,
+      remoteCheck: state.activeWorktreeId === worktree.id ? state.remoteCheck : null,
       selection,
       mergeDrafts: initializeMergeDraft(worktree, state.mergeDrafts),
     });
@@ -298,18 +308,21 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     return loadDiff(worktree, selection, preserveDiff);
   }
 
-  async function loadBranches(worktree: Worktree) {
-    const version = ++branchVersion;
-    set({ branches: { ...get().branches, loading: true, error: null } });
+  async function loadBranches(worktree: Worktree, backgroundActive?: () => boolean) {
+    const version = backgroundActive ? branchVersion : ++branchVersion;
+    const current = () => version === branchVersion && get().activeWorktreeId === worktree.id && (backgroundActive?.() ?? true);
+    if (!backgroundActive) set({ branches: { ...get().branches, loading: true, error: null } });
     try {
       const items = worktree.source === 'native'
         ? await nativeGit.branches(worktree.path)
         : listDemoBranches(demoBranches(worktree).state, worktree);
-      if (version === branchVersion && get().activeWorktreeId === worktree.id) {
+      if (current()) {
+        if (backgroundActive) ++branchVersion;
         set({ branches: { items, loading: false, error: null } });
       }
     } catch (error) {
-      if (version === branchVersion && get().activeWorktreeId === worktree.id) {
+      if (current()) {
+        if (backgroundActive) return;
         set({ branches: { items: [], loading: false, error: errorMessage(error) } });
       }
     }
@@ -321,7 +334,28 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     ++statusVersion;
     if (!preserveDiff) ++diffVersion;
     ++branchVersion;
-    set({ busy: true, refreshing: false, error: null, branches: { ...get().branches, loading: false } });
+    ++remoteCheckVersion;
+    set(state => ({ busy: true, refreshing: false, error: null, branches: { ...state.branches, loading: false },
+      remoteCheck: state.remoteCheck?.checking ? previousRemoteCheck : state.remoteCheck }));
+  }
+
+  /** 获取结束后补读共享引用；若期间来了更新的本地刷新，弃用旧结果再读。 */
+  async function readRemoteSnapshot(worktree: Worktree, current: () => boolean): Promise<Worktree | undefined> {
+    while (current()) {
+      const version = statusVersion;
+      try {
+        const result = await nativeGit.status(worktree.path);
+        if (!current()) return;
+        if (version !== statusVersion) continue;
+        ++statusVersion;
+        void applyNativeRepository(result, get().selection, true);
+        if (get().refreshing) set({ refreshing: false });
+        return findWorktree(get().repositories, worktree.id);
+      } catch (error) {
+        if (!current()) return;
+        if (version === statusVersion) throw error;
+      }
+    }
   }
 
   /** 各仓库独立恢复，选中的 linked worktree 按需读取状态，只加载当前文件的 Diff。 */
@@ -482,6 +516,42 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
 
   return {
     ...freshState(),
+    checkRemote: async signal => {
+      const state = get();
+      const worktree = findWorktree(state.repositories, state.activeWorktreeId);
+      if (signal.aborted || state.busy || state.restoring || state.refreshing || state.autoRefreshing || state.remoteCheck?.checking
+        || !worktree || remoteBlockReason(worktree, 'fetch')) return;
+      const version = ++remoteCheckVersion;
+      const current = () => version === remoteCheckVersion && get().activeWorktreeId === worktree.id;
+      const previous = state.remoteCheck?.worktreeId === worktree.id ? state.remoteCheck : null;
+      const cancel = () => {
+        if (!current()) return;
+        ++remoteCheckVersion;
+        set({ remoteCheck: previous });
+      };
+      previousRemoteCheck = previous;
+      signal.addEventListener('abort', cancel, { once: true });
+      set({ remoteCheck: { worktreeId: worktree.id, checking: true, error: previous?.error ?? null } });
+
+      let failure: string | null = null;
+      try {
+        try { failure = (await nativeGit.fetch(worktree.path, true)).warning; }
+        catch (error) { failure = errorMessage(error); }
+        // 多个远程中途失败时也补读，已更新的引用仍可用，但计数继续标记为可能过期。
+        const updated = await readRemoteSnapshot(worktree, current);
+        if (!updated || !current()) return;
+        const history = useHistory.getState();
+        await Promise.all([
+          loadBranches(updated, current),
+          history.checkForUpdates(updated, current),
+        ]);
+      } catch (error) {
+        failure ??= errorMessage(error);
+      } finally {
+        signal.removeEventListener('abort', cancel);
+        if (current()) set({ remoteCheck: { worktreeId: worktree.id, checking: false, error: failure } });
+      }
+    },
     runRemote: async (action, remote) => {
       const worktree = currentWorktree();
       const blocked = remoteBlockReason(worktree, action);
@@ -505,10 +575,14 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
         ].filter(Boolean).join('\n') || null;
         if (!result) {
           const message = errorMessage(failure);
-          set({ error: [message, warning].filter(Boolean).join('\n') });
+          set({ error: [message, warning].filter(Boolean).join('\n'), ...(action === 'fetch' && {
+            remoteCheck: { worktreeId: worktree.id, checking: false, error: message },
+          }) });
           throw Object.assign(new Error(message), { cause: failure });
         }
-        set({ error: warning });
+        set({ error: warning, ...(action === 'fetch' && {
+          remoteCheck: { worktreeId: worktree.id, checking: false, error: result.warning ?? (currentWorktree().remote ? null : warning) },
+        }) });
         return { warning };
       } finally { set({ busy: false, remoteOperation: null }); }
     },
@@ -569,8 +643,9 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       ++statusVersion;
       ++diffVersion;
       ++branchVersion;
+      ++remoteCheckVersion;
       const selection = worktree.source === 'native' ? null : resolveSelection(worktree);
-      set({ activeWorktreeId: id, selection, refreshing: false, error: null, autoRefreshError: null, diff: emptyDiff, branches: emptyBranches });
+      set({ activeWorktreeId: id, selection, refreshing: worktree.source === 'native', error: null, autoRefreshError: null, diff: emptyDiff, branches: emptyBranches, remoteCheck: null });
       rememberSession();
       if (worktree.source === 'native') void get().refresh();
       else void loadDiff(worktree, selection);
@@ -773,6 +848,8 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       ++diffVersion;
       ++branchVersion;
       ++autoRefreshVersion;
+      ++remoteCheckVersion;
+      previousRemoteCheck = null;
       restorePromise = undefined;
       demoBranchStates.clear();
       set(freshState());

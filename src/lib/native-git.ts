@@ -97,7 +97,8 @@ export const nativeGit = {
   watch: (repoPath: string | null) => invoke<void>('git_watch', { repoPath }),
   open: (path: string) => invoke<NativeRepository>('git_open', { path }),
   status: (repoPath: string) => invoke<NativeRepository>('git_status', { repoPath }),
-  fetch: (repoPath: string) => invoke<GitRemoteResult>('git_fetch', { repoPath }),
+  /** 后台获取使用较短时限，手动获取保持既有调用参数。 */
+  fetch: (repoPath: string, background = false) => invoke<GitRemoteResult>('git_fetch', background ? { repoPath, background } : { repoPath }),
   pull: (repoPath: string) => invoke<GitRemoteResult>('git_pull', { repoPath }),
   push: (repoPath: string, remote?: string) => invoke<GitRemoteResult>('git_push', { repoPath, remote: remote ?? null }),
   branches: (repoPath: string) => invoke<GitBranch[]>('git_branches', { repoPath }),

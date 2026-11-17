@@ -134,3 +134,86 @@ describe('远程操作与状态刷新', () => {
     await expect(useWorkbench.getState().runRemote('fetch')).resolves.toEqual({ warning: null });
   });
 });
+
+describe('后台远程检查', () => {
+  it('更新共享引用、分支和历史的待推送标记，保留本地阅读状态', async () => {
+    const linked = { ...metadata, path: '/test/linked', isMain: false, branch: 'topic', branchSync: { upstream: 'origin/topic', ahead: 0, behind: 0 } };
+    repository = { ...repository, worktrees: [metadata, linked] };
+    await useWorkbench.getState().openRepository(repository.path);
+    useWorkbench.getState().setDraft({ message: '保留草稿' });
+    await useHistory.getState().ensure(currentWorktree());
+    const pending = deferred<GitRemoteResult>();
+    mockedInvoke.mockImplementation(command => command === 'git_fetch' ? pending.promise : reply(command));
+    const checking = useWorkbench.getState().checkRemote(new AbortController().signal);
+    expect(useWorkbench.getState()).toMatchObject({ busy: false, refreshing: false, remoteCheck: { checking: true } });
+    repository = { ...repository, remote: { ...repository.remote, ahead: 1, behind: 2 }, worktrees: [metadata, { ...linked, branchSync: { ...linked.branchSync, behind: 7 } }] };
+    pending.resolve({ warning: null });
+    await checking;
+    expect(mockedInvoke).toHaveBeenCalledWith('git_fetch', { repoPath: repository.path, background: true });
+    expect(mockedInvoke).toHaveBeenCalledWith('git_branches', { repoPath: repository.path });
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === 'git_history_ref')).toHaveLength(2);
+    expect(currentWorktree().remote).toMatchObject({ ahead: 1, behind: 2 });
+    expect(useWorkbench.getState().repositories[0].worktrees[1].branchSync?.behind).toBe(7);
+    expect(useWorkbench.getState().drafts[currentWorktree().id].message).toBe('保留草稿');
+    expect(useWorkbench.getState()).toMatchObject({ busy: false, error: null, remoteCheck: { checking: false, error: null } });
+  });
+
+  it('后台失败独立保留，读取本地状态不能清除，手动获取后恢复', async () => {
+    await useWorkbench.getState().openRepository(repository.path);
+    mockedInvoke.mockImplementation((command, args) => command === 'git_fetch' && (args as { background?: boolean }).background
+      ? Promise.reject('没有网络') : reply(command));
+    await useWorkbench.getState().checkRemote(new AbortController().signal);
+    expect(useWorkbench.getState()).toMatchObject({ busy: false, error: null, remoteCheck: { checking: false, error: '没有网络' } });
+    await useWorkbench.getState().refresh({ silent: true });
+    expect(useWorkbench.getState().remoteCheck?.error).toBe('没有网络');
+    await useWorkbench.getState().runRemote('fetch');
+    expect(useWorkbench.getState().remoteCheck).toMatchObject({ checking: false, error: null });
+  });
+
+  it('晚到的后台结果不能覆盖用户远程操作后的数字和检查状态', async () => {
+    await useWorkbench.getState().openRepository(repository.path);
+    const pending = deferred<NativeRepository>();
+    mockedInvoke.mockImplementationOnce(() => Promise.resolve({ warning: null })).mockImplementationOnce(() => pending.promise);
+    const checking = useWorkbench.getState().checkRemote(new AbortController().signal);
+    await Promise.resolve();
+    repository = { ...repository, remote: { ...repository.remote, ahead: 0 } };
+    await useWorkbench.getState().runRemote('fetch');
+    pending.resolve({ ...initial, remote: { ...initial.remote, ahead: 99 } });
+    await checking;
+    expect(currentWorktree().remote?.ahead).toBe(0);
+    expect(useWorkbench.getState().remoteCheck?.error).toBeNull();
+  });
+
+  it('后台检查结束后晚到的本地刷新不会覆盖已更新的计数', async () => {
+    await useWorkbench.getState().openRepository(repository.path);
+    const fetching = deferred<GitRemoteResult>();
+    const oldStatus = deferred<NativeRepository>();
+    mockedInvoke.mockImplementationOnce(() => fetching.promise).mockImplementationOnce(() => oldStatus.promise);
+    const checking = useWorkbench.getState().checkRemote(new AbortController().signal);
+    const local = useWorkbench.getState().refresh();
+    repository = { ...repository, remote: { ...repository.remote, ahead: 0, behind: 5 } };
+    fetching.resolve({ warning: null });
+    await checking;
+    oldStatus.resolve(initial);
+    await local;
+    expect(currentWorktree().remote?.behind).toBe(5);
+    expect(useWorkbench.getState().refreshing).toBe(false);
+  });
+
+  it.each(['switch', 'cleanup'])('%s 后忽略旧仓库检查结果', async reason => {
+    await useWorkbench.getState().openRepository(repository.path);
+    const controller = new AbortController();
+    const pending = deferred<GitRemoteResult>();
+    mockedInvoke.mockImplementationOnce(() => pending.promise);
+    const checking = useWorkbench.getState().checkRemote(controller.signal);
+    if (reason === 'switch') {
+      const path = '/test/other';
+      repository = { ...initial, commonDir: `${path}/.git`, path, worktrees: [{ ...metadata, path }], remote: { ...initial.remote, ahead: 5 } };
+      await useWorkbench.getState().openRepository(path);
+    } else controller.abort();
+    pending.resolve({ warning: null });
+    await checking;
+    expect(currentWorktree().remote?.ahead).toBe(reason === 'switch' ? 5 : 3);
+    expect(useWorkbench.getState().remoteCheck).toBeNull();
+  });
+});

@@ -4,6 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useHistory } from './history-store';
 import { nativeGit } from './native-git';
 import { createRefreshScheduler, type RefreshScheduler } from './refresh-scheduler';
+import { createRemoteRefreshScheduler } from './remote-refresh-scheduler';
 import { findWorktree, useWorkbench } from './store';
 
 interface RepositoryChanged { repoPath: string; error?: string }
@@ -23,11 +24,14 @@ export function startAutoRefresh(): () => void {
 
   let disposed = false;
   let ready = false;
+  let watchReady = false;
   let focused = false;
   let focusVersion = 0;
   let path: string | null = null;
   let generation = 0;
   let scheduler: RefreshScheduler | undefined;
+  let remotePath: string | null = null;
+  let remoteScheduler: ReturnType<typeof createRemoteRefreshScheduler> | undefined;
   const unlisteners: UnlistenFn[] = [];
 
   function reportError(error: unknown) {
@@ -36,8 +40,12 @@ export function startAutoRefresh(): () => void {
   }
 
   function updateState() {
-    const state = useWorkbench.getState();
-    scheduler?.setState({ focused, idle: !state.busy && !state.restoring && !state.refreshing && !state.autoRefreshing });
+    function isIdle() {
+      const { busy, restoring, refreshing, autoRefreshing } = useWorkbench.getState();
+      return !busy && !restoring && !refreshing && !autoRefreshing;
+    }
+    scheduler?.setState({ focused, idle: isIdle() });
+    remoteScheduler?.setEligible(ready && focused && isIdle());
   }
 
   function updateWatch() {
@@ -57,6 +65,13 @@ export function startAutoRefresh(): () => void {
     const state = useWorkbench.getState();
     const worktree = findWorktree(state.repositories, state.activeWorktreeId);
     const nextPath = worktree?.source === 'native' && !worktree.bare && worktree.available !== false ? worktree.path : null;
+    const nextRemotePath = worktree?.remote?.remotes.length ? nextPath : null;
+    if (nextRemotePath !== remotePath) {
+      const previous = remoteScheduler;
+      remotePath = nextRemotePath;
+      remoteScheduler = remotePath ? createRemoteRefreshScheduler(signal => useWorkbench.getState().checkRemote(signal)) : undefined;
+      previous?.dispose();
+    }
     if (nextPath !== path) {
       scheduler?.dispose();
       path = nextPath;
@@ -68,7 +83,7 @@ export function startAutoRefresh(): () => void {
         if (state.view === 'history' && active?.path === nextPath) await useHistory.getState().checkForUpdates(active);
       }) : undefined;
       useWorkbench.getState().setAutoRefreshError(null);
-      if (ready) updateWatch();
+      if (ready && watchReady) updateWatch();
     }
     updateState();
   }
@@ -79,22 +94,26 @@ export function startAutoRefresh(): () => void {
     else unlisteners.push(unlisten);
   }
 
-  async function initialize() {
+  async function initializeWatch() {
+    await keepListener(listen<RepositoryChanged>('git:repository-changed', ({ payload }) => {
+      if (disposed || payload.repoPath !== path) return;
+      if (payload.error) reportError(payload.error);
+      // 丢失事件或过滤失败仍可能遗漏文件变化，统一补读状态兜底。
+      scheduler?.markDirty();
+    }));
+    if (disposed) return;
+    watchReady = true;
+    if (ready) updateWatch();
+  }
+
+  async function initializeFocus() {
     const appWindow = getCurrentWindow();
-    await Promise.all([
-      keepListener(listen<RepositoryChanged>('git:repository-changed', ({ payload }) => {
-        if (disposed || payload.repoPath !== path) return;
-        if (payload.error) reportError(payload.error);
-        // 丢失事件或过滤失败仍可能遗漏文件变化，统一补读状态兜底。
-        scheduler?.markDirty();
-      })),
-      keepListener(appWindow.onFocusChanged(({ payload }) => {
-        if (disposed) return;
-        focusVersion += 1;
-        focused = payload;
-        updateState();
-      })),
-    ]);
+    await keepListener(appWindow.onFocusChanged(({ payload }) => {
+      if (disposed) return;
+      focusVersion += 1;
+      focused = payload;
+      updateState();
+    }));
     if (disposed) return;
     const version = focusVersion;
     const initiallyFocused = await appWindow.isFocused();
@@ -102,18 +121,21 @@ export function startAutoRefresh(): () => void {
     if (version === focusVersion) focused = initiallyFocused;
     ready = true;
     updateState();
-    updateWatch();
+    if (watchReady) updateWatch();
   }
 
   const unsubscribe = useWorkbench.subscribe(sync);
   sync();
-  void initialize().catch(error => { if (!disposed) reportError(error); });
+  const onInitializationError = (error: unknown) => { if (!disposed) reportError(error); };
+  void initializeWatch().catch(onInitializationError);
+  void initializeFocus().catch(onInitializationError);
 
   return () => {
     if (disposed) return;
     disposed = true;
     unsubscribe();
     scheduler?.dispose();
+    remoteScheduler?.dispose();
     for (const unlisten of unlisteners) unlisten();
     void watchRepository(null).catch(() => {});
   };

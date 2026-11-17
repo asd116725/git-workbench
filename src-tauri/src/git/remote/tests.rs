@@ -117,7 +117,7 @@ fn fetch_only_updates_refs_and_preserves_dirty_index_and_worktree() {
     fs::write(repo.join("base.txt"), "working\n").unwrap();
     let before = git(repo, &["status", "--porcelain=v1", "-z"]).unwrap();
     let head = git_line(repo, &["rev-parse", "HEAD"]).unwrap();
-    fetch(repo).unwrap();
+    fetch(repo, false).unwrap();
     assert_eq!(remote_status(repo).unwrap().behind, Some(1));
     assert_eq!(git_line(repo, &["rev-parse", "HEAD"]).unwrap(), head);
     assert_eq!(
@@ -126,6 +126,52 @@ fn fetch_only_updates_refs_and_preserves_dirty_index_and_worktree() {
     );
     assert_eq!(git(repo, &["show", ":base.txt"]).unwrap(), b"staged\n");
     assert_eq!(fs::read(repo.join("base.txt")).unwrap(), b"working\n");
+}
+
+#[test]
+fn background_fetch_does_not_prune_local_branches_or_tags() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    git(repo, &["branch", "sandbox/local-only"]).unwrap();
+    git(repo, &["tag", "local-only"]).unwrap();
+    git(repo, &["config", "remote.origin.pruneTags", "true"]).unwrap();
+    git(
+        repo,
+        &[
+            "config",
+            "--add",
+            "remote.origin.fetch",
+            "+refs/heads/sandbox/*:refs/heads/sandbox/*",
+        ],
+    )
+    .unwrap();
+    commit_file(&fixture.peer, "peer.txt", "peer\n");
+    push(&fixture.peer, None).unwrap();
+
+    assert!(fetch(repo, true).unwrap_err().contains("请手动获取"));
+    assert_eq!(remote_status(repo).unwrap().behind, Some(1));
+    assert!(commit_exists(repo, "refs/heads/sandbox/local-only").unwrap());
+    assert!(commit_exists(repo, "refs/tags/local-only").unwrap());
+}
+
+#[test]
+fn background_fetch_reports_when_the_active_upstream_is_excluded() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    git(
+        repo,
+        &["config", "--add", "remote.origin.fetch", "^refs/heads/main"],
+    )
+    .unwrap();
+    commit_file(&fixture.peer, "peer.txt", "peer\n");
+    push(&fixture.peer, None).unwrap();
+    git(&fixture.peer, &["push", "origin", "HEAD:side"]).unwrap();
+
+    assert!(fetch(repo, true).unwrap_err().contains("请手动获取"));
+    assert_eq!(remote_status(repo).unwrap().behind, Some(0));
+    assert!(commit_exists(repo, "refs/remotes/origin/side").unwrap());
 }
 
 #[test]
@@ -147,7 +193,7 @@ fn fetch_includes_remotes_marked_to_skip_fetch_all() {
     git(repo, &["config", "remote.secondary.skipFetchAll", "true"]).unwrap();
     commit_file(&fixture.peer, "next.txt", "remote next\n");
     push(&fixture.peer, None).unwrap();
-    fetch(repo).unwrap();
+    fetch(repo, false).unwrap();
     let expected = git_line(&fixture.peer, &["rev-parse", "HEAD"]).unwrap();
     for reference in ["refs/remotes/origin/main", "refs/remotes/secondary/main"] {
         assert_eq!(git_line(repo, &["rev-parse", reference]).unwrap(), expected);
@@ -172,7 +218,7 @@ fn fetch_uses_real_remote_names_even_when_a_group_has_the_same_name() {
     git(repo, &["config", "remotes.origin", "secondary"]).unwrap();
     commit_file(&fixture.peer, "next.txt", "remote next\n");
     push(&fixture.peer, None).unwrap();
-    fetch(repo).unwrap();
+    fetch(repo, false).unwrap();
     let expected = git_line(&fixture.peer, &["rev-parse", "HEAD"]).unwrap();
     for reference in ["refs/remotes/origin/main", "refs/remotes/secondary/main"] {
         assert_eq!(git_line(repo, &["rev-parse", reference]).unwrap(), expected);
@@ -198,7 +244,7 @@ fn fetch_continues_after_a_failed_remote_and_reports_each_failure() {
     }
     commit_file(&fixture.peer, "next.txt", "remote next\n");
     push(&fixture.peer, None).unwrap();
-    let error = fetch(repo).unwrap_err();
+    let error = fetch(repo, false).unwrap_err();
     assert!(error.contains("a-missing"));
     assert!(error.contains("z-missing"));
     assert_eq!(
@@ -356,19 +402,259 @@ fn pull_refuses_divergence_and_does_not_autostash_dirty_files() {
 }
 
 #[test]
-fn push_refuses_non_fast_forward_without_changing_remote_or_pending_count() {
+fn push_refreshes_stale_upstream_before_refusing_divergence() {
     let fixture = Fixture::new();
     fixture.seed();
     commit_file(&fixture.peer, "peer.txt", "peer\n");
     push(&fixture.peer, None).unwrap();
     let remote_head = git_line(&fixture.remote, &["rev-parse", "main"]).unwrap();
-    commit_file(&fixture.local, "local.txt", "local\n");
-    assert!(push(&fixture.local, None).unwrap_err().contains("推送失败"));
+    let repo = &fixture.local;
+    commit_file(repo, "local.txt", "local\n");
+    assert_eq!(remote_status(repo).unwrap().behind, Some(0));
+    fs::write(repo.join("base.txt"), "staged\n").unwrap();
+    git(repo, &["add", "base.txt"]).unwrap();
+    fs::write(repo.join("base.txt"), "working\n").unwrap();
+    let head = git_line(repo, &["rev-parse", "HEAD"]).unwrap();
+
+    let error = push(repo, None).unwrap_err();
+    assert!(
+        error.contains("领先 1") && error.contains("落后 1"),
+        "{error}"
+    );
+    assert!(error.contains("通过「合并」整合上游分支"), "{error}");
     assert_eq!(
         git_line(&fixture.remote, &["rev-parse", "main"]).unwrap(),
         remote_head
     );
-    assert_eq!(remote_status(&fixture.local).unwrap().ahead, Some(1));
+    assert_eq!(git_line(repo, &["rev-parse", "HEAD"]).unwrap(), head);
+    assert_eq!(git(repo, &["show", ":base.txt"]).unwrap(), b"staged\n");
+    assert_eq!(fs::read(repo.join("base.txt")).unwrap(), b"working\n");
+    let state = remote_status(repo).unwrap();
+    assert_eq!((state.ahead, state.behind), (Some(1), Some(1)));
+    assert!(operation(repo).unwrap().is_none());
+}
+
+#[test]
+fn push_refreshes_custom_tracking_reference_and_suggests_fast_forward_pull() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    git(
+        repo,
+        &[
+            "config",
+            "remote.origin.fetch",
+            "+refs/heads/main:refs/remotes/integration/current",
+        ],
+    )
+    .unwrap();
+    fetch(repo, false).unwrap();
+    commit_file(&fixture.peer, "peer.txt", "peer\n");
+    push(&fixture.peer, None).unwrap();
+    assert_eq!(remote_status(repo).unwrap().behind, Some(0));
+
+    let error = push(repo, None).unwrap_err();
+    assert!(
+        error.contains("落后上游 1") && error.contains("请先拉取"),
+        "{error}"
+    );
+    let state = remote_status(repo).unwrap();
+    assert_eq!((state.ahead, state.behind), (Some(0), Some(1)));
+    assert_eq!(
+        state.upstream_ref.as_deref(),
+        Some("refs/remotes/integration/current")
+    );
+    assert_eq!(
+        git_line(repo, &["rev-parse", "refs/remotes/integration/current"]).unwrap(),
+        git_line(&fixture.remote, &["rev-parse", "main"]).unwrap()
+    );
+    pull(repo).unwrap();
+    assert_eq!(remote_status(repo).unwrap().behind, Some(0));
+}
+
+#[test]
+fn push_does_not_recommend_merging_a_tracking_ref_excluded_by_fetch_config() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    git(
+        repo,
+        &["config", "--add", "remote.origin.fetch", "^refs/heads/main"],
+    )
+    .unwrap();
+    commit_file(&fixture.peer, "peer.txt", "peer\n");
+    push(&fixture.peer, None).unwrap();
+    commit_file(repo, "local.txt", "local\n");
+
+    let error = push(repo, None).unwrap_err();
+    assert!(
+        error.contains("领先 1") && error.contains("落后 1"),
+        "{error}"
+    );
+    assert!(error.contains("检查上游跟踪配置"), "{error}");
+    assert_eq!(remote_status(repo).unwrap().behind, Some(0));
+}
+
+#[test]
+fn push_preflight_never_rewrites_another_local_branch() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    git(repo, &["branch", "-m", "work"]).unwrap();
+    git(repo, &["branch", "main"]).unwrap();
+    let base = git_line(repo, &["rev-parse", "refs/heads/main"]).unwrap();
+    git(
+        repo,
+        &[
+            "config",
+            "remote.origin.fetch",
+            "+refs/heads/main:refs/heads/main",
+        ],
+    )
+    .unwrap();
+    commit_file(&fixture.peer, "peer.txt", "peer\n");
+    push(&fixture.peer, None).unwrap();
+    commit_file(repo, "local.txt", "local\n");
+
+    assert!(push(repo, None).unwrap_err().contains("落后 1"));
+    assert_eq!(
+        git_line(repo, &["rev-parse", "refs/heads/main"]).unwrap(),
+        base
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn push_preflight_preserves_tracking_ref_updated_during_fetch() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    commit_file(&fixture.peer, "peer.txt", "peer\n");
+    push(&fixture.peer, None).unwrap();
+    commit_file(repo, "local.txt", "local\n");
+    let concurrent = git_line(repo, &["rev-parse", "HEAD"]).unwrap();
+    let script = repo.join(".git/concurrent-upload-pack");
+    fs::write(
+        &script,
+        "#!/bin/sh\ngit update-ref refs/remotes/origin/main HEAD || exit 1\nexec git upload-pack \"$@\"\n",
+    )
+    .unwrap();
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o700)).unwrap();
+    git(
+        repo,
+        &[
+            "config",
+            "remote.origin.uploadpack",
+            "./.git/concurrent-upload-pack",
+        ],
+    )
+    .unwrap();
+
+    let error = push(repo, None).unwrap_err();
+    assert!(
+        error.contains("领先 1") && error.contains("落后 1"),
+        "{error}"
+    );
+    assert!(!error.contains("通过「合并」"), "{error}");
+    assert_eq!(
+        git_line(repo, &["rev-parse", "origin/main"]).unwrap(),
+        concurrent
+    );
+}
+
+#[test]
+fn push_preflights_all_push_urls_before_updating_any_remote() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    let mirror = fixture.remote.with_file_name("mirror=push.git");
+    let repo = &fixture.local;
+    git(
+        repo,
+        &[
+            "clone",
+            "--bare",
+            fixture.remote.to_str().unwrap(),
+            mirror.to_str().unwrap(),
+        ],
+    )
+    .unwrap();
+    let fetched_head = git_line(repo, &["rev-parse", "origin/main"]).unwrap();
+    for url in [fixture.remote.to_str().unwrap(), "push-target:mirror"] {
+        git(
+            repo,
+            &["remote", "set-url", "--add", "--push", "origin", url],
+        )
+        .unwrap();
+    }
+    commit_file(&fixture.peer, "peer.txt", "peer\n");
+    git(
+        &fixture.peer,
+        &["push", mirror.to_str().unwrap(), "HEAD:main"],
+    )
+    .unwrap();
+    let mirror_head = git_line(&mirror, &["rev-parse", "main"]).unwrap();
+    git(
+        repo,
+        &[
+            "config",
+            &format!("url.{}.insteadOf", mirror.display()),
+            "push-target:mirror",
+        ],
+    )
+    .unwrap();
+    git(
+        repo,
+        &[
+            "config",
+            "url./nonexistent/git-workbench-remote.git.insteadOf",
+            mirror.to_str().unwrap(),
+        ],
+    )
+    .unwrap();
+    commit_file(repo, "local.txt", "local\n");
+
+    let error = push(repo, None).unwrap_err();
+    assert!(
+        error.contains("领先 1") && error.contains("落后 1"),
+        "{error}"
+    );
+    assert!(error.contains("推送地址"), "{error}");
+    assert_eq!(
+        git_line(&fixture.remote, &["rev-parse", "main"]).unwrap(),
+        fetched_head
+    );
+    assert_eq!(
+        git_line(&mirror, &["rev-parse", "main"]).unwrap(),
+        mirror_head
+    );
+    assert_eq!(
+        git_line(repo, &["rev-parse", "origin/main"]).unwrap(),
+        fetched_head
+    );
+    assert!(
+        git_line(
+            repo,
+            &["for-each-ref", "--format=%(refname)", "refs/git-workbench/"]
+        )
+        .unwrap()
+        .is_empty()
+    );
+}
+
+#[test]
+fn push_can_recreate_an_upstream_branch_deleted_on_the_remote() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    git(&fixture.remote, &["update-ref", "-d", "refs/heads/main"]).unwrap();
+    commit_file(&fixture.local, "local.txt", "local\n");
+
+    assert!(push(&fixture.local, None).unwrap().warning.is_none());
+    assert_eq!(
+        git_line(&fixture.remote, &["rev-parse", "refs/heads/main"]).unwrap(),
+        git_line(&fixture.local, &["rev-parse", "HEAD"]).unwrap()
+    );
 }
 
 #[test]
@@ -463,7 +749,7 @@ fn missing_upstream_reference_is_unknown_until_fetch_restores_it() {
     let before = status(repo).unwrap().remote;
     assert_eq!(before.upstream.as_deref(), Some("origin/main"));
     assert_eq!((before.ahead, before.behind), (None, None));
-    fetch(repo).unwrap();
+    fetch(repo, false).unwrap();
     assert_eq!(remote_status(repo).unwrap().ahead, Some(0));
 }
 
@@ -484,10 +770,10 @@ fn no_remote_detached_and_local_upstream_have_explicit_limits() {
     assert_eq!(remote_status(repo).unwrap().ahead, None);
     assert!(push(repo, None).unwrap_err().contains("分离 HEAD"));
     assert!(pull(repo).unwrap_err().contains("分离 HEAD"));
-    fetch(repo).unwrap();
+    fetch(repo, false).unwrap();
     git(repo, &["remote", "remove", "origin"]).unwrap();
     assert_eq!(status(repo).unwrap().remote.ahead, None);
-    assert!(fetch(repo).unwrap_err().contains("尚未配置"));
+    assert!(fetch(repo, false).unwrap_err().contains("尚未配置"));
 }
 
 #[test]
@@ -559,7 +845,7 @@ fn unreachable_remote_returns_failure_without_changing_head() {
     )
     .unwrap();
     let head = git_line(&fixture.local, &["rev-parse", "HEAD"]).unwrap();
-    assert!(fetch(&fixture.local).is_err());
+    assert!(fetch(&fixture.local, false).is_err());
     assert!(push(&fixture.local, None).is_err());
     assert_eq!(
         git_line(&fixture.local, &["rev-parse", "HEAD"]).unwrap(),

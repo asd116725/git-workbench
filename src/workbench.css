@@ -136,6 +136,13 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .remote-dialog .branch-form-fields { min-height: 0; overflow-y: auto; overflow-wrap: anywhere; }
 .remote-dialog .branch-form-actions { flex-shrink: 0; }
 .remote-dialog-error { max-height: 30vh; overflow-y: auto; margin: 0; color: var(--destructive); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.remote-integration { display: flex; flex-shrink: 0; align-items: center; gap: 8px; min-height: 38px; padding: 4px 16px; border-bottom: 1px solid var(--border); color: var(--foreground); background: var(--section-header-background); font-size: 12px; }
+.remote-integration > .codicon { color: var(--orange); }
+.remote-integration > .remote-action-trigger { margin-left: auto; white-space: nowrap; }
+.remote-check-status:empty { display: none; }
+.remote-check-label { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; }
+.remote-check-label .codicon-warning { color: var(--orange); }
+.remote-check-tooltip { max-width: min(440px, 80vw); white-space: pre-wrap; overflow-wrap: anywhere; }
 .menu-detail { margin-left: auto; color: var(--muted-foreground); font-size: 11px; }
 .changes-view { flex: 1; min-height: 0; }
 .changes-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--sidebar); }

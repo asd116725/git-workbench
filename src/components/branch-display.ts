@@ -30,7 +30,7 @@ export function branchSyncDescription(branch: GitBranch): string | null {
 function syncDescription(branch: GitBranchSync): string {
   if (!branch.upstream) return t('未设置上游分支。');
   if (branch.ahead == null || branch.behind == null) return t('无法确定与上游 {upstream} 的提交差异；请先获取远程更新。', { upstream: branch.upstream });
-  if (branch.ahead === 0 && branch.behind === 0) return t('已与上游 {upstream} 同步。数量基于最近获取的引用。', { upstream: branch.upstream });
+  if (branch.ahead === 0 && branch.behind === 0) return t('已与上游 {upstream} 的本地跟踪引用同步。', { upstream: branch.upstream });
   return t('相对上游 {upstream}：待拉取 {behind} 个提交，待推送 {ahead} 个提交。数量基于最近获取的引用。', { upstream: branch.upstream, behind: branch.behind, ahead: branch.ahead });
 }
 

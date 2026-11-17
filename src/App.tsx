@@ -30,9 +30,9 @@ import { useDisplayNames } from './lib/display-names';
 import { orderedItems, useSidebarOrder, type SortEdge, type SortScope } from './lib/sidebar-order';
 import { useSidebarSorting } from './components/useSidebarSorting';
 import { BranchSyncCounts } from './components/BranchSyncStatus';
-import { MergeBranchDialog } from './components/MergeBranchDialog';
+import { MergeBranchDialog, type MergeSource } from './components/MergeBranchDialog';
 import { MergeStatusBanner } from './components/MergeStatusBanner';
-import { RemoteActions } from './components/RemoteActions';
+import { RemoteActions, RemoteCheckIndicator, RemoteIntegrationNotice } from './components/RemoteActions';
 import { DiscardChangesDialog } from './components/DiscardChangesDialog';
 import { isUntrackedChange } from './lib/discard';
 import { ChangeFileTree } from './components/ChangeFileTree';
@@ -380,7 +380,8 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [repositoryOpen, setRepositoryOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
-  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState<{ worktreeId: string; source?: MergeSource } | null>(null);
+  const mergeOpen = mergeTarget?.worktreeId === activeWorktreeId;
   const repository = repositories.find(item => item.worktrees.some(worktree => worktree.id === activeWorktreeId));
   const repositoryName = repository ? names[repository.id] ?? repository.name : t('本地 Git 工作台');
   const worktree = findWorktree(repositories, activeWorktreeId);
@@ -420,10 +421,11 @@ export default function App() {
     {error && <div className="git-error" role="alert"><Icon name="warning" /><pre>{translateMessage(error)}</pre></div>}
     {autoRefreshError && <div className="git-error" role="status"><Icon name="warning" /><pre>{translateMessage(autoRefreshError)}</pre></div>}
     {repository && worktree ? <>
-      <WorkbenchToolbar worktree={worktree} onBranchOpen={() => setBranchOpen(true)} onMergeOpen={() => setMergeOpen(true)} />
+      <WorkbenchToolbar worktree={worktree} onBranchOpen={() => setBranchOpen(true)} onMergeOpen={() => setMergeTarget({ worktreeId: worktree.id })} />
+      <RemoteIntegrationNotice worktree={worktree} onMerge={source => setMergeTarget({ worktreeId: worktree.id, source })} />
       {worktree.operation && <MergeStatusBanner key={`${worktree.id}:${worktree.operation.kind}:${worktree.operation.head}:${worktree.operation.mergeHeads.join(',')}`} worktree={worktree} />}
       {view === 'changes' ? <ChangesView key={activeWorktreeId} worktree={worktree} shortcutsEnabled={!settingsOpen && !repositoryOpen && !branchOpen && !mergeOpen} /> : <HistoryView key={activeWorktreeId} worktree={worktree} />}
-      <footer className="statusbar"><span className="status-branch"><Icon name="git-branch" />{branchLabel(worktree)}</span><span className="status-divider" /><span>{view === 'history' ? t("历史只读") : busy ? t("Git 操作进行中…") : refreshing ? t("正在刷新…") : changedCount ? t("{value1} 个文件有更改", { value1: changedCount }) : t("工作区干净")}</span><span className={`status-demo ${real ? 'status-native' : ''}`}><Icon name={real ? 'repo' : 'beaker'} />{real ? t("本地 Git") : t("演示模式")}</span><span className="status-spacer" /><span className="status-path" title={worktree.path}>{worktree.path}</span></footer>
+      <footer className="statusbar"><span className="status-branch"><Icon name="git-branch" />{branchLabel(worktree)}</span><span className="status-divider" /><span>{view === 'history' ? t("历史只读") : busy ? t("Git 操作进行中…") : refreshing ? t("正在刷新…") : changedCount ? t("{value1} 个文件有更改", { value1: changedCount }) : t("工作区干净")}</span><span className={`status-demo ${real ? 'status-native' : ''}`}><Icon name={real ? 'repo' : 'beaker'} />{real ? t("本地 Git") : t("演示模式")}</span><RemoteCheckIndicator worktree={worktree} /><span className="status-spacer" /><span className="status-path" title={worktree.path}>{worktree.path}</span></footer>
     </> : restoring ? <div className="diff-message" role="status"><Icon name="loading spin" />{t("正在恢复上次打开的仓库…")}</div> : <WelcomeView onOpen={() => setRepositoryOpen(true)} />}
   </main></Panel>;
 
@@ -443,6 +445,6 @@ export default function App() {
     </Group>
     <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} /><OpenRepositoryDialog open={repositoryOpen} onOpenChange={setRepositoryOpen} /><Toaster theme={resolvedTheme} position="bottom-right" closeButton richColors containerAriaLabel={t("通知")} toastOptions={{ closeButtonAriaLabel: t("关闭通知") }} />
     {branchOpen && worktree && <BranchPickerDialog key={worktree.id} worktree={worktree} open onOpenChange={setBranchOpen} />}
-    {mergeOpen && worktree && <MergeBranchDialog key={worktree.id} worktree={worktree} open onOpenChange={setMergeOpen} />}
+    {mergeOpen && worktree && <MergeBranchDialog key={worktree.id} worktree={worktree} initialSource={mergeTarget.source} open onOpenChange={open => { if (!open) setMergeTarget(null); }} />}
   </div></TooltipProvider>;
 }

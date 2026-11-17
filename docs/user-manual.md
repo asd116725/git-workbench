@@ -39,7 +39,7 @@ The arrow beside a repository name only expands or collapses its worktree list; 
 
 Each project has its own group, with a folder icon and worktree count in the header. Main worktrees use a desktop icon; linked worktrees show a **Linked** label. A blue selection and **Current** label identify the active worktree. Collapsing its project keeps a **Current** hint in the header. The sidebar width can be adjusted between 240 and 360 px; hover over truncated names to read them in full.
 
-**Available since 1.5.0:** the sidebar shows `↓` incoming and `↑` outgoing commit counts beside each worktree's branch. Each branch is compared with its own upstream. Both counts appear when either is nonzero, for example `↓0 ↑3`; synchronized branches, branches without an upstream, and unknown counts show no numbers. Narrow sidebars preserve the counts and truncate the branch name; hover to read the full name and synchronization details. Counts use the most recently fetched local refs and displaying them does not contact the remote. Select the relevant worktree and click **Fetch** when you need updated remote refs.
+**Available since 1.5.0:** the sidebar shows `↓` incoming and `↑` outgoing commit counts beside each worktree's branch. Each branch is compared with its own upstream. Both counts appear when either is nonzero, for example `↓0 ↑3`; synchronized branches, branches without an upstream, and unknown counts show no numbers. Narrow sidebars preserve the counts and truncate the branch name; hover to read the full name and synchronization details. Counts use the most recently fetched local refs and displaying them does not contact the remote. The active worktree fetches in the background periodically; click **Fetch** for an immediate update.
 
 Each worktree has its own files, index, and commit draft for the current session. Staging and committing affect only the selected worktree. Check the path in the bottom bar before switching targets.
 
@@ -77,7 +77,7 @@ Click the current branch in the top bar to open **Branch management** (分支管
 - Selecting a fetched remote branch creates or uses the corresponding local tracking branch.
 - Branches checked out in another worktree show the reason and cannot be selected.
 
-The branch list does not contact remote servers automatically. If a new branch is missing, click **Fetch** to update remote refs.
+The branch list reads local refs, which background fetching updates for the active worktree. If a new branch is missing, click **Fetch** for an immediate update.
 
 **Available since 1.4.0:** local branches with pending changes show `↓` incoming and `↑` outgoing commit counts beside their names, for example `↓5 ↑0`. Each branch is compared with its own upstream, including branches that are not currently checked out. The pair is hidden when both counts are zero, no upstream is configured, or the counts cannot be determined. Remote branch rows do not show this pair. Counts describe locally fetched upstream refs; use **Fetch** before relying on them for the latest remote state.
 
@@ -91,7 +91,7 @@ Uncommitted edits may prevent switching. The app respects Git's checks and does 
 4. By default, Git fast-forwards when possible and otherwise creates a merge commit. Enable **Always create a merge commit** when you need an explicit merge record.
 5. Click **Merge into current branch**. If the current branch already contains the source commits, no merge is needed.
 
-The source can be a local branch, a fetched remote branch, or a branch in use by another worktree. Only committed content is merged; uncommitted edits in other worktrees are excluded. The app does not automatically fetch, stash, or push. You cannot start a merge with a detached HEAD, before the first commit, or while a merge, rebase, or other Git operation is unfinished. If refs change after opening the dialog, recheck before executing.
+The source can be a local branch, a fetched remote branch, or a branch in use by another worktree. Only committed content is merged; uncommitted edits in other worktrees are excluded. The merge action itself does not fetch, stash, or push; background fetching may still update remote refs. You cannot start a merge with a detached HEAD, before the first commit, or while a merge, rebase, or other Git operation is unfinished. If refs change after opening the dialog, recheck before executing.
 
 **If conflicts occur:**
 
@@ -134,11 +134,13 @@ These features are available starting with 1.3.0. Configure a remote for the rep
 
 - **Fetch** (获取): update refs from all configured remotes and prune records of deleted remote branches. This does not merge into the current branch or change worktree files.
 - **Pull** (拉取): fetch the current branch's upstream and update with fast-forward only. If there is no upstream, push first to set tracking. If both sides have new commits, fetch, then use **Merge** to merge the upstream branch. The app does not automatically rebase, stash, or force files to be overwritten.
-- **Push** (推送): upload only the current branch to its configured upstream branch. It does not push other branches in bulk or force-push. When no upstream is configured, the action is labeled **Publish branch** (发布分支). On first publication, it prefers `origin`, otherwise the only available remote. If multiple remotes exist without a default target, choose a remote in the dialog and set upstream tracking.
+- **Push** (推送): upload only the current branch to its configured upstream branch. It does not push other branches in bulk or force-push. With an upstream configured, it first checks the actual push destination. If that destination contains commits missing locally, pushing stops. Pull or merge the upstream when it shares the push destination; if fetch and push URLs differ, fetch and integrate the actual push destination explicitly. When no upstream is configured, the action is labeled **Publish branch** (发布分支). On first publication, it prefers `origin`, otherwise the only available remote. If multiple remotes exist without a default target, choose a remote in the dialog and set upstream tracking.
 
-Starting with 1.6.2, the download and upload arrows show incoming and outgoing commit counts relative to the current branch's locally fetched upstream ref. Each count appears only when greater than zero. Branches without an upstream show **Publish branch** without a count; their full commit history is not treated as outgoing. Remote refs can lag behind the server; click **Fetch** to update them. No number is shown when the count is unknown. The app rereads the count after commits, branch switches, and fetch, pull, or push operations.
+Starting with 1.6.2, the download and upload arrows show incoming and outgoing commit counts relative to the current branch's locally fetched upstream ref. Each count appears only when greater than zero. Branches without an upstream show **Publish branch** without a count; their full commit history is not treated as outgoing. The active worktree fetches remote refs in the background; click **Fetch** for an immediate update. A failed check warns that counts may be outdated. No number is shown when the count is unknown. The app rereads the count after commits, branch switches, and fetch, pull, or push operations.
 
-During execution, the buttons show progress and other Git write operations are temporarily disabled. Git errors are displayed on failure; for authentication errors, check your local credentials or SSH configuration first. If an operation succeeds but refreshing the state fails, refresh to confirm the actual state.
+When both sides have new commits, a divergence notice offers **Merge upstream**. Confirm the merge and resolve any conflicts before pushing. When only the remote has new commits, pull directly. The number of unfetched commits cannot be known reliably before fetching, so **Fetch** has no commit count.
+
+During manual execution, the buttons show progress and other Git write operations are temporarily disabled. Git errors are displayed on failure; for authentication errors, check your local credentials or SSH configuration first. If an operation succeeds but refreshing the state fails, refresh to confirm the actual state.
 
 ## 5. File tree and list
 
@@ -260,11 +262,13 @@ The history view is labeled **Read-only history**. Files and directories have no
 The app watches files and Git metadata for the active worktree, including shared refs for linked worktrees. After external edits, staging, commits, or ref updates, it combines changes and rereads local state automatically:
 
 - Wait 1 second after the last filesystem event. After each automatic refresh completes, wait at least another 5 seconds before the next one. This is a cooldown, not fixed-interval polling.
-- Defer refreshes while the window is in the background or a Git write is in progress. Process accumulated changes when the app is back in the foreground and idle. Switching windows without any changes does not trigger a refresh.
+- Defer refreshes while the window is in the background or a Git write is in progress. Process accumulated changes when the app is back in the foreground and idle. Switching windows without file changes does not trigger a local-file refresh; remote checks use a separate schedule.
 - Preserve the selected file, scroll position for the same diff, and commit draft. On a failed read, keep the previous result and show a message. If the selected file no longer has changes, select another changed file.
 - In-app staging, unstaging, and commits still refresh state immediately without waiting for the automatic-refresh cooldown.
 
-**Refresh** in the top bar reads the latest state for the current view. In history, it reloads the first page as described above. If watching fails, refresh manually, then relaunch the app to restore watching. Automatic refresh does not contact remote servers; click **Fetch** to update remote refs.
+**Refresh** in the top bar reads the latest local state for the current view. In history, it reloads the first page as described above. If watching fails, refresh manually, then relaunch the app to restore watching.
+
+An active worktree with remotes also checks the server independently: on entry, then about once a minute while the window is focused and idle. Returning to the window uses the same interval. Background fetching updates remote refs and commit counts without pulling, merging, or changing worktree files. If it fails, a message warns that counts may be outdated; click **Fetch** to retry. An ordinary local refresh does not clear that remote-check failure.
 
 **Settings** at the bottom of the repository sidebar shows the current version and lets you change code font size or restore the default layout, font size, and diff mode. Layout, reading preferences, and repository paths are saved on the current device; commit drafts last only for the current session. Restoring the default layout does not clear remembered repositories.
 

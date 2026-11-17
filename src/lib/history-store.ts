@@ -35,7 +35,7 @@ interface HistoryState {
   closeFile: (worktree: Worktree) => void;
   loadMore: (worktree: Worktree) => Promise<void>;
   refresh: (worktree: Worktree) => Promise<void>;
-  checkForUpdates: (worktree: Worktree) => Promise<void>;
+  checkForUpdates: (worktree: Worktree, isActive?: () => boolean) => Promise<void>;
   reset: () => void;
 }
 
@@ -152,15 +152,15 @@ export const useHistory = create<HistoryState>((set, get) => {
         if (current()) update(worktree, { loading: false, outgoing: null, error: errorMessage(error) });
       }
     },
-    async checkForUpdates(worktree) {
+    async checkForUpdates(worktree, isActive = () => true) {
       const previous = session(worktree);
       if (!previous.initialized || previous.loading) return;
       const current = begin(worktree, 'probe');
       try {
         const { oid, outgoing } = await historyGit.ref(worktree, previous.reference);
-        if (current()) update(worktree, { updated: oid !== previous.snapshot, outgoing: outgoing ?? null, checkError: null });
+        if (current() && isActive()) update(worktree, { updated: oid !== previous.snapshot, outgoing: outgoing ?? null, checkError: null });
       } catch (error) {
-        if (current()) update(worktree, { outgoing: null, checkError: errorMessage(error) });
+        if (current() && isActive()) update(worktree, { outgoing: null, checkError: errorMessage(error) });
       }
     },
     reset() {
