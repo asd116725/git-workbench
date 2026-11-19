@@ -1,10 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { getChanges, getFileStatus } from './demo-git';
 import { toWorktree } from './native-git';
 import type { GitBranch } from './types';
 import type { NativeRepository } from './native-git';
-import { findWorktree, useWorkbench } from './store';
+import { useHistory } from './history-store';
+import { useSidebarOrder } from './sidebar-order';
+import { findWorktree, getRegisteredRepositoryPath, useWorkbench } from './store';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(), isTauri: vi.fn(() => true) }));
 
@@ -655,5 +657,363 @@ describe('未暂存修改撤销', () => {
     const confirmed = await useWorkbench.getState().previewDiscard([file.id]);
     await useWorkbench.getState().stage(file.id);
     await expect(useWorkbench.getState().discard(confirmed, true)).rejects.toThrow('重新预览');
+  });
+});
+
+describe('从列表移除仓库', () => {
+  const key = 'git-workbench.repositories';
+  const saved = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => saved.get(key) ?? null,
+    setItem: vi.fn((key: string, value: string) => { saved.set(key, value); }),
+  };
+  const other = {
+    ...baseRepository, path: '/test/other', commonDir: '/test/other/.git', repositoryName: 'other',
+    worktrees: [{ ...mainMetadata, path: '/test/other' }],
+  };
+  const unavailable = { id: 'native-repository:/missing/.git', path: '/missing' };
+  beforeEach(() => {
+    saved.clear();
+    vi.stubGlobal('localStorage', storage);
+    useHistory.getState().reset();
+    useSidebarOrder.setState({ order: { projects: [], worktrees: {} } });
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if (command === 'git_open') return (args as { path: string }).path === other.path ? other : baseRepository;
+      if (command === 'git_status') return (args as { repoPath: string }).repoPath === other.path ? other : baseRepository;
+      return textDiff;
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('非当前仓库使用登记路径；保存失败保持所有状态，重试只移除目标登记，重启后仍生效', async () => {
+    await useWorkbench.getState().openRepository(other.path);
+    const removed = useWorkbench.getState().repositories[0];
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    const current = currentWorktree();
+    useWorkbench.getState().setView('history');
+    useWorkbench.getState().setDraft({ message: '保留草稿' });
+    useHistory.getState().setSearchInput(current, '保留历史筛选');
+    useHistory.getState().setSearchInput(removed.worktrees[0], '旧仓库筛选');
+    const history = useHistory.getState().sessions;
+    const original = JSON.parse(saved.get(key)!);
+    original.state.repositories[0].path = '/last/registered/path';
+    original.state.repositories.push(unavailable);
+    saved.set(key, JSON.stringify(original));
+    expect(getRegisteredRepositoryPath(removed)).toBe('/last/registered/path');
+    const before = useWorkbench.getState();
+    storage.setItem.mockImplementationOnce(() => { throw new Error('QuotaExceededError'); });
+    expect(() => before.removeRepository(removed.id)).toThrow('保存失败，请重试。');
+    expect(useWorkbench.getState()).toBe(before);
+    expect(useHistory.getState().sessions).toBe(history);
+    expect(JSON.parse(saved.get(key)!)).toEqual(original);
+
+    mockedInvoke.mockClear();
+    before.removeRepository(removed.id);
+    expect(mockedInvoke).not.toHaveBeenCalled();
+    expect(useWorkbench.getState()).toMatchObject({ ...before, repositories: [before.repositories[1]] });
+    expect(useHistory.getState().sessions).toEqual({ [current.id]: history[current.id] });
+    expect(JSON.parse(saved.get(key)!).state.repositories).toEqual([original.state.repositories[1], unavailable]);
+    expect(getRegisteredRepositoryPath(removed)).toBe(other.path);
+    useWorkbench.getState().reset();
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if ((args as { path?: string }).path === unavailable.path) throw new Error('目录不存在');
+      return command === 'git_open' ? baseRepository : textDiff;
+    });
+    await useWorkbench.getState().restoreSession();
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === 'git_open').map(([, args]) => args))
+      .toEqual([{ path: baseRepository.path }, { path: unavailable.path }]);
+    expect(useWorkbench.getState().repositories.map(item => item.id)).toEqual([before.repositories[1].id]);
+    expect(useWorkbench.getState().error).toContain('目录不存在');
+  });
+
+  it('活动仓库保存失败时不启动回退读取；重试后恢复到已保存的新工作区', async () => {
+    await useWorkbench.getState().openRepository(other.path);
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    const before = useWorkbench.getState();
+    const removed = before.repositories[1].id;
+    const expected = before.repositories[0].worktrees[0].id;
+    mockedInvoke.mockClear();
+    storage.setItem.mockImplementationOnce(() => { throw new Error('QuotaExceededError'); });
+    expect(() => before.removeRepository(removed)).toThrow('保存失败，请重试。');
+    expect(useWorkbench.getState()).toBe(before);
+    expect(mockedInvoke).not.toHaveBeenCalled();
+    before.removeRepository(removed);
+    expect(useWorkbench.getState().activeWorktreeId).toBe(expected);
+    expect(JSON.parse(saved.get(key)!).state.activeWorktreeId).toBe(expected);
+    await vi.waitFor(() => expect(useWorkbench.getState().refreshing).toBe(false));
+    useWorkbench.getState().reset();
+    await useWorkbench.getState().restoreSession();
+    expect(useWorkbench.getState().activeWorktreeId).toBe(expected);
+    expect(useWorkbench.getState().repositories).toHaveLength(1);
+  });
+
+  it('按侧栏向下再向上回退，优先主工作区，其次选排序首个可用工作树', () => {
+    vi.mocked(isTauri).mockReturnValue(false);
+    useWorkbench.getState().reset();
+    const template = currentWorktree();
+    const tree = (id: string, isMain = false) => ({ ...template, id, isMain });
+    const groups = [
+      { id: 'a', name: '上方', worktrees: [tree('a1'), tree('a2', true)] },
+      { id: 'b', name: '当前', worktrees: [tree('b1')] },
+      { id: 'c', name: '下方', worktrees: [{ ...tree('c1', true), bare: true }, tree('c2'), tree('c3')] },
+      { id: 'd', name: '失效', worktrees: [{ ...tree('d1', true), available: false }] },
+    ];
+    useWorkbench.setState({ repositories: [groups[2], groups[3], groups[0], groups[1]], activeWorktreeId: 'b1' });
+    useSidebarOrder.setState({ order: { projects: ['a', 'b', 'd', 'c'], worktrees: { c: ['c3', 'c2', 'c1'] } } });
+    useWorkbench.getState().removeRepository('b');
+    expect(currentWorktree().id).toBe('c3');
+    useWorkbench.getState().removeRepository('c');
+    expect(currentWorktree().id).toBe('a2');
+    useWorkbench.getState().removeRepository('a');
+    expect(useWorkbench.getState()).toMatchObject({ activeWorktreeId: '', selection: null, repositories: [groups[3]] });
+    expect(saved.size).toBe(0);
+    expect(mockedInvoke).not.toHaveBeenCalled();
+  });
+
+  it('移除活动仓库后旧状态、历史、分支、远端和差异不恢复旧视图，重新打开仍有草稿', async () => {
+    const repository = {
+      ...baseRepository, remote: { ...baseRepository.remote, remotes: ['origin'] },
+      operation: { kind: 'merge' as const, head: 'head', mergeHeads: ['other'], source: 'other', message: '合并信息' },
+    };
+    mockedInvoke.mockImplementation(async command => command === 'git_open' ? repository : textDiff);
+    await useWorkbench.getState().openRepository(repository.path);
+    useWorkbench.getState().setDraft({ message: '移除前的草稿' });
+    useWorkbench.getState().setMergeMessage('编辑过的合并信息');
+    const old = currentWorktree();
+    const pending = deferred<void>();
+    const fetch = deferred<{ warning: null }>();
+    mockedInvoke.mockImplementation(async command => {
+      if (command === 'git_fetch') return fetch.promise;
+      await pending.promise;
+      if (command === 'git_status') return repository;
+      if (command === 'git_branches') return [mainBranch];
+      if (command === 'git_history_ref') return { oid: null, outgoing: null };
+      return textDiff;
+    });
+    const state = useWorkbench.getState();
+    const remote = state.checkRemote(new AbortController().signal);
+    expect(() => state.removeRepository(state.repositories[0].id)).toThrow('Git 操作正在进行');
+    fetch.resolve({ warning: null });
+    await vi.waitFor(() => expect(useWorkbench.getState().backgroundFetchingRepositoryIds).toEqual([]));
+    const branches = state.loadBranches();
+    const history = useHistory.getState().refresh(old);
+    state.selectFile('second.ts', 'staged');
+    const refresh = state.refresh({ silent: true });
+    expect(mockedInvoke.mock.calls.map(([command]) => command)).toEqual(expect.arrayContaining([
+      'git_fetch', 'git_branches', 'git_history_ref', 'git_status', 'git_diff',
+    ]));
+    mockedInvoke.mockClear();
+    state.removeRepository(state.repositories[0].id);
+    pending.resolve();
+    await Promise.all([refresh, branches, remote, history]);
+    expect(mockedInvoke).not.toHaveBeenCalled();
+    expect(useWorkbench.getState()).toMatchObject({
+      repositories: [], activeWorktreeId: '', selection: null, diff: { file: null, loading: false },
+      branches: { items: [], loading: false }, remoteCheck: null, refreshing: false, autoRefreshing: false, error: null,
+    });
+    expect(useHistory.getState().sessions).toEqual({});
+    expect(JSON.parse(saved.get(key)!)).toEqual({ state: { repositories: [], activeWorktreeId: '' }, version: 0 });
+    mockedInvoke.mockImplementation(async command => command === 'git_open' ? repository : textDiff);
+    await useWorkbench.getState().openRepository(repository.path);
+    expect(useWorkbench.getState().drafts[currentWorktree().id].message).toBe('移除前的草稿');
+    expect(useWorkbench.getState().mergeDrafts[currentWorktree().id].message).toBe('编辑过的合并信息');
+  });
+
+  it.each(['busy', 'restoring'] as const)('确认时再次检查 %s，阻止登记变化', async flag => {
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    useWorkbench.setState({ [flag]: true });
+    const state = useWorkbench.getState();
+    expect(() => state.removeRepository(state.repositories[0].id)).toThrow('Git 操作正在进行');
+    expect(useWorkbench.getState()).toBe(state);
+    useWorkbench.setState({ [flag]: false });
+  });
+
+  it('恢复到新 commonDir 时按原登记路径移除，新启动只重试无关的失效路径', async () => {
+    const old = { id: 'native-repository:/old/.git', path: '/registered/shortcut' };
+    saved.set(key, JSON.stringify({ state: { repositories: [old, unavailable], activeWorktreeId: '' }, version: 0 }));
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if ((args as { path?: string }).path === unavailable.path) throw new Error('目录不存在');
+      return command === 'git_open' || command === 'git_status' ? baseRepository : textDiff;
+    });
+    await useWorkbench.getState().restoreSession();
+    await useWorkbench.getState().refresh();
+    const restored = useWorkbench.getState().repositories[0];
+    expect(restored.id).not.toBe(old.id);
+    expect(getRegisteredRepositoryPath(restored)).toBe(old.path);
+    useWorkbench.getState().removeRepository(restored.id);
+    expect(JSON.parse(saved.get(key)!).state.repositories).toEqual([unavailable]);
+    useWorkbench.getState().reset();
+    mockedInvoke.mockClear();
+    await useWorkbench.getState().restoreSession();
+    expect(mockedInvoke.mock.calls).toEqual([['git_open', { path: unavailable.path }]]);
+    expect(useWorkbench.getState().repositories).toEqual([]);
+  });
+
+  it.each(['/test/repository/', '/test/repository/subfolder', '/test/linked'])('用 %s 重新打开时按 Git 返回路径认领旧登记', async path => {
+    const old = { id: 'native-repository:/old/.git', path: baseRepository.path };
+    saved.set(key, JSON.stringify({ state: { repositories: [old, unavailable], activeWorktreeId: '' }, version: 0 }));
+    mockedInvoke.mockRejectedValue('目录不存在');
+    await useWorkbench.getState().restoreSession();
+    const reopened = {
+      ...baseRepository, path: path === linkedMetadata.path ? linkedMetadata.path : baseRepository.path,
+      worktrees: [mainMetadata, linkedMetadata],
+    };
+    mockedInvoke.mockImplementation(async command => command === 'git_open' ? reopened : textDiff);
+    await useWorkbench.getState().openRepository(path);
+    const restored = useWorkbench.getState().repositories[0];
+    expect(getRegisteredRepositoryPath(restored)).toBe(old.path);
+    useWorkbench.getState().removeRepository(restored.id);
+    expect(JSON.parse(saved.get(key)!).state.repositories).toEqual([unavailable]);
+  });
+
+  it.each([
+    ['Git:\nfatal: not a git repository (or any of the parent directories): .git', true],
+    ['Git:\n致命错误：不是 git 仓库（或者任何父目录）：.git', true],
+    ['Git:\nfatal: bad object HEAD', false],
+  ])('存在的目录收到 %s 时，是否跳过候选 %s', async (diagnostic, skipped) => {
+    await useWorkbench.getState().openRepository(other.path);
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    mockedInvoke.mockRejectedValue(diagnostic);
+    useWorkbench.getState().removeRepository(useWorkbench.getState().repositories[1].id);
+    await vi.waitFor(() => expect(useWorkbench.getState().refreshing).toBe(false));
+    const state = useWorkbench.getState();
+    expect(state.activeWorktreeId).toBe(skipped ? '' : state.repositories[0].worktrees[0].id);
+    expect(state.repositories[0].worktrees[0].available).toBe(!skipped);
+    expect(state.error).toBe(skipped ? null : diagnostic);
+  });
+
+  it.each([true, false])('首次回退目录失效时跳过，保留原登记；后方工作树是否可用 %s', async available => {
+    const linked = { ...other, worktrees: [...other.worktrees, linkedMetadata] };
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if (command === 'git_open') return (args as { path: string }).path === other.path ? linked : baseRepository;
+      if (command === 'git_status') {
+        const { repoPath } = args as { repoPath: string };
+        if (repoPath === other.path || !available) throw new Error('无法打开目录：No such file or directory');
+        return { ...linked, path: linkedMetadata.path, worktrees: [{ ...linked.worktrees[0], available: false }, linkedMetadata] };
+      }
+      return textDiff;
+    });
+    await useWorkbench.getState().openRepository(other.path);
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    useWorkbench.getState().removeRepository(useWorkbench.getState().repositories[1].id);
+    await vi.waitFor(() => expect(useWorkbench.getState().refreshing).toBe(false));
+    const { repositories, activeWorktreeId } = useWorkbench.getState();
+    expect(repositories).toHaveLength(1);
+    expect(repositories[0].worktrees[0].available).toBe(false);
+    expect(activeWorktreeId).toBe(available ? 'native:' + linkedMetadata.path : '');
+    expect(JSON.parse(saved.get(key)!).state).toMatchObject({ activeWorktreeId, repositories: [{ id: repositories[0].id }] });
+  });
+
+  it.each([other.path, baseRepository.path])('候选原路径现属于被移除组，返回根 %s 时跳过，重启后也不复活', async redirectedPath => {
+    const third = {
+      ...other, commonDir: '/test/third/.git', path: '/test/third', repositoryName: 'third',
+      worktrees: [{ ...mainMetadata, path: '/test/third' }],
+    };
+    const paths = new Map([baseRepository, other, third].map(repository => [repository.path, repository]));
+    const redirected = { ...baseRepository, path: redirectedPath, worktrees: [
+      mainMetadata, { ...linkedMetadata, path: other.path },
+    ] };
+    mockedInvoke.mockImplementation(async (command, args) => {
+      const { path, repoPath } = args as { path: string; repoPath: string };
+      if (command === 'git_open') {
+        if (path === unavailable.path) throw '目录不存在';
+        return paths.get(path);
+      }
+      if (command === 'git_status') return repoPath === other.path ? redirected : paths.get(repoPath);
+      return textDiff;
+    });
+    await useWorkbench.getState().openRepository(other.path);
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    await useWorkbench.getState().openRepository(third.path);
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    const [b, a, c] = useWorkbench.getState().repositories;
+    useSidebarOrder.setState({ order: { projects: [a.id, b.id, c.id], worktrees: {} } });
+    const session = JSON.parse(saved.get(key)!);
+    session.state.repositories.push(unavailable);
+    saved.set(key, JSON.stringify(session));
+    useWorkbench.getState().removeRepository(a.id);
+    await vi.waitFor(() => expect(useWorkbench.getState().refreshing).toBe(false));
+    expect(currentWorktree().path).toBe(third.path);
+    expect(useWorkbench.getState().repositories.map(item => item.id)).not.toContain(a.id);
+    expect(JSON.parse(saved.get(key)!).state.repositories).toEqual([{ id: c.id, path: third.path }, unavailable]);
+    paths.set(other.path, redirected);
+    useWorkbench.getState().reset();
+    mockedInvoke.mockClear();
+    await useWorkbench.getState().restoreSession();
+    expect(useWorkbench.getState().repositories.map(item => item.id)).toEqual([c.id]);
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === 'git_open').map(([, args]) => args))
+      .toEqual([{ path: third.path }, { path: unavailable.path }]);
+  });
+
+  it('用户切换后，回退读取的晚到错误不能抢回当前工作区', async () => {
+    const linked = { ...other, worktrees: [...other.worktrees, linkedMetadata] };
+    const missing = deferred<void>();
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if (command === 'git_open') return (args as { path: string }).path === other.path ? linked : baseRepository;
+      if (command === 'git_status') {
+        if ((args as { repoPath: string }).repoPath === other.path) {
+          await missing.promise;
+          throw '无法打开目录：目录不存在';
+        }
+        return { ...linked, path: linkedMetadata.path };
+      }
+      return textDiff;
+    });
+    await useWorkbench.getState().openRepository(other.path);
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    useWorkbench.getState().removeRepository(useWorkbench.getState().repositories[1].id);
+    useWorkbench.getState().selectWorktree('native:' + linkedMetadata.path);
+    missing.resolve();
+    await vi.waitFor(() => expect(useWorkbench.getState().refreshing).toBe(false));
+    expect(currentWorktree().path).toBe(linkedMetadata.path);
+    expect(useWorkbench.getState().repositories[0].worktrees[0].available).toBe(true);
+  });
+
+  it('后台 fetch 取消后仍保护目标组，其他组可移除，原生命令返回才解除', async () => {
+    const pending = deferred<{ warning: null }>();
+    const remote = { ...baseRepository, remote: { ...baseRepository.remote, remotes: ['origin'] } };
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if (command === 'git_fetch') return pending.promise;
+      if (command === 'git_open') return (args as { path: string }).path === other.path ? other : remote;
+      return textDiff;
+    });
+    await useWorkbench.getState().openRepository(other.path);
+    await useWorkbench.getState().openRepository(remote.path);
+    const [otherGroup, fetching] = useWorkbench.getState().repositories;
+    const controller = new AbortController();
+    const check = useWorkbench.getState().checkRemote(controller.signal);
+    controller.abort();
+    expect(useWorkbench.getState().backgroundFetchingRepositoryIds).toEqual([fetching.id]);
+    expect(() => useWorkbench.getState().removeRepository(fetching.id)).toThrow('Git 操作正在进行');
+    useWorkbench.getState().removeRepository(otherGroup.id);
+    pending.resolve({ warning: null });
+    await check;
+    expect(useWorkbench.getState().backgroundFetchingRepositoryIds).toEqual([]);
+    useWorkbench.getState().removeRepository(fetching.id);
+    expect(useWorkbench.getState().repositories).toEqual([]);
+  });
+
+  it('外部删除工作树后即清除旧历史，包括其晚到请求', async () => {
+    mockedInvoke.mockImplementation(async command => command === 'git_open'
+      ? { ...baseRepository, worktrees: [mainMetadata, linkedMetadata] }
+      : command === 'git_status' ? baseRepository : textDiff);
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    const [main, linked] = useWorkbench.getState().repositories[0].worktrees;
+    useHistory.getState().setSearchInput(main, '保留');
+    const pending = deferred<{ oid: null }>();
+    mockedInvoke.mockImplementation(async command => command === 'git_history_ref' ? pending.promise : command === 'git_status' ? baseRepository : textDiff);
+    const history = useHistory.getState().refresh(linked);
+    await useWorkbench.getState().refresh();
+    pending.resolve({ oid: null });
+    await history;
+    expect(Object.keys(useHistory.getState().sessions)).toEqual([main.id]);
+  });
+
+  it('旧格式损坏时仍可打开并重新登记', async () => {
+    saved.set(key, '{');
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    expect(JSON.parse(saved.get(key)!).state.repositories).toEqual([
+      { id: useWorkbench.getState().repositories[0].id, path: baseRepository.path },
+    ]);
   });
 });

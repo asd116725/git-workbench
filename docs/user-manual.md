@@ -2,7 +2,7 @@
 
 **English** | [简体中文](zh-CN/user-manual.md)
 
-This manual covers the stable `1.15.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.15.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.15.0). The browser uses separate demo data and does not access real repositories.
+This manual covers the stable `1.16.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.16.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.16.0). The browser uses separate demo data and does not access real repositories.
 
 Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-refreshing-and-settings). Screenshots show the v1.8.0 English interface with fictional demo data; the naming and sorting controls added in v1.10.0 are described below.
 
@@ -49,7 +49,7 @@ After worktrees are added or deleted externally, Git metadata watching updates t
 
 ### 3.1 Custom display names (1.10.0)
 
-Use the pencil button on a project row to rename the project. For a main or linked worktree, choose **⋯ → Customize name**; `Tab` also reaches these controls. Enter a name, then click **Save** or press `Enter`. Click **Cancel** or press `Esc` to leave without saving. Names cannot be empty.
+Choose **⋯ → Customize name** on a repository, main worktree, or linked worktree row. You can also reach the menu with `Tab`. Enter a name and choose **Save** or press `Enter`. Choose **Cancel** or press `Esc` to leave without saving. Names cannot be empty.
 
 To restore the original display name, choose **Reset name**, then **Save**. Resetting is only applied when you save; canceling keeps the current name.
 
@@ -65,13 +65,17 @@ The app remembers each list's order on this device across refreshes and restarts
 
 ### 3.3 Sidebar layout (1.12.0)
 
-Open **⋯** in the repository header and choose **Move to right panel** or **Move to left panel**. The file list and diff retain their order. Use the panel icon beside **⋯** to collapse the sidebar into a 44px rail, then use the same icon at the top of the rail to expand it. **Settings** and **Open repository** remain at the bottom of the rail.
+Open **⋯** beside **Repositories** at the top of the sidebar and choose **Move to right panel** or **Move to left panel**. The file list and diff retain their order. Use the panel icon beside **⋯** to collapse the sidebar into a 44px rail, then use the same icon at the top of the rail to expand it. **Settings** and **Open repository** remain at the bottom of the rail.
 
 The app remembers the side, collapsed state, and expanded width. Moving or collapsing the sidebar preserves the selected worktree, repository tree, and current commit draft. **Settings → Reset layout** restores the sidebar to its default expanded position on the left.
 
 ### 3.4 More worktree actions
 
 Open **⋯** on a main or linked worktree to copy its full folder path, open the folder in the system file manager, or customize its display name. Actions target that row without switching the active worktree. **Open folder** is disabled for unavailable directories; the registered path can still be copied and the display name changed. The six-dot handle remains available for sorting.
+
+### 3.5 Remove a repository from the list
+
+Choose **⋯ → Remove from list…** on the repository row. Check the name, path, and worktree count before confirming. The app removes the group from its list and keeps your local files, Git history, and uncommitted changes on disk. Use **Open repository** to add it again. Removing the current repository selects a nearby available repository or shows the welcome screen when none is available.
 
 ## 4. Switch branches
 

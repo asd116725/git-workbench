@@ -42,7 +42,7 @@ Git Workbench 是面向多项目、多分支开发的桌面 Git 客户端。把�
 
 | 核心功能 | 可以做什么 |
 | --- | --- |
-| **仓库与 worktree** | 切换本地仓库与关联工作树，自定义[显示名称](docs/zh-CN/user-manual.md#31-自定义显示名称1100)，拖动调整[侧栏顺序](docs/zh-CN/user-manual.md#32-侧栏排序1100)；名称与顺序在重启后保留。 |
+| **仓库与 worktree** | 切换本地仓库与关联工作树，自定义[显示名称](docs/zh-CN/user-manual.md#31-自定义显示名称1100)，拖动调整[侧栏顺序](docs/zh-CN/user-manual.md#32-侧栏排序1100)。[从列表移除仓库](docs/zh-CN/user-manual.md#35-从列表移除仓库)时保留磁盘文件。 |
 | **Diff 与暂存** | 查看内联或并排 Diff，暂存或取消暂存文件、目录及整组变更，确认后撤销未暂存修改；只提交暂存内容，保留其他编辑。 |
 | **分支与同步** | 搜索、创建、删除及合并分支，获取、拉取、推送或首次发布分支，查看待拉取和待推送数量。 |
 | **提交历史** | 同时浏览提交列表、变更文件与历史 Diff，搜索所选分支的完整可达历史，识别尚未推送的记录。 |
@@ -53,13 +53,13 @@ Git Workbench 是面向多项目、多分支开发的桌面 Git 客户端。把�
 
 ## 下载与快速上手
 
-**v1.15.0 · macOS Apple Silicon（arm64）**
+**v1.16.0 · macOS Apple Silicon（arm64）**
 
 | 下载内容 | 链接 |
 | --- | --- |
-| macOS 安装包 | [GitWorkbench_1.15.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.15.0/GitWorkbench_1.15.0_macos_arm64.dmg) |
-| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.15.0/SHA256SUMS.txt) |
-| 版本说明 | [v1.15.0 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.15.0) |
+| macOS 安装包 | [GitWorkbench_1.16.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.16.0/GitWorkbench_1.16.0_macos_arm64.dmg) |
+| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.16.0/SHA256SUMS.txt) |
+| 版本说明 | [v1.16.0 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.16.0) |
 
 1. **安装应用**：使用同一 Release 的校验文件核对 DMG，将「代码管理」拖入 Applications。[安装说明 →](docs/zh-CN/installation.md)
 2. **打开项目**：确认 `git --version` 可用，点击「打开仓库」，选择已有本地仓库，关联 worktree 会一并列出。

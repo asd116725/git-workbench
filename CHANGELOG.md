@@ -6,6 +6,16 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-11-19
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.16.0/CHANGELOG.zh-CN.md#1160---2026-11-19)
+
+- Remove a repository from the sidebar using **⋯ → Remove from list…**. Local files, linked worktrees, Git history, and uncommitted changes stay on disk. Use **Open repository** to add it again.
+- Copy complete error and auto-refresh logs or view them in a full-window panel with word wrap. Background refreshes keep the log you are reading open.
+- Generate AI commit messages from larger staged diffs. When an input exceeds a limit, the dialog identifies the source and shows its actual size and limit.
+
+The macOS Apple Silicon (arm64) installer uses ad-hoc signing and has not been notarized by Apple. See the [installation guide](https://github.com/asd116725/git-workbench/blob/v1.16.0/docs/installation.md).
+
 ## [1.15.0] - 2026-11-17
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.15.0/CHANGELOG.zh-CN.md#1150---2026-11-17)

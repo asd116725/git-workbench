@@ -12,7 +12,8 @@ export const emptyHistorySession: HistorySession = {
   updated: false, checkError: null,
 };
 
-type RequestKind = 'list' | 'detail' | 'diff' | 'probe';
+const requestKinds = ['list', 'detail', 'diff', 'probe'] as const;
+type RequestKind = typeof requestKinds[number];
 const requests = new Map<string, number>();
 let sequence = 0;
 function begin(worktree: Worktree, kind: RequestKind) {
@@ -36,6 +37,8 @@ interface HistoryState {
   loadMore: (worktree: Worktree) => Promise<void>;
   refresh: (worktree: Worktree) => Promise<void>;
   checkForUpdates: (worktree: Worktree, isActive?: () => boolean) => Promise<void>;
+  /** 移除仓库时清除其工作树历史，已发出的读取也不能重建旧会话。 */
+  forgetWorktrees: (worktrees: Worktree[]) => void;
   reset: () => void;
 }
 
@@ -162,6 +165,14 @@ export const useHistory = create<HistoryState>((set, get) => {
       } catch (error) {
         if (current() && isActive()) update(worktree, { outgoing: null, checkError: errorMessage(error) });
       }
+    },
+    forgetWorktrees(worktrees) {
+      const sessions = { ...get().sessions };
+      for (const worktree of worktrees) {
+        for (const kind of requestKinds) requests.delete(`${worktree.id}:${kind}`);
+        delete sessions[worktree.id];
+      }
+      set({ sessions });
     },
     reset() {
       requests.clear();

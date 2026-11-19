@@ -62,18 +62,27 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .repository-toggle > .codicon { font-size: 15px; }
 .repository-toggle[data-state='closed'] > .codicon { transform: rotate(-90deg); }
 .repository-select { flex: 1; min-width: 0; gap: 8px; padding-right: 8px; text-align: left; }
-/** 编辑入口和选择按钮并列，名称省略时仍保留独立的键盘焦点。 */
-.name-edit-button { flex-shrink: 0; width: 23px; height: 23px; opacity: 0; color: var(--muted-foreground); }
-.name-edit-button .codicon { font-size: 14px; }
-.repository-row > .name-edit-button { margin-right: 5px; }
-.repository-row:hover .name-edit-button, .repository-row:focus-within .name-edit-button { opacity: 1; }
 .worktree-row-container { position: relative; min-width: 0; }
-.worktree-actions { position: absolute; top: 5px; right: 4px; width: 23px; height: 23px; color: var(--muted-foreground); }
-.worktree-actions .codicon { font-size: 14px; }
-.worktree-actions[data-state='open'] { color: var(--accent-foreground); background: var(--accent); }
+.repository-actions, .worktree-actions { flex-shrink: 0; width: 23px; height: 23px; color: var(--muted-foreground); }
+.repository-actions { margin-right: 5px; }
+.worktree-actions { position: absolute; top: 5px; right: 4px; }
+.repository-actions .codicon, .worktree-actions .codicon { font-size: 14px; }
+.repository-actions[data-state='open'], .worktree-actions[data-state='open'] { color: var(--accent-foreground); background: var(--accent); }
 .worktree-actions-menu { width: auto; min-width: 152px; }
+.repository-actions-menu { min-width: 172px; }
 .worktree-actions-menu [role='menuitem'] { gap: 8px; padding: 6px 8px; white-space: nowrap; }
 .worktree-actions-menu [role='separator'] { margin-inline: 8px; }
+.remove-repository-overlay { background: #0009; backdrop-filter: none; }
+.remove-repository-dialog { width: 460px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; gap: 16px; padding: 22px; border: 1px solid var(--widget-border); border-radius: 8px; background: var(--background); box-shadow: 0 20px 60px #0004; }
+.remove-repository-dialog [data-slot='dialog-title'] { color: var(--foreground-strong); font-size: 16px; font-weight: 600; line-height: 1.4; }
+.remove-repository-description { display: grid; gap: 12px; color: var(--foreground); font-size: 13px; line-height: 1.65; }
+.remove-repository-target { display: grid; gap: 2px; min-width: 0; padding: 9px 12px; border: 1px solid var(--widget-border); border-radius: 5px; background: var(--sidebar); overflow-wrap: anywhere; user-select: text; }
+.remove-repository-target strong { color: var(--foreground-strong); }
+.remove-repository-target span { color: var(--muted-foreground); font-size: 12px; white-space: pre-wrap; }
+.remove-repository-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.remove-repository-actions button { padding: 0 14px; border-radius: 4px; }
+.remove-repository-actions [data-variant='destructive'] { border-color: color-mix(in srgb, var(--destructive) 55%, var(--widget-border)); color: color-mix(in srgb, var(--destructive) 35%, var(--foreground-strong)); background: color-mix(in srgb, var(--destructive) 25%, var(--background)); }
+.remove-repository-actions [data-variant='destructive']:hover { background: color-mix(in srgb, var(--destructive) 35%, var(--background)); }
 /** 两个操作入口只占标题行，第二行保留分支与同步信息的可用宽度。 */
 .worktree-row-container .worktree-title { padding-right: 45px; }
 .sidebar-sort-handle { flex-shrink: 0; width: 23px; height: 23px; color: var(--muted-foreground); cursor: grab; touch-action: none; }
