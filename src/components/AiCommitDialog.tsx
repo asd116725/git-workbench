@@ -2,10 +2,29 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Textarea } from '@/components/ui/textarea';
-import { t, useI18n } from '../lib/i18n';
-import { aiCommitErrors } from '../lib/native-ai-commit';
+import { getLanguage, t, useI18n } from '../lib/i18n';
+import { aiCommitErrors, type AiCommitSizeLimit } from '../lib/native-ai-commit';
 import type { AiCommitState } from '../lib/ai-commit-session';
 import { usePreferences } from '../lib/store';
+
+/** 按超限来源提供操作建议，仓库索引或 Git 输出超限时不承诺减少暂存可以解决。 */
+const sizeLimitMessages: Record<AiCommitSizeLimit['scope'], { title: string; guidance: string }> = {
+  diff: { title: '暂存差异超出大小上限', guidance: '请减少本次暂存的文件或变更块，再重新生成。' },
+  input: { title: '生成输入超出大小上限', guidance: '请缩小暂存范围或精简提交规范，再重新生成。' },
+  rules: { title: '提交规范文件超出可用预算', guidance: '请精简提交规范，或手动填写提交信息。' },
+  index: { title: '仓库索引超出大小上限', guidance: '请手动填写本次提交信息。' },
+  git: { title: 'Git 输出超出大小上限', guidance: '请手动填写本次提交信息。' },
+};
+
+/** 保留精确字节数，便于区分四舍五入后显示相同的实际大小与上限。 */
+function formatAiCommitSize(bytes: number) {
+  const language = getLanguage();
+  const exact = bytes === 1 ? t('1 字节') : t('{count} 字节', { count: bytes.toLocaleString(language) });
+  if (bytes < 1024) return exact;
+  const inMiB = bytes >= 1024 ** 2;
+  const amount = (bytes / (inMiB ? 1024 ** 2 : 1024)).toLocaleString(language, { maximumFractionDigits: 2 });
+  return t('{amount}（{exact}）', { amount: `${amount} ${inMiB ? 'MiB' : 'KiB'}`, exact });
+}
 
 /** 弹窗仅编辑临时候选；应用和取消由绑定工作区的会话处理。 */
 export function AiCommitDialog({ state, stagedCount, hasDraft, blocked, onApply, onCloseFocus }: {
@@ -19,9 +38,11 @@ export function AiCommitDialog({ state, stagedCount, hasDraft, blocked, onApply,
   useI18n();
   const mode = usePreferences(state => state.aiCommitMode);
   const setMode = usePreferences(state => state.setAiCommitMode);
-  const { phase, result, error, validating, candidate } = state;
+  const { phase, result, error, sizeLimit, validating, candidate } = state;
   const loading = phase === 'checking' || phase === 'generating';
   const missingKey = error === 'missing_key';
+  const inputTooLarge = error === 'input_too_large';
+  const sizeLimitMessage = inputTooLarge && sizeLimit ? sizeLimitMessages[sizeLimit.scope] : null;
   const preview = phase === 'preview';
   return <Dialog open={phase !== 'closed'} onOpenChange={open => { if (!open) state.close(); }}>
     <DialogContent className="ai-commit-dialog" onCloseAutoFocus={event => { event.preventDefault(); onCloseFocus(); }}>
@@ -42,7 +63,12 @@ export function AiCommitDialog({ state, stagedCount, hasDraft, blocked, onApply,
         </div>
         {loading && <div className="ai-commit-status" role="status"><i className="codicon codicon-loading spin" aria-hidden="true" /><strong>{phase === 'checking' ? t('正在检测 API Key…') : t('正在生成提交文案…')}</strong><p>{t('原草稿保持不变，可随时取消。')}</p></div>}
         {phase === 'ready' && <div className="ai-commit-status" role="status"><i className="codicon codicon-check" aria-hidden="true" /><strong>{t('已检测到 API Key')}</strong><p>{t('可以开始生成；检测到配置不代表已通过服务鉴权。')}</p></div>}
-        {error && <div className="ai-commit-notice" role="alert"><i className="codicon codicon-warning" aria-hidden="true" /><div><strong>{t(aiCommitErrors[error])}</strong>{missingKey ? <>
+        {error && <div className="ai-commit-notice" role="alert"><i className="codicon codicon-warning" aria-hidden="true" /><div><strong>{t(sizeLimitMessage?.title ?? aiCommitErrors[error])}</strong>{sizeLimitMessage && sizeLimit && <>
+          <p>{t(sizeLimit.scope === 'rules' ? '文件大小 {actual}，可用预算 {limit}' : '实际 {actual}，上限 {limit}', {
+            actual: formatAiCommitSize(sizeLimit.actualBytes), limit: formatAiCommitSize(sizeLimit.limitBytes),
+          })}</p>
+          <p>{t(sizeLimitMessage.guidance)}</p>
+        </>}{missingKey ? <>
           <p>{t('请在本机登录 shell 中配置 DEEPSEEK_API_KEY，然后重新检测。')}</p>
           <p>{t('若仅在终端临时 export，请从该终端启动应用，或配置登录环境后重启应用。密钥不会在此显示。')}</p>
         </> : <p>{t('原草稿保持不变。')}</p>}</div></div>}
@@ -58,11 +84,12 @@ export function AiCommitDialog({ state, stagedCount, hasDraft, blocked, onApply,
         <div className="ai-commit-actions">
           {preview && <Button type="button" variant="ghost" disabled={blocked || validating} onClick={() => void state.generate()}>{t('重新生成')}</Button>}
           <span className="ai-commit-action-spacer" />
-          <Button type="button" variant="outline" onClick={state.close}>{loading ? t('取消生成') : t('取消')}</Button>
+          {!inputTooLarge && <Button type="button" variant="outline" onClick={state.close}>{loading ? t('取消生成') : t('取消')}</Button>}
           {preview && <Button type="button" disabled={blocked || validating || !candidate.trim()} onClick={onApply}>{hasDraft ? t('替换草稿') : t('使用此文案')}</Button>}
           {missingKey && <Button type="button" disabled={blocked} onClick={() => void state.checkKey()}>{t('重新检测')}</Button>}
           {phase === 'ready' && <Button type="button" disabled={blocked} onClick={() => void state.generate()}>{t('开始生成')}</Button>}
-          {(phase === 'error' || phase === 'stale') && !missingKey && <Button type="button" disabled={blocked} onClick={() => void state.generate()}>{phase === 'stale' ? t('重新生成') : t('重试')}</Button>}
+          {inputTooLarge && <Button type="button" onClick={state.close}>{t('返回调整')}</Button>}
+          {(phase === 'error' || phase === 'stale') && !missingKey && !inputTooLarge && <Button type="button" disabled={blocked} onClick={() => void state.generate()}>{phase === 'stale' ? t('重新生成') : t('重试')}</Button>}
         </div>
       </div>
     </DialogContent>

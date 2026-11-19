@@ -10,7 +10,7 @@ use std::{
 pub(super) enum ProcessError {
     Failed,
     Timeout,
-    TooLarge,
+    TooLarge(Option<u64>),
     Cancelled,
 }
 
@@ -24,12 +24,54 @@ fn check(control: &WorkControl) -> Result<(), ProcessError> {
     })
 }
 
-/// 管道正文始终留在内存；输出、运行时间与子进程组都受限，禁止记录原始失败内容。
+/// 读取凭证时只需判断是否越界，超限立即停止。
+#[cfg(any(target_os = "macos", test))]
 pub(super) fn read(
+    command: Command,
+    limit: usize,
+    timeout: Duration,
+    control: &WorkControl,
+) -> Result<(ExitStatus, Vec<u8>), ProcessError> {
+    read_command(command, limit, timeout, control, false)
+}
+
+/// Git 输出超限后只计数，完整读到 EOF 且进程成功才报告实际字节数。
+pub(super) fn read_counted(
+    command: Command,
+    limit: usize,
+    timeout: Duration,
+    control: &WorkControl,
+) -> Result<(ExitStatus, Vec<u8>), ProcessError> {
+    read_command(command, limit, timeout, control, true)
+}
+
+#[derive(Default)]
+struct Output {
+    bytes: Vec<u8>,
+    actual_bytes: u64,
+}
+
+impl Output {
+    fn append(&mut self, chunk: &[u8], limit: usize, count_full: bool) -> Result<(), ProcessError> {
+        self.actual_bytes += chunk.len() as u64;
+        if self.actual_bytes <= limit as u64 {
+            self.bytes.extend_from_slice(chunk);
+        } else if count_full {
+            self.bytes = Vec::new();
+        } else {
+            return Err(ProcessError::TooLarge(None));
+        }
+        Ok(())
+    }
+}
+
+/// 管道正文只保留在受限内存中，同时限制进程的运行时间并清理子进程。
+fn read_command(
     mut command: Command,
     limit: usize,
     timeout: Duration,
     control: &WorkControl,
+    count_full: bool,
 ) -> Result<(ExitStatus, Vec<u8>), ProcessError> {
     check(control)?;
     #[cfg(unix)]
@@ -44,8 +86,7 @@ pub(super) fn read(
         .spawn()
         .map_err(|_| ProcessError::Failed)?;
     let stdout = child.stdout.take().expect("stdout 已配置为管道");
-    let result = read_output(&mut child, stdout, limit, timeout, control);
-    // 不等待管道 EOF：脱离进程组的后台程序可能仍持有 stdout，关闭本端即可结束读取。
+    let result = read_output(&mut child, stdout, limit, timeout, control, count_full);
     #[cfg(unix)]
     let _ = Command::new("/bin/kill")
         .args(["-KILL", "--", &format!("-{}", child.id())])
@@ -54,7 +95,15 @@ pub(super) fn read(
         .status();
     let _ = child.kill();
     let _ = child.wait();
-    result
+    let (status, output) = result?;
+    if output.actual_bytes > limit as u64 {
+        return if status.success() {
+            Err(ProcessError::TooLarge(Some(output.actual_bytes)))
+        } else {
+            Err(ProcessError::Failed)
+        };
+    }
+    Ok((status, output.bytes))
 }
 
 #[cfg(unix)]
@@ -64,7 +113,8 @@ fn read_output(
     limit: usize,
     timeout: Duration,
     control: &WorkControl,
-) -> Result<(ExitStatus, Vec<u8>), ProcessError> {
+    count_full: bool,
+) -> Result<(ExitStatus, Output), ProcessError> {
     use std::{io, os::fd::AsRawFd};
     let fd = stdout.as_raw_fd();
     // fd 由仍存活的 ChildStdout 持有；只修改文件状态标志，不转移描述符所有权。
@@ -73,60 +123,74 @@ fn read_output(
         return Err(ProcessError::Failed);
     }
     let started = Instant::now();
-    let mut bytes = Vec::new();
+    let mut output = Output::default();
     let mut finished = None;
+    let mut eof = false;
+    let mut buffer = [0; 8192];
     loop {
-        check(control)?;
-        if started.elapsed() >= timeout {
-            return Err(ProcessError::Timeout);
-        }
-        let mut buffer = [0; 8192];
         loop {
             check(control)?;
+            if started.elapsed() >= timeout {
+                return Err(ProcessError::Timeout);
+            }
             match stdout.read(&mut buffer) {
-                Ok(0) => break,
-                Ok(count) => {
-                    if bytes.len() + count > limit {
-                        return Err(ProcessError::TooLarge);
-                    }
-                    bytes.extend_from_slice(&buffer[..count]);
+                Ok(0) => {
+                    eof = true;
+                    break;
                 }
+                Ok(count) => output.append(&buffer[..count], limit, count_full)?,
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
                 Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
                 Err(_) => return Err(ProcessError::Failed),
             }
         }
-        // 观察到退出后再排空一次已到达的字节；不被后台进程是否关闭管道所阻塞。
+        // 凭证模式只排空已到达的字节，避免等待后台进程关闭继承的管道。
         if let Some(status) = finished {
-            return Ok((status, bytes));
+            if eof || !count_full {
+                return Ok((status, output));
+            }
+        } else {
+            finished = child.try_wait().map_err(|_| ProcessError::Failed)?;
+            if finished.is_some() {
+                continue;
+            }
         }
-        finished = child.try_wait().map_err(|_| ProcessError::Failed)?;
-        if finished.is_none() {
-            thread::sleep(Duration::from_millis(10));
-        }
+        thread::sleep(Duration::from_millis(10));
     }
 }
 
 #[cfg(not(unix))]
 fn read_output(
     child: &mut Child,
-    stdout: ChildStdout,
+    mut stdout: ChildStdout,
     limit: usize,
     timeout: Duration,
     control: &WorkControl,
-) -> Result<(ExitStatus, Vec<u8>), ProcessError> {
+    count_full: bool,
+) -> Result<(ExitStatus, Output), ProcessError> {
     let (sender, receiver) = std::sync::mpsc::channel();
-    thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let result = stdout.take(limit as u64 + 1).read_to_end(&mut bytes);
-        let output = if bytes.len() > limit {
-            Err(ProcessError::TooLarge)
-        } else {
-            result.map(|_| bytes).map_err(|_| ProcessError::Failed)
-        };
-        let _ = sender.send(output);
-    });
     let started = Instant::now();
+    let reader_control = control.clone();
+    thread::spawn(move || {
+        let result = (|| {
+            let mut output = Output::default();
+            let mut buffer = [0; 8192];
+            loop {
+                check(&reader_control)?;
+                if started.elapsed() >= timeout {
+                    return Err(ProcessError::Timeout);
+                }
+                let count = match stdout.read(&mut buffer) {
+                    Ok(0) => return Ok(output),
+                    Ok(count) => count,
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(_) => return Err(ProcessError::Failed),
+                };
+                output.append(&buffer[..count], limit, count_full)?;
+            }
+        })();
+        let _ = sender.send(result);
+    });
     let mut output = None;
     loop {
         check(control)?;
@@ -136,10 +200,10 @@ fn read_output(
         if let Ok(value) = receiver.try_recv() {
             output = Some(value?);
         }
-        if let Some(status) = child.try_wait().map_err(|_| ProcessError::Failed)? {
-            if let Some(bytes) = output {
-                return Ok((status, bytes));
-            }
+        if let Some(status) = child.try_wait().map_err(|_| ProcessError::Failed)?
+            && let Some(output) = output
+        {
+            return Ok((status, output));
         }
         thread::sleep(Duration::from_millis(10));
     }
@@ -167,7 +231,7 @@ mod tests {
     }
 
     #[test]
-    fn process_cancellation_stops_an_active_child_and_output_is_bounded() {
+    fn counted_output_can_be_cancelled_after_exceeding_the_limit() {
         let directory = tempfile::tempdir().unwrap();
         let ready = directory.path().join("ready");
         let (sender, receiver) = tokio::sync::watch::channel(false);
@@ -177,9 +241,14 @@ mod tests {
         };
         let mut command = Command::new("/bin/sh");
         command
-            .args(["-c", "printf ready > \"$1\"; exec /bin/sleep 30", "fixture"])
+            .args([
+                "-c",
+                "/usr/bin/head -c 1048576 /dev/zero && printf ready > \"$1\" && exec /bin/sleep 30",
+                "fixture",
+            ])
             .arg(&ready);
-        let worker = thread::spawn(move || read(command, 1024, Duration::from_secs(10), &control));
+        let worker =
+            thread::spawn(move || read_counted(command, 1024, Duration::from_secs(10), &control));
         let started = Instant::now();
         while !ready.exists() {
             assert!(started.elapsed() < Duration::from_secs(2));
@@ -191,7 +260,10 @@ mod tests {
             Err(ProcessError::Cancelled)
         ));
         assert!(started.elapsed() < Duration::from_secs(2));
+    }
 
+    #[test]
+    fn fast_read_stops_at_the_first_overflow() {
         let mut command = Command::new("/usr/bin/yes");
         command.arg("fictional-output");
         assert!(matches!(
@@ -201,7 +273,46 @@ mod tests {
                 Duration::from_secs(2),
                 &WorkControl::standalone(Duration::from_secs(2))
             ),
-            Err(ProcessError::TooLarge)
+            Err(ProcessError::TooLarge(None))
         ));
+    }
+
+    #[test]
+    fn counted_output_accepts_the_boundary_and_reports_exact_overflow() {
+        let collect = |script, limit| {
+            let mut command = Command::new("/bin/sh");
+            command.args(["-c", script]);
+            read_counted(
+                command,
+                limit,
+                Duration::from_secs(2),
+                &WorkControl::standalone(Duration::from_secs(2)),
+            )
+        };
+        assert_eq!(collect("printf '123456789'", 9).unwrap().1, b"123456789");
+        assert!(matches!(
+            collect("printf '123456789'", 8),
+            Err(ProcessError::TooLarge(Some(9)))
+        ));
+        assert!(matches!(
+            collect("printf '123456789'; exit 1", 8),
+            Err(ProcessError::Failed)
+        ));
+    }
+
+    #[test]
+    fn counted_output_keeps_both_deadlines_for_continuous_output() {
+        let short = Duration::from_millis(80);
+        let long = Duration::from_secs(2);
+        for (timeout, deadline) in [(short, long), (long, short)] {
+            let mut command = Command::new("/usr/bin/yes");
+            command.arg("fictional-output");
+            let started = Instant::now();
+            assert!(matches!(
+                read_counted(command, 1024, timeout, &WorkControl::standalone(deadline)),
+                Err(ProcessError::Timeout)
+            ));
+            assert!(started.elapsed() < Duration::from_secs(1));
+        }
     }
 }

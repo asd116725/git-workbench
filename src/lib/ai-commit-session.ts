@@ -1,6 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import { getChanges } from './demo-git';
-import { aiCommitErrorCode, nativeAiCommit, type AiCommitErrorCode, type AiCommitResult } from './native-ai-commit';
+import { aiCommitErrorCode, aiCommitSizeLimit, nativeAiCommit, type AiCommitErrorCode, type AiCommitResult, type AiCommitSizeLimit } from './native-ai-commit';
 import { findWorktree, usePreferences, useWorkbench } from './store';
 import type { Worktree } from './types';
 
@@ -18,6 +18,7 @@ export interface AiCommitState {
   result: AiCommitResult | null;
   candidate: string;
   error: AiCommitErrorCode | null;
+  sizeLimit: AiCommitSizeLimit | null;
   validating: boolean;
   draftChanged: boolean;
   open(): Promise<void>;
@@ -55,7 +56,12 @@ export function createAiCommitSession(owner: Worktree) {
 
     function fail(error: unknown) {
       const code = aiCommitErrorCode(error);
-      set({ phase: code === 'stale_snapshot' ? 'stale' : 'error', error: code, validating: false });
+      set({
+        phase: code === 'stale_snapshot' ? 'stale' : 'error',
+        error: code,
+        sizeLimit: code === 'input_too_large' ? aiCommitSizeLimit(error) : null,
+        validating: false,
+      });
     }
 
     /** 同一轮校验合并刷新事件；校验中若再次刷新，重读快照后才允许应用。 */
@@ -93,7 +99,7 @@ export function createAiCommitSession(owner: Worktree) {
       const version = ++generation;
       cancelRequest();
       validation = null;
-      set({ phase: 'checking', result: null, candidate: '', error: null, validating: false, draftChanged: false });
+      set({ phase: 'checking', result: null, candidate: '', error: null, sizeLimit: null, validating: false, draftChanged: false });
       try {
         const { available } = await nativeAiCommit.checkKey();
         if (!current(version)) return;
@@ -111,7 +117,7 @@ export function createAiCommitSession(owner: Worktree) {
     }
 
     return {
-      phase: 'closed', result: null, candidate: '', error: null, validating: false, draftChanged: false,
+      phase: 'closed', result: null, candidate: '', error: null, sizeLimit: null, validating: false, draftChanged: false,
       open: () => checkKey(true),
       checkKey: () => checkKey(false),
       generate: async () => {
@@ -123,7 +129,7 @@ export function createAiCommitSession(owner: Worktree) {
         baseDraft = target.message;
         const id = crypto.randomUUID();
         requestId = id;
-        set({ phase: 'generating', result: null, candidate: '', error: null, validating: false, draftChanged: false });
+        set({ phase: 'generating', result: null, candidate: '', error: null, sizeLimit: null, validating: false, draftChanged: false });
         try {
           const result = await nativeAiCommit.generate(owner.path, id, usePreferences.getState().aiCommitMode);
           if (!current(version)) return;
@@ -137,7 +143,7 @@ export function createAiCommitSession(owner: Worktree) {
         ++generation;
         cancelRequest();
         validation = null;
-        set({ phase: 'closed', result: null, candidate: '', error: null, validating: false, draftChanged: false });
+        set({ phase: 'closed', result: null, candidate: '', error: null, sizeLimit: null, validating: false, draftChanged: false });
       },
       edit: candidate => { if (get().phase === 'preview' && !get().validating) set({ candidate }); },
       apply: async () => {

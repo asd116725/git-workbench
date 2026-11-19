@@ -1,0 +1,111 @@
+.error-log {
+  flex: none;
+  min-width: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+}
+
+.error-log-toolbar, .error-log-heading, .error-log-actions, .error-log-footer, .error-log-footer > span {
+  display: flex;
+  align-items: center;
+}
+.error-log-toolbar {
+  flex: none;
+  justify-content: space-between;
+  gap: 12px;
+  height: 44px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--sidebar);
+  user-select: none;
+}
+.error-log-heading { min-width: 0; gap: 8px; white-space: nowrap; }
+.error-log-heading > .codicon { flex: none; color: var(--destructive); font-size: 17px; }
+.error-log-heading h2 { overflow: hidden; color: var(--foreground-strong); font-size: 13px; font-weight: 600; text-overflow: ellipsis; }
+.error-log-count {
+  flex: none;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.error-log-actions { flex: none; gap: 7px; }
+.error-log-actions button { gap: 6px; padding-inline: 9px; border-radius: 5px; font-size: 12px; }
+.error-log-actions .codicon { font-size: 14px; }
+.error-log-copy { min-width: 88px; }
+.error-log-copy[data-copied='true'] { color: var(--green); }
+.error-log-wrap[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--blue) 24%, transparent);
+  background: color-mix(in srgb, var(--blue) 12%, var(--sidebar));
+  color: var(--blue);
+}
+
+.error-log-body { min-width: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.error-log-body:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.error-log .error-log-body { max-height: 103px; }
+.error-log-body pre {
+  margin: 0;
+  padding: 8px 16px 10px;
+  color: var(--foreground);
+  font: 12px/19px "SFMono-Regular", Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+  user-select: text;
+}
+.error-log-error-line, .error-log-copy-failure, .error-log-footer-failure { color: var(--destructive); }
+.error-log-stack-line { color: var(--muted-foreground); }
+.error-log-copy-failure {
+  margin: 0;
+  padding: 5px 16px;
+  border-bottom: 1px solid var(--error-border);
+  background: var(--error-background);
+  font-size: 12px;
+}
+
+[data-slot='dialog-overlay'].error-log-dialog-overlay { inset: var(--workbench-titlebar-height) 0 0; }
+[data-slot='dialog-content'].error-log-dialog {
+  inset: var(--workbench-titlebar-height) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: auto;
+  max-width: none;
+  padding: 0;
+  overflow: hidden;
+  translate: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--background);
+  color: var(--foreground);
+}
+.error-log-dialog .error-log-toolbar { height: 54px; padding-inline: 20px; }
+.error-log-dialog .error-log-heading h2 { font-size: 15px; }
+.error-log-dialog .error-log-body { flex: 1; min-height: 0; }
+.error-log-dialog .error-log-body pre { padding: 15px 20px 20px; font-size: 13px; line-height: 21px; }
+.error-log-dialog .error-log-body pre[data-wrap='false'] { width: max-content; min-width: 100%; white-space: pre; }
+.error-log-dialog kbd {
+  padding: 1px 4px;
+  border: 1px solid var(--widget-border);
+  border-radius: 3px;
+  color: var(--muted-foreground);
+  font: 10px/1.15 "SFMono-Regular", Consolas, monospace;
+}
+.error-log-footer {
+  flex: none;
+  gap: 14px;
+  height: 35px;
+  padding: 0 20px;
+  border-top: 1px solid var(--border);
+  background: var(--sidebar);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  user-select: none;
+}
+.error-log-footer > span { gap: 6px; }
+.error-log-footer .codicon { font-size: 13px; }
+
+@media (max-height: 780px) {
+  .error-log .error-log-body { max-height: 84px; }
+}

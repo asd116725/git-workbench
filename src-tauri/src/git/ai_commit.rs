@@ -51,6 +51,28 @@ impl WorkControl {
 pub struct AiError {
     code: &'static str,
     message: &'static str,
+    #[serde(rename = "sizeLimit", skip_serializing_if = "Option::is_none")]
+    size_limit: Option<SizeLimit>,
+}
+
+/// 字节预算的应用位置，不携带 Git 命令、文件名或正文。
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum SizeLimitScope {
+    Diff,
+    Input,
+    Rules,
+    Index,
+    Git,
+}
+
+/// 完整输入字节数及其适用预算。规范使用单份待处理内容和当前可用预算。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SizeLimit {
+    scope: SizeLimitScope,
+    actual_bytes: u64,
+    limit_bytes: usize,
 }
 
 impl AiError {
@@ -75,7 +97,21 @@ impl AiError {
             "git" => "无法读取完整暂存内容，请检查仓库后重试。",
             _ => "生成服务暂不可用，请重试。",
         };
-        Self { code, message }
+        Self {
+            code,
+            message,
+            size_limit: None,
+        }
+    }
+
+    fn with_size_limit(scope: SizeLimitScope, actual_bytes: u64, limit_bytes: usize) -> Self {
+        let mut error = Self::new("input_too_large");
+        error.size_limit = Some(SizeLimit {
+            scope,
+            actual_bytes,
+            limit_bytes,
+        });
+        error
     }
 }
 

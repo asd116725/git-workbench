@@ -227,7 +227,71 @@ fn binary_is_evidence_only_and_large_diff_is_rejected_without_truncation() {
     assert_eq!(material["index_context"].as_array().unwrap().len(), 0);
     assert!(!input.prompt.user.contains("fictional-binary-content"));
     fixture.stage("large.txt", "x".repeat(MAX_DIFF_BYTES + 1));
-    assert_eq!(fixture.collect().err().unwrap().code, "input_too_large");
+    let diff = crate::git::git(
+        fixture.path(),
+        &[
+            "diff",
+            "--cached",
+            "--full-index",
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
+        ],
+    )
+    .unwrap();
+    let error = serde_json::to_value(fixture.collect().err().unwrap()).unwrap();
+    assert_eq!(error["code"], "input_too_large");
+    assert_eq!(
+        error["sizeLimit"],
+        serde_json::json!({"scope": "diff", "actualBytes": diff.len(), "limitBytes": 512 * 1024})
+    );
+}
+
+#[test]
+fn expanded_diff_budget_preserves_the_entire_patch_for_35_files() {
+    let fixture = Fixture::new();
+    fixture.stage("large.txt", "x".repeat(200 * 1024));
+    for number in 1..35 {
+        fixture.write(&format!("{number:02}.txt"), format!("staged-{number:02}\n"));
+    }
+    fixture.git(&["add", "--all"]);
+    let diff = crate::git::git(
+        fixture.path(),
+        &[
+            "diff",
+            "--cached",
+            "--full-index",
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
+        ],
+    )
+    .unwrap();
+    let input = collect(
+        fixture.path().to_str().unwrap(),
+        CommitLanguage::SimplifiedChinese,
+        CommitMode::Concise,
+        &WorkControl::standalone(Duration::from_secs(15)),
+    )
+    .unwrap();
+    let material: serde_json::Value = serde_json::from_str(&input.prompt.user).unwrap();
+    assert_eq!(input.files.len(), 35);
+    assert_eq!(
+        material["complete_staged_diff"]
+            .as_str()
+            .unwrap()
+            .as_bytes(),
+        diff
+    );
+}
+
+#[test]
+fn escaped_patch_can_exceed_the_total_prompt_budget() {
+    let fixture = Fixture::new();
+    fixture.stage("escaped.txt", "\\".repeat(400 * 1024));
+    let error = serde_json::to_value(fixture.collect().err().unwrap()).unwrap();
+    assert_eq!(error["code"], "input_too_large");
+    assert_eq!(error["sizeLimit"]["scope"], "input");
+    assert_eq!(error["sizeLimit"]["limitBytes"], 768 * 1024);
+    assert!(error["sizeLimit"]["actualBytes"].as_u64().unwrap() > 800 * 1024);
 }
 
 #[test]
@@ -403,7 +467,36 @@ fn oversized_index_rules_are_rejected_instead_of_silently_omitted() {
     fixture.stage("commitlint.config.js", "x".repeat(MAX_RULE_BYTES + 1));
     fixture.git(&["commit", "-m", "chore: 配置提交规则"]);
     fixture.stage("src/a.ts", "export const a = 1;\n");
-    assert_eq!(fixture.collect().err().unwrap().code, "input_too_large");
+    let error = serde_json::to_value(fixture.collect().err().unwrap()).unwrap();
+    assert_eq!(error["code"], "input_too_large");
+    assert_eq!(
+        error["sizeLimit"],
+        serde_json::json!({"scope": "rules", "actualBytes": 32 * 1024 + 1, "limitBytes": 32 * 1024})
+    );
+}
+
+#[test]
+fn worktree_rule_reports_its_size_against_the_remaining_budget() {
+    let fixture = Fixture::new();
+    fixture.write("AGENTS.md", "x".repeat(32 * 1024 - 10));
+    fixture.write("CONTRIBUTING.md", "我是四字");
+    fixture.stage("change.txt", "staged\n");
+    let error = serde_json::to_value(fixture.collect().err().unwrap()).unwrap();
+    assert_eq!(error["code"], "input_too_large");
+    assert_eq!(
+        error["sizeLimit"],
+        serde_json::json!({"scope": "rules", "actualBytes": 12, "limitBytes": 10})
+    );
+}
+
+#[test]
+fn invalid_utf8_rules_return_a_reading_error_without_size_details() {
+    let fixture = Fixture::new();
+    fixture.write("AGENTS.md", [0xFF]);
+    fixture.stage("change.txt", "staged\n");
+    let error = serde_json::to_value(fixture.collect().err().unwrap()).unwrap();
+    assert_eq!(error["code"], "git");
+    assert!(error.get("sizeLimit").is_none());
 }
 
 #[test]

@@ -30,3 +30,4 @@ dist-ssr
 !.env.example
 coverage/
 release-artifacts/
+/output/

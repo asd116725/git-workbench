@@ -1,4 +1,4 @@
-use super::{AiError, AiResult, CommitLanguage, CommitMode, WorkControl, process};
+use super::{AiError, AiResult, CommitLanguage, CommitMode, SizeLimitScope, WorkControl, process};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
@@ -13,8 +13,8 @@ use std::{
 
 mod commitlint;
 
-const MAX_DIFF_BYTES: usize = 128 * 1024;
-const MAX_INPUT_BYTES: usize = 256 * 1024;
+const MAX_DIFF_BYTES: usize = 512 * 1024;
+const MAX_INPUT_BYTES: usize = 768 * 1024;
 const MAX_INDEX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_RULE_BYTES: usize = 32 * 1024;
 const MAX_SKILL_BYTES: usize = 64 * 1024;
@@ -79,6 +79,7 @@ fn locked<T>(
         &input,
         &["rev-parse", "--show-toplevel"],
         16 * 1024,
+        SizeLimitScope::Git,
         control,
     )?)?;
     let root = fs::canonicalize(root.strip_suffix('\n').unwrap_or(&root))
@@ -87,6 +88,7 @@ fn locked<T>(
         &root,
         &["rev-parse", "--path-format=absolute", "--git-common-dir"],
         16 * 1024,
+        SizeLimitScope::Git,
         control,
     )?)?;
     let common = fs::canonicalize(common.strip_suffix('\n').unwrap_or(&common))
@@ -116,6 +118,7 @@ fn run(
     repo: &Path,
     args: &[&str],
     limit: usize,
+    scope: SizeLimitScope,
     control: &WorkControl,
 ) -> AiResult<(std::process::ExitStatus, Vec<u8>)> {
     control.check()?;
@@ -133,18 +136,28 @@ fn run(
             "color.ui=false",
         ])
         .args(args);
-    process::read(command, limit, Duration::from_secs(10), control).map_err(|error| {
-        AiError::new(match error {
-            process::ProcessError::TooLarge => "input_too_large",
-            process::ProcessError::Timeout => "timeout",
-            process::ProcessError::Failed => "git",
-            process::ProcessError::Cancelled => "cancelled",
-        })
+    process::read_counted(command, limit, Duration::from_secs(10), control).map_err(|error| {
+        match error {
+            process::ProcessError::TooLarge(Some(actual_bytes)) => {
+                AiError::with_size_limit(scope, actual_bytes, limit)
+            }
+            process::ProcessError::Timeout => AiError::new("timeout"),
+            process::ProcessError::Failed | process::ProcessError::TooLarge(None) => {
+                AiError::new("git")
+            }
+            process::ProcessError::Cancelled => AiError::new("cancelled"),
+        }
     })
 }
 
-fn git(repo: &Path, args: &[&str], limit: usize, control: &WorkControl) -> AiResult<Vec<u8>> {
-    let (status, bytes) = run(repo, args, limit, control)?;
+fn git(
+    repo: &Path,
+    args: &[&str],
+    limit: usize,
+    scope: SizeLimitScope,
+    control: &WorkControl,
+) -> AiResult<Vec<u8>> {
+    let (status, bytes) = run(repo, args, limit, scope, control)?;
     if !status.success() {
         return Err(AiError::new("git"));
     }
@@ -161,6 +174,7 @@ fn snapshot(repo: &Path, control: &WorkControl) -> AiResult<Snapshot> {
         repo,
         &["rev-parse", "--path-format=absolute", "--git-path", "HEAD"],
         16 * 1024,
+        SizeLimitScope::Git,
         control,
     )?)?;
     let git_dir = Path::new(git_head.trim_end_matches('\n'))
@@ -182,12 +196,14 @@ fn snapshot(repo: &Path, control: &WorkControl) -> AiResult<Snapshot> {
         repo,
         &["rev-parse", "--verify", "HEAD^{commit}"],
         1024,
+        SizeLimitScope::Git,
         control,
     )?;
     let (branch_status, branch) = run(
         repo,
         &["symbolic-ref", "--quiet", "HEAD"],
         16 * 1024,
+        SizeLimitScope::Git,
         control,
     )?;
     let head = if head_status.success() {
@@ -203,6 +219,7 @@ fn snapshot(repo: &Path, control: &WorkControl) -> AiResult<Snapshot> {
                 branch_name.trim_end_matches('\n'),
             ],
             1024,
+            SizeLimitScope::Git,
             control,
         )?;
         if exists.code() != Some(1) {
@@ -219,6 +236,7 @@ fn snapshot(repo: &Path, control: &WorkControl) -> AiResult<Snapshot> {
         repo,
         &["ls-files", "--stage", "-z"],
         MAX_INDEX_BYTES,
+        SizeLimitScope::Index,
         control,
     )?;
     let mut index = HashMap::new();
@@ -252,6 +270,7 @@ fn snapshot(repo: &Path, control: &WorkControl) -> AiResult<Snapshot> {
         &["--raw", "--no-abbrev", "-z"],
         head.as_deref(),
         MAX_INDEX_BYTES,
+        SizeLimitScope::Diff,
         control,
     )?;
     let mut digest = Sha256::new();
@@ -301,6 +320,7 @@ fn staged(
     options: &[&str],
     head: Option<&str>,
     limit: usize,
+    scope: SizeLimitScope,
     control: &WorkControl,
 ) -> AiResult<Vec<u8>> {
     let mut args = vec![
@@ -319,7 +339,7 @@ fn staged(
         args.push(head);
     }
     args.push("--");
-    git(repo, &args, limit, control)
+    git(repo, &args, limit, scope, control)
 }
 
 fn collect_locked(
@@ -334,6 +354,7 @@ fn collect_locked(
         &["--name-only", "-z"],
         before.head.as_deref(),
         MAX_DIFF_BYTES,
+        SizeLimitScope::Diff,
         control,
     )?;
     let files = names
@@ -349,6 +370,7 @@ fn collect_locked(
         &["--full-index", "--src-prefix=a/", "--dst-prefix=b/"],
         before.head.as_deref(),
         MAX_DIFF_BYTES,
+        SizeLimitScope::Diff,
         control,
     )?)?;
     let (repository_rules, message_rules) = rules(repo, &before.index, &files, control)?;
@@ -359,6 +381,7 @@ fn collect_locked(
             &["--name-status"],
             before.head.as_deref(),
             MAX_DIFF_BYTES,
+            SizeLimitScope::Diff,
             control,
         )?)?,
         staged_stat: text(staged(
@@ -366,6 +389,7 @@ fn collect_locked(
             &["--stat"],
             before.head.as_deref(),
             MAX_DIFF_BYTES,
+            SizeLimitScope::Diff,
             control,
         )?)?,
         complete_staged_diff: diff,
@@ -376,6 +400,7 @@ fn collect_locked(
                 repo,
                 &["log", "-8", "--format=%s", head, "--"],
                 MAX_RULE_BYTES,
+                SizeLimitScope::Git,
                 control,
             )?)?
         } else {
@@ -403,8 +428,13 @@ fn collect_locked(
         不要添加代码围栏、推理、说明前后缀或多个候选。",
         language.prompt_instruction()
     );
-    if system.len() + user.len() > MAX_INPUT_BYTES {
-        return Err(AiError::new("input_too_large"));
+    let actual_bytes = system.len() + user.len();
+    if actual_bytes > MAX_INPUT_BYTES {
+        return Err(AiError::with_size_limit(
+            SizeLimitScope::Input,
+            actual_bytes as u64,
+            MAX_INPUT_BYTES,
+        ));
     }
     if snapshot(repo, control)?.id != before.id {
         return Err(AiError::new("stale_snapshot"));
@@ -421,19 +451,40 @@ fn blob(
     repo: &Path,
     entry: &IndexEntry,
     limit: usize,
+    required_rule: bool,
     control: &WorkControl,
 ) -> AiResult<Option<String>> {
     if !matches!(entry.mode.as_str(), "100644" | "100755") {
         return Ok(None);
     }
-    let size: usize = text(git(repo, &["cat-file", "-s", &entry.oid], 128, control)?)?
-        .trim()
-        .parse()
-        .map_err(|_| AiError::new("git"))?;
-    if size > limit {
+    let size: u64 = text(git(
+        repo,
+        &["cat-file", "-s", &entry.oid],
+        128,
+        SizeLimitScope::Git,
+        control,
+    )?)?
+    .trim()
+    .parse()
+    .map_err(|_| AiError::new("git"))?;
+    if size > limit as u64 {
+        if required_rule {
+            return Err(AiError::with_size_limit(SizeLimitScope::Rules, size, limit));
+        }
         return Ok(None);
     }
-    let bytes = git(repo, &["cat-file", "blob", &entry.oid], limit, control)?;
+    let scope = if required_rule {
+        SizeLimitScope::Rules
+    } else {
+        SizeLimitScope::Git
+    };
+    let bytes = git(
+        repo,
+        &["cat-file", "blob", &entry.oid],
+        limit,
+        scope,
+        control,
+    )?;
     if bytes.contains(&0) {
         return Ok(None);
     }
@@ -455,7 +506,7 @@ fn contexts(
             break;
         }
         if let Some(entry) = index.get(path)
-            && let Some(content) = blob(repo, entry, remaining.min(16 * 1024), control)?
+            && let Some(content) = blob(repo, entry, remaining.min(16 * 1024), false, control)?
         {
             remaining -= content.len();
             result.push(Document {
@@ -524,9 +575,9 @@ fn rules(
         } else {
             content
         };
-        remaining = remaining
-            .checked_sub(content.len())
-            .ok_or_else(|| AiError::new("input_too_large"))?;
+        remaining = remaining.checked_sub(content.len()).ok_or_else(|| {
+            AiError::with_size_limit(SizeLimitScope::Rules, content.len() as u64, remaining)
+        })?;
         if config_paths.contains(&path) {
             let mut dependencies = Vec::new();
             for reference in commitlint::literal_extends(&content) {
@@ -560,9 +611,9 @@ fn rule_document(
         if !matches!(entry.mode.as_str(), "100644" | "100755") {
             return Ok(None);
         }
-        return blob(repo, entry, limit, control)?
+        return blob(repo, entry, limit, true, control)?
             .map(Some)
-            .ok_or_else(|| AiError::new("input_too_large"));
+            .ok_or_else(|| AiError::new("git"));
     }
     if files.iter().any(|file| file == path) {
         return Ok(None);
@@ -580,20 +631,53 @@ fn rule_document(
     {
         return Ok(None);
     }
-    read_document(&full, limit, "input_too_large").map(Some)
+    read_rule_document(&full, limit, control).map(Some)
 }
 
-fn read_document(path: &Path, limit: usize, code: &'static str) -> AiResult<String> {
+/// 普通文件可用元数据判断完整大小，读取时继续校验预算以处理并发增长。
+fn read_rule_document(path: &Path, limit: usize, control: &WorkControl) -> AiResult<String> {
+    let mut file = fs::File::open(path).map_err(|_| AiError::new("git"))?;
+    let size = file.metadata().map_err(|_| AiError::new("git"))?.len();
+    if size > limit as u64 {
+        return Err(AiError::with_size_limit(SizeLimitScope::Rules, size, limit));
+    }
+    let mut bytes = Vec::new();
+    let mut actual_bytes = 0;
+    let mut buffer = [0; 8192];
+    loop {
+        control.check()?;
+        let count = match file.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(count) => count,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(_) => return Err(AiError::new("git")),
+        };
+        actual_bytes += count as u64;
+        if actual_bytes <= limit as u64 {
+            bytes.extend_from_slice(&buffer[..count]);
+        }
+    }
+    if actual_bytes > limit as u64 {
+        return Err(AiError::with_size_limit(
+            SizeLimitScope::Rules,
+            actual_bytes,
+            limit,
+        ));
+    }
+    text(bytes)
+}
+
+fn read_skill_document(path: &Path) -> AiResult<String> {
     let mut bytes = Vec::new();
     fs::File::open(path)
-        .map_err(|_| AiError::new(code))?
-        .take(limit as u64 + 1)
+        .map_err(|_| AiError::new("skill"))?
+        .take(MAX_SKILL_BYTES as u64 + 1)
         .read_to_end(&mut bytes)
-        .map_err(|_| AiError::new(code))?;
-    if bytes.len() > limit {
-        return Err(AiError::new(code));
+        .map_err(|_| AiError::new("skill"))?;
+    if bytes.len() > MAX_SKILL_BYTES {
+        return Err(AiError::new("skill"));
     }
-    String::from_utf8(bytes).map_err(|_| AiError::new(code))
+    String::from_utf8(bytes).map_err(|_| AiError::new("skill"))
 }
 
 fn load_skill() -> AiResult<String> {
@@ -609,7 +693,7 @@ fn load_skill_at(path: Option<&Path>) -> AiResult<String> {
         match fs::symlink_metadata(path) {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => BUNDLED_SKILL.to_string(),
             Err(_) => return Err(AiError::new("skill")),
-            Ok(_) => read_document(path, MAX_SKILL_BYTES, "skill")?,
+            Ok(_) => read_skill_document(path)?,
         }
     } else {
         BUNDLED_SKILL.to_string()

@@ -5,6 +5,13 @@ import type { AiCommitMode } from './types';
 /** 原生端只返回生成文案和快照摘要，密钥、提示词及完整差异不进入前端。 */
 export interface AiCommitResult { message: string; snapshotId: string; files: string[] }
 
+/** 原生端返回超限项与完整字节数，供界面解释触发的本地限制。 */
+export interface AiCommitSizeLimit {
+  scope: 'diff' | 'input' | 'rules' | 'index' | 'git';
+  actualBytes: number;
+  limitBytes: number;
+}
+
 /** 按稳定错误码展示本地文案，不透传服务端正文或凭证。 */
 export const aiCommitErrors = {
   missing_key: '未检测到 API Key',
@@ -16,7 +23,7 @@ export const aiCommitErrors = {
   service: 'DeepSeek 服务暂时不可用，请稍后重试。',
   empty_staged: '请先暂存需要提交的文件。',
   unsupported_operation: '请先完成当前 Git 操作或解决冲突，再使用 AI 生成。',
-  input_too_large: '暂存内容超出生成上限，请缩小本次暂存范围后重试。',
+  input_too_large: '生成输入超出大小上限，请调整后再生成或手动填写提交信息。',
   stale_snapshot: '暂存内容或当前提交已变化，请重新生成。',
   invalid_response: '未获得完整有效的提交文案，请重试。',
   commit_rules_violation: '生成文案未通过仓库规则校验，标题或不可拆分内容可能超限，请重新生成或手动调整。',
@@ -33,6 +40,19 @@ export type AiCommitErrorCode = keyof typeof aiCommitErrors;
 export function aiCommitErrorCode(error: unknown): AiCommitErrorCode {
   const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
   return typeof code === 'string' && Object.keys(aiCommitErrors).includes(code) ? code as AiCommitErrorCode : 'internal';
+}
+
+/** 仅保留协议中约定的诊断字段，缺失或异常数据沿用通用提示。 */
+export function aiCommitSizeLimit(error: unknown): AiCommitSizeLimit | null {
+  if (typeof error !== 'object' || error === null || !('sizeLimit' in error)) return null;
+  const detail = error.sizeLimit;
+  if (typeof detail !== 'object' || detail === null || !('scope' in detail) || !('actualBytes' in detail) || !('limitBytes' in detail)) return null;
+  const { scope, actualBytes, limitBytes } = detail;
+  if (scope !== 'diff' && scope !== 'input' && scope !== 'rules' && scope !== 'index' && scope !== 'git') return null;
+  if (typeof actualBytes !== 'number' || typeof limitBytes !== 'number'
+    || !Number.isSafeInteger(actualBytes) || !Number.isSafeInteger(limitBytes)
+    || limitBytes < 0 || actualBytes <= limitBytes) return null;
+  return { scope, actualBytes, limitBytes };
 }
 
 /** 四个命令均由原生端执行，不向 WebView 暴露凭证或模型配置。 */

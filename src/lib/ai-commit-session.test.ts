@@ -258,7 +258,7 @@ describe('AI 提交会话', () => {
     expect(mockedInvoke).not.toHaveBeenCalledWith('ai_commit_generate', expect.anything());
   });
 
-  it.each(['invalid_key', 'insufficient_balance', 'rate_limited', 'timeout', 'network', 'invalid_response', 'input_too_large', 'skill', 'commit_rules_violation', 'commit_rules_unsupported'])('%s 失败可显式重试，草稿始终保留', async code => {
+  it.each(['invalid_key', 'insufficient_balance', 'rate_limited', 'timeout', 'network', 'invalid_response', 'skill', 'commit_rules_violation', 'commit_rules_unsupported'])('%s 失败可显式重试，草稿始终保留', async code => {
     mockedInvoke.mockImplementation(command => command === 'ai_commit_generate' ? Promise.reject({ code, message: '不可显示的上游正文' }) : reply(command));
     await session.getState().generate();
     expect(session.getState()).toMatchObject({ phase: 'error', error: code });
@@ -267,6 +267,58 @@ describe('AI 提交会话', () => {
     mockedInvoke.mockImplementation(reply);
     await session.getState().generate();
     expect(session.getState().phase).toBe('preview');
+  });
+
+  it('超限诊断仅保存三个约定字段，返回并调整暂存后可重新生成', async () => {
+    const sizeLimit = { scope: 'diff', actualBytes: 524_289, limitBytes: 524_288 };
+    const oversize = { code: 'input_too_large', message: '不可显示的服务正文', sizeLimit: { ...sizeLimit, path: '/private/repo' } };
+    mockedInvoke.mockImplementation(command => command === 'ai_commit_generate' ? Promise.reject(oversize) : reply(command));
+    await session.getState().open();
+    expect(session.getState()).toMatchObject({ phase: 'error', error: 'input_too_large' });
+    expect(session.getState().sizeLimit).toEqual(sizeLimit);
+    expect(JSON.stringify(session.getState())).not.toContain('不可显示');
+    expect(draft()).toBe('手写草稿');
+
+    session.getState().close();
+    expect(session.getState()).toMatchObject({ phase: 'closed', error: null, sizeLimit: null });
+    replaceWorktree({ files: [{ ...owner.files[0], index: '调整后的暂存内容' }] });
+    const pending = deferred<AiCommitResult>();
+    mockedInvoke.mockImplementation(command => command === 'ai_commit_generate' ? pending.promise : reply(command));
+    const opening = session.getState().open();
+    expect(session.getState()).toMatchObject({ phase: 'checking', error: null, sizeLimit: null });
+    await vi.waitFor(() => expect(session.getState()).toMatchObject({ phase: 'generating', error: null, sizeLimit: null }));
+    pending.resolve(result);
+    await opening;
+    expect(session.getState()).toMatchObject({ phase: 'preview', error: null, sizeLimit: null });
+    expect(draft()).toBe('手写草稿');
+  });
+
+  it.each([
+    undefined,
+    { scope: 'other', actualBytes: 8, limitBytes: 7 },
+    { scope: 'diff', actualBytes: '8', limitBytes: 7 },
+    { scope: 'diff', actualBytes: 7, limitBytes: 7 },
+    { scope: 'diff', actualBytes: 8, limitBytes: -1 },
+    { scope: 'diff', actualBytes: 8.5, limitBytes: 7 },
+    { scope: 'diff', actualBytes: Number.MAX_SAFE_INTEGER + 1, limitBytes: 7 },
+  ])('缺失或无效诊断 %# 时保留通用超限错误', async sizeLimit => {
+    mockedInvoke.mockImplementation(command => command === 'ai_commit_generate' ? Promise.reject({ code: 'input_too_large', sizeLimit }) : reply(command));
+    await session.getState().generate();
+    expect(session.getState()).toMatchObject({ phase: 'error', error: 'input_too_large', sizeLimit: null });
+  });
+
+  it('暂存清空使旧超限诊断失效，其他错误忽略附带的大小信息', async () => {
+    const sizeLimit = { scope: 'input', actualBytes: 786_433, limitBytes: 786_432 };
+    mockedInvoke.mockImplementation(command => command === 'ai_commit_generate' ? Promise.reject({ code: 'input_too_large', sizeLimit }) : reply(command));
+    await session.getState().generate();
+    expect(session.getState().sizeLimit).toEqual(sizeLimit);
+    replaceWorktree({ files: [] });
+    expect(session.getState()).toMatchObject({ phase: 'stale', error: 'stale_snapshot', sizeLimit: null });
+    replaceWorktree({ files: owner.files });
+    mockedInvoke.mockImplementation(command => command === 'ai_commit_generate' ? Promise.reject({ code: 'network', sizeLimit }) : reply(command));
+    await session.getState().generate();
+    expect(session.getState()).toMatchObject({ phase: 'error', error: 'network', sizeLimit: null });
+    expect(draft()).toBe('手写草稿');
   });
 
   it('空响应视为失败，用户清空有效候选后也禁止应用', async () => {
