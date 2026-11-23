@@ -5,6 +5,9 @@ use super::*;
 #[serde(rename_all = "camelCase")]
 pub struct GitWorktreeInfo {
     pub path: String,
+    /// Git 只接收其原始登记路径，界面身份仍使用规范化路径。
+    #[serde(skip)]
+    registered_path: String,
     pub name: String,
     pub branch: String,
     pub detached: bool,
@@ -59,6 +62,20 @@ pub struct CheckoutResult {
     pub warning: Option<String>,
 }
 
+/// 清理失效记录与删除目录需要不同的执行前校验。
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WorktreeRemovalMode {
+    Delete,
+    CleanMissing,
+}
+
+/// 记录已移除时仍可附带 Git 报告的目录清理问题。
+#[derive(Debug, Serialize)]
+pub struct WorktreeRemovalResult {
+    pub warning: Option<String>,
+}
+
 pub(super) fn common_directory(repo: &Path) -> GitResult<PathBuf> {
     let path = git_line(
         repo,
@@ -84,6 +101,7 @@ fn parse_worktrees(bytes: &[u8]) -> GitResult<Vec<GitWorktreeInfo>> {
                 .unwrap_or_else(|| Path::new(path))
                 .to_string_lossy()
                 .into_owned(),
+            registered_path: path.into(),
             name: String::new(),
             branch: "尚无提交".into(),
             detached: false,
@@ -145,6 +163,90 @@ fn parse_worktrees(bytes: &[u8]) -> GitResult<Vec<GitWorktreeInfo>> {
 
 fn worktree_metadata(repo: &Path) -> GitResult<Vec<GitWorktreeInfo>> {
     parse_worktrees(&git(repo, &["worktree", "list", "--porcelain", "-z"])?)
+}
+
+/// 按最新登记校验目标，普通删除和失效清理都通过 Git 的单路径命令完成。
+pub(super) fn remove_worktree(
+    common: &Path,
+    worktree_path: &str,
+    mode: WorktreeRemovalMode,
+) -> GitResult<WorktreeRemovalResult> {
+    let stale = "工作树状态已变化，请刷新仓库后重试。";
+    let worktrees = worktree_metadata(common)?;
+    let target = worktrees
+        .iter()
+        .find(|item| item.path == worktree_path)
+        .ok_or(stale)?;
+    if target.is_main || target.bare {
+        return Err("不能删除主工作区。".into());
+    }
+    if target.locked.is_some() {
+        return Err("工作树已锁定，请先解锁后再删除。".into());
+    }
+    let path = Path::new(&target.path);
+    match mode {
+        WorktreeRemovalMode::Delete => {
+            if !target.available
+                || repository_root(&target.path)? != path
+                || common_directory(path)? != common
+            {
+                return Err(stale.into());
+            }
+            if common.starts_with(path)
+                || worktrees
+                    .iter()
+                    .any(|item| item.path != target.path && Path::new(&item.path).starts_with(path))
+            {
+                return Err("工作树目录包含其他 Git 工作区或仓库元数据，无法删除。".into());
+            }
+            if operation(path)?.is_some() {
+                return Err("请先完成或中止工作树中的 Git 操作，再删除。".into());
+            }
+            // 覆盖 status.showUntrackedFiles，避免用户配置隐藏应受保护的文件。
+            let status = git(
+                path,
+                &[
+                    "--no-optional-locks",
+                    "status",
+                    "--porcelain=v1",
+                    "-z",
+                    "--untracked-files=normal",
+                    "--ignore-submodules=none",
+                ],
+            )?;
+            if !status.is_empty() {
+                return Err("工作树有未提交改动或未跟踪文件，请先提交、贮藏或清理后重试。".into());
+            }
+        }
+        WorktreeRemovalMode::CleanMissing => {
+            if target.prunable.is_none()
+                || !fs::symlink_metadata(&target.registered_path)
+                    .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+            {
+                return Err(stale.into());
+            }
+        }
+    }
+    match git(
+        common,
+        &["worktree", "remove", "--", &target.registered_path],
+    ) {
+        Ok(_) => Ok(WorktreeRemovalResult { warning: None }),
+        Err(error) => {
+            // Git 可能已清掉登记，再返回部分文件无法删除的错误。
+            if worktree_metadata(common).is_ok_and(|items| {
+                !items
+                    .iter()
+                    .any(|item| item.registered_path == target.registered_path)
+            }) {
+                Ok(WorktreeRemovalResult {
+                    warning: Some(error),
+                })
+            } else {
+                Err(error)
+            }
+        }
+    }
 }
 
 pub(super) fn worktrees(repo: &Path) -> GitResult<Vec<GitWorktreeInfo>> {

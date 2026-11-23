@@ -15,6 +15,7 @@ pub fn run() {
             folder::open_folder,
             git::git_open,
             git::git_status,
+            git::git_remove_worktree,
             git::git_diff,
             git::git_stage,
             git::git_unstage,

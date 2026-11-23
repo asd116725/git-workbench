@@ -52,6 +52,53 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+describe('删除已登记的工作树', () => {
+  it('删除当前工作树后切回主工作区，清理草稿并恢复新的选择', async () => {
+    const app = await launch();
+    await app.getState().openRepository(linked.path);
+    app.getState().setDraft({ message: '当前工作树草稿' });
+    const id = `native:${linked.path}`;
+    const repositoryId = app.getState().repositories[0].id;
+    const invoke = native.invoke.getMockImplementation()!;
+    native.invoke.mockImplementation(async (command, args) => {
+      if (command !== 'git_remove_worktree') return invoke(command, args);
+      expect(args).toEqual({ commonDir: editor.commonDir, worktreePath: linked.path, mode: 'delete' });
+      repositories.delete(linked.path);
+      repositories.set(main.path, { ...editor, worktrees: [main] });
+      return { warning: null };
+    });
+
+    await app.getState().removeWorktree(repositoryId, id, 'delete');
+
+    expect(app.getState().repositories[0].worktrees.map(worktree => worktree.path)).toEqual([main.path]);
+    expect(app.getState().activeWorktreeId).toBe(`native:${main.path}`);
+    expect(app.getState().drafts[id]).toBeUndefined();
+    const reopened = await launch();
+    await reopened.getState().restoreSession();
+    expect(reopened.getState().activeWorktreeId).toBe(`native:${main.path}`);
+    expect(reopened.getState().error).toBeNull();
+  });
+
+  it('删除非当前工作树失败时保留该行，重试成功时保持比较对象', async () => {
+    const app = await launch();
+    await app.getState().openRepository(main.path);
+    await vi.waitFor(() => expect(app.getState().diff.file?.working).toBe('current disk contents\n'));
+    const { repositories: listed, activeWorktreeId, selection, diff } = app.getState();
+    const id = `native:${linked.path}`;
+    native.invoke.mockRejectedValueOnce('工作树有未提交改动或未跟踪文件。');
+    await expect(app.getState().removeWorktree(listed[0].id, id, 'delete')).rejects.toThrow('未提交改动');
+    expect(app.getState().repositories).toBe(listed);
+    expect(app.getState().busy).toBe(false);
+
+    native.invoke.mockResolvedValueOnce({ warning: 'Git:\n有文件未能删除' });
+    const result = await app.getState().removeWorktree(listed[0].id, id, 'delete');
+
+    expect(result.warning).toContain('有文件未能删除');
+    expect(app.getState().repositories[0].worktrees.map(worktree => worktree.path)).toEqual([main.path]);
+    expect(app.getState()).toMatchObject({ activeWorktreeId, selection, diff });
+  });
+});
+
 describe('本地仓库跨重启恢复', () => {
   it('重启恢复工作区的未完成合并，并从 Git 信息初始化独立合并草稿', async () => {
     const first = await launch();

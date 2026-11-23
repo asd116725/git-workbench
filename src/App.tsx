@@ -28,8 +28,10 @@ import { useHistory } from './lib/history-store';
 import { BranchPickerDialog } from './components/BranchPickerDialog';
 import { RenameDialog, type RenameTarget } from './components/RenameDialog';
 import { RemoveRepositoryDialog, type RemoveRepositoryTarget } from './components/RemoveRepositoryDialog';
+import { RemoveWorktreeDialog, type RemoveWorktreeTarget } from './components/RemoveWorktreeDialog';
 import { useDisplayNames } from './lib/display-names';
 import { openFolder } from './lib/native-folder';
+import { worktreeRemovalMode } from './lib/native-git';
 import { orderedItems, useSidebarOrder, type SortEdge, type SortScope } from './lib/sidebar-order';
 import { useSidebarSorting } from './components/useSidebarSorting';
 import { BranchSyncCounts } from './components/BranchSyncStatus';
@@ -67,9 +69,17 @@ function errorMessage(error: unknown) { return error instanceof Error ? error.me
 function firstAvailableWorktree(repository: Repository) { return repository.worktrees.find(worktree => worktree.available !== false && !worktree.bare); }
 
 /** 操作绑定入口所在的工作树，不改变侧栏选择。 */
-function WorktreeActions({ worktree, name, busy, onRename }: { worktree: Worktree; name: string; busy: boolean; onRename: (trigger: HTMLButtonElement) => void }) {
+function WorktreeActions({ worktree, name, busy, fetching, onRename, onRemove }: {
+  worktree: Worktree;
+  name: string;
+  busy: boolean;
+  fetching: boolean;
+  onRename: (trigger: HTMLButtonElement) => void;
+  onRemove: (trigger: HTMLButtonElement, mode: RemoveWorktreeTarget['mode']) => void;
+}) {
   const trigger = useRef<HTMLButtonElement>(null);
-  const renameTrigger = useRef<HTMLButtonElement | null>(null);
+  const openDialog = useRef<((trigger: HTMLButtonElement) => void) | null>(null);
+  const removalMode = worktreeRemovalMode(worktree);
   /** 跨过按钮下方剩余的 26px 卡片高度，再留 4px 间距。 */
   const menuOffset = 30;
 
@@ -83,16 +93,22 @@ function WorktreeActions({ worktree, name, busy, onRename }: { worktree: Worktre
   return <DropdownMenu>
     <DropdownMenuTrigger asChild><Button ref={trigger} variant="ghost" size="icon-xs" className="worktree-actions" disabled={busy} aria-label={t('工作树 {name} 的更多操作', { name })}><Icon name="ellipsis" /></Button></DropdownMenuTrigger>
     <DropdownMenuContent align="end" sideOffset={menuOffset} className="worktree-actions-menu" onCloseAutoFocus={event => {
-      if (!renameTrigger.current) return;
+      if (!openDialog.current || !trigger.current) return;
       /** 菜单完成关闭后交给弹窗聚焦，避免菜单回焦抢走输入焦点。 */
       event.preventDefault();
-      onRename(renameTrigger.current);
-      renameTrigger.current = null;
+      openDialog.current(trigger.current);
+      openDialog.current = null;
     }}>
       <DropdownMenuItem onSelect={copyPath}><Icon name="copy" />{t('复制文件夹路径')}</DropdownMenuItem>
       <DropdownMenuItem disabled={worktree.available === false} onSelect={() => void openFolder(worktree.path).catch(error => toast.error(t('无法打开文件夹'), { description: translateMessage(errorMessage(error)) }))}><Icon name="folder-opened" />{t('打开文件夹')}</DropdownMenuItem>
       <DropdownMenuSeparator />
-      <DropdownMenuItem onSelect={() => { renameTrigger.current = trigger.current; }}><Icon name="edit" />{t('自定义名称')}</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => { openDialog.current = onRename; }}><Icon name="edit" />{t('自定义名称')}</DropdownMenuItem>
+      {removalMode && <>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={fetching} variant="destructive" onSelect={() => {
+          openDialog.current = entry => onRemove(entry, removalMode);
+        }}><Icon name="trash" />{t(removalMode === 'cleanMissing' ? '清理失效记录…' : '删除工作树…')}</DropdownMenuItem>
+      </>}
     </DropdownMenuContent>
   </DropdownMenu>;
 }
@@ -131,6 +147,7 @@ function RepositorySidebar({ onOpen, onSettings, onMove }: { onOpen: () => void;
   const order = useSidebarOrder(state => state.order);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [removeTarget, setRemoveTarget] = useState<RemoveRepositoryTarget | null>(null);
+  const [removeWorktreeTarget, setRemoveWorktreeTarget] = useState<RemoveWorktreeTarget | null>(null);
   const openButton = useRef<HTMLButtonElement>(null);
   const [sortAnnouncement, setSortAnnouncement] = useState('');
   const orderErrorShown = useRef(false);
@@ -191,6 +208,7 @@ function RepositorySidebar({ onOpen, onSettings, onMove }: { onOpen: () => void;
         const name = names[repository.id] ?? repository.name;
         const worktrees = orderedItems(repository.worktrees, order.worktrees[repository.id]);
         const worktreeIds = worktrees.map(item => item.id);
+        const fetching = backgroundFetchingRepositoryIds.includes(repository.id);
         return <Collapsible className={`repository-group${active ? ' contains-current' : ''}`} defaultOpen={active} key={repository.id} {...sorting.rowProps(null, repository.id)}>
           <div className="repository-row">
             <CollapsibleTrigger className="repository-toggle" aria-label={t("展开或收起仓库 {name}", { name })}><Icon name="chevron-down" /></CollapsibleTrigger>
@@ -199,7 +217,7 @@ function RepositorySidebar({ onOpen, onSettings, onMove }: { onOpen: () => void;
               if (!active && first) selectWorktree(first.id);
             }}><span className="repository-icon"><Icon name="folder" /><Icon name="folder-opened" /></span><span className="repository-name">{name}</span><small className="repository-worktree-count" title={t("{value1} 个工作区", { value1: repository.worktrees.length })}><span className="repository-count-label">{t(repository.worktrees.length === 1 ? "1 工作树" : "{count} 工作树", { count: repository.worktrees.length })}</span>{active && <span className="repository-current-label">{t("当前 · {count}", { count: repository.worktrees.length })}</span>}</small></button>
             {sortHandle(null, repository.id, name, repositoryIds)}
-            <RepositoryActions name={name} disabled={busy || restoring} fetching={backgroundFetchingRepositoryIds.includes(repository.id)}
+            <RepositoryActions name={name} disabled={busy || restoring} fetching={fetching}
               onRename={trigger => rename(repository.id, 'project', repository.name, trigger)}
               onRemove={trigger => setRemoveTarget({ id: repository.id, name, path: getRegisteredRepositoryPath(repository), worktreeCount: repository.worktrees.length, trigger })} />
           </div>
@@ -213,7 +231,10 @@ function RepositorySidebar({ onOpen, onSettings, onMove }: { onOpen: () => void;
             aria-current={activeWorktreeId === worktree.id ? 'page' : undefined}
             onClick={() => selectWorktree(worktree.id)}
           ><Icon name={worktree.isMain ? 'device-desktop' : 'worktree'} /><span className="worktree-copy"><span className="worktree-title"><span className="worktree-name">{name}</span>{worktree.isMain && names[worktree.id] && <span className="worktree-kind" title={t('主工作区')}>{t('主')}</span>}{!worktree.isMain && <span className="worktree-kind">{t("关联")}</span>}{worktree.locked !== undefined && worktree.locked !== null && <Icon name="lock" className="worktree-lock" />}{activeWorktreeId === worktree.id && <span className="worktree-current">{t("当前")}</span>}</span><span className="worktree-branch"><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="worktree-branch-name">{worktree.bare ? t("裸仓库") : worktree.available === false ? t("目录不可用") : branchLabel(worktree)}</span>{syncDescription && <BranchSyncCounts sync={worktree.branchSync} />}</span></span>{syncDescription && <span className="sr-only">{syncDescription}</span>}</button></TooltipTrigger><TooltipContent className="worktree-tooltip">{details}</TooltipContent></Tooltip>
-              {sortHandle(repository.id, worktree.id, name, worktreeIds)}<WorktreeActions worktree={worktree} name={name} busy={busy} onRename={trigger => rename(worktree.id, worktree.isMain ? 'main' : 'worktree', worktreeLabel(worktree), trigger)} />
+              {sortHandle(repository.id, worktree.id, name, worktreeIds)}
+              <WorktreeActions worktree={worktree} name={name} busy={busy || restoring} fetching={fetching}
+                onRename={trigger => rename(worktree.id, worktree.isMain ? 'main' : 'worktree', worktreeLabel(worktree), trigger)}
+                onRemove={(trigger, mode) => setRemoveWorktreeTarget({ repositoryId: repository.id, worktree, name, mode, trigger })} />
             </div>;
           })}</div></CollapsibleContent>
         </Collapsible>;
@@ -227,6 +248,9 @@ function RepositorySidebar({ onOpen, onSettings, onMove }: { onOpen: () => void;
     {renameTarget && <RenameDialog target={renameTarget} onClose={() => setRenameTarget(null)} />}
     {removeTarget && <RemoveRepositoryDialog target={removeTarget} onClose={() => setRemoveTarget(null)} onRestoreFocus={() => {
       (removeTarget.trigger.isConnected ? removeTarget.trigger : openButton.current)?.focus();
+    }} />}
+    {removeWorktreeTarget && <RemoveWorktreeDialog target={removeWorktreeTarget} onClose={() => setRemoveWorktreeTarget(null)} onRestoreFocus={() => {
+      (removeWorktreeTarget.trigger.isConnected ? removeWorktreeTarget.trigger : openButton.current)?.focus();
     }} />}
   </aside>;
 }

@@ -1,6 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { ChangeArea, FileSnapshot, GitDiffContent, GitDiscardPreview, GitBranch, GitBranchSync, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitFileStatus, GitMergePreview, GitMergeResult, GitOperation, GitRemoteResult, GitRemoteStatus, Repository, Worktree } from './types';
 
+/** 原生仓库 ID 以公共 Git 目录为后缀，可独立于各工作目录定位共享元数据。 */
+export const nativeRepositoryIdPrefix = 'native-repository:';
+
 /** 工作目录元数据不携带文件正文，未选中的目录保持懒加载。 */
 export interface NativeWorktree {
   path: string;
@@ -27,6 +30,19 @@ export interface NativeRepository {
   operation: GitOperation | null;
   remote: GitRemoteStatus;
   files: Array<GitFileStatus & { path: string }>;
+}
+
+/** 清理失效记录时，原生层必须再次确认磁盘路径不存在。 */
+export type WorktreeRemovalMode = 'delete' | 'cleanMissing';
+
+/** Git 已移除登记时，warning 保留可能的目录清理错误。 */
+export interface WorktreeRemovalResult { warning: string | null }
+
+/** 菜单只显示最新列表允许的操作，最终以原生校验为准。 */
+export function worktreeRemovalMode(worktree: Worktree): WorktreeRemovalMode | undefined {
+  if (worktree.source !== 'native' || worktree.isMain !== false || worktree.bare || worktree.locked != null) return;
+  if (worktree.available === true) return 'delete';
+  if (worktree.prunable != null) return 'cleanMissing';
 }
 
 const languages: Record<string, string> = {
@@ -73,7 +89,7 @@ export function toWorktree(repository: NativeRepository): Worktree {
 export function toRepository(result: NativeRepository, previous?: Repository): Repository {
   const current = toWorktree(result);
   return {
-    id: `native-repository:${result.commonDir}`,
+    id: `${nativeRepositoryIdPrefix}${result.commonDir}`,
     name: result.repositoryName,
     worktrees: result.worktrees.map(metadata => {
       if (metadata.path === result.path) return current;
@@ -97,6 +113,8 @@ export const nativeGit = {
   watch: (repoPath: string | null) => invoke<void>('git_watch', { repoPath }),
   open: (path: string) => invoke<NativeRepository>('git_open', { path }),
   status: (repoPath: string) => invoke<NativeRepository>('git_status', { repoPath }),
+  removeWorktree: (commonDir: string, worktreePath: string, mode: WorktreeRemovalMode) =>
+    invoke<WorktreeRemovalResult>('git_remove_worktree', { commonDir, worktreePath, mode }),
   /** 后台获取使用较短时限，手动获取保持既有调用参数。 */
   fetch: (repoPath: string, background = false) => invoke<GitRemoteResult>('git_fetch', background ? { repoPath, background } : { repoPath }),
   pull: (repoPath: string) => invoke<GitRemoteResult>('git_pull', { repoPath }),

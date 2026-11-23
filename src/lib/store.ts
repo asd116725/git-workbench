@@ -4,13 +4,13 @@ import { persist } from 'zustand/middleware';
 import { createDemoRepositories } from './demo-data';
 import { commitWorktree, getChanges, stageFile, stageHunk, unstageFile } from './demo-git';
 import { createDemoBranch, createDemoBranchState, deleteDemoBranch, listDemoBranches, previewDemoBranchDeletion, recordDemoBranchCommit, switchDemoBranch, withDemoBranchSync, type DemoBranchState } from './demo-branches';
-import { nativeGit, toRepository, toWorktree } from './native-git';
+import { nativeGit, nativeRepositoryIdPrefix, toRepository, toWorktree, worktreeRemovalMode } from './native-git';
 import { previewDemoDiscard } from './discard';
 import { commitBlockReason } from './merge-view';
 import { remoteBlockReason } from './remote-view';
 import { useHistory } from './history-store';
 import { orderedItems, useSidebarOrder } from './sidebar-order';
-import type { NativeRepository } from './native-git';
+import type { NativeRepository, WorktreeRemovalMode, WorktreeRemovalResult } from './native-git';
 import type { AiCommitMode, ChangeArea, FileSnapshot, GitDiscardPreview, GitBranch, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitMergePreview, GitMergeResult, GitOperation, GitRemoteAction, GitRemoteResult, Repository, Worktree } from './types';
 
 /** 文件与比较区域共同标识一个差异视图。 */
@@ -40,7 +40,7 @@ interface RepositorySession {
 
 /** 移除后的候选读取只能切换至仍属原仓库组的工作树。 */
 interface RemovalFallback {
-  removedId: string;
+  removedId?: string;
   remaining: Worktree[];
 }
 
@@ -90,10 +90,14 @@ function worktreesAfterRemoval(repositories: Repository[], id: string): Worktree
   const { order } = useSidebarOrder.getState();
   const sorted = orderedItems(repositories, order.projects);
   const index = sorted.findIndex(item => item.id === id);
-  return [...sorted.slice(index + 1), ...sorted.slice(0, index).reverse()].flatMap(repository => {
-    const available = orderedItems(repository.worktrees, order.worktrees[repository.id]).filter(item => !item.bare && item.available !== false);
-    return [...available.filter(item => item.isMain), ...available.filter(item => !item.isMain)];
-  });
+  return [...sorted.slice(index + 1), ...sorted.slice(0, index).reverse()].flatMap(availableWorktrees);
+}
+
+/** 先尝试可用的主工作区，再按侧栏顺序尝试关联工作树。 */
+function availableWorktrees(repository: Repository): Worktree[] {
+  const order = useSidebarOrder.getState().order.worktrees[repository.id];
+  const available = orderedItems(repository.worktrees, order).filter(item => !item.bare && item.available !== false);
+  return [...available.filter(item => item.isMain), ...available.filter(item => !item.isMain)];
 }
 
 /** 优先保留当前比较对象；变更消失后选择下一项，避免悬空的文件标签。 */
@@ -174,6 +178,8 @@ interface WorkbenchState {
   openRepository: (path: string) => Promise<void>;
   /** 仅取消应用登记；保存成功后才切换活动工作区与清理视图。 */
   removeRepository: (id: string) => void;
+  /** 根据确认时的仓库、工作树和操作类型删除单个关联工作树。 */
+  removeWorktree: (repositoryId: string, worktreeId: string, mode: WorktreeRemovalMode) => Promise<WorktreeRemovalResult>;
   /** 启动时恢复本地路径，同一进程内的重复调用共用一次恢复。 */
   restoreSession: () => Promise<void>;
   refresh: (options?: { silent?: boolean }) => Promise<void>;
@@ -370,7 +376,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   /** Git 公共目录决定仓库身份，打开兄弟目录时仍复用同一分组和草稿。 */
   function applyNativeRepository(result: NativeRepository, previousSelection: Selection | null, silent = false) {
     const state = get();
-    const repositoryId = `native-repository:${result.commonDir}`;
+    const repositoryId = `${nativeRepositoryIdPrefix}${result.commonDir}`;
     const previous = state.repositories.find(repository => repository.id === repositoryId);
     const repository = toRepository(result, previous);
     if (previous) {
@@ -464,7 +470,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
           errors.push(`${session.repositories[index].path}：${errorMessage(result.reason)}`);
           continue;
         }
-        const repository = toRepository(result.value, repositories.find(item => item.id === `native-repository:${result.value.commonDir}`));
+        const repository = toRepository(result.value, repositories.find(item => item.id === `${nativeRepositoryIdPrefix}${result.value.commonDir}`));
         restoredRepositoryIds.set(session.repositories[index].path, repository.id);
         repositories = [...repositories.filter(item => item.id !== repository.id), repository];
         loaded.push(toWorktree(result.value));
@@ -475,7 +481,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       if (worktree && !loaded.some(item => item.id === targetId)) {
         try {
           const result = await nativeGit.status(worktree.path);
-          repositories = repositories.map(item => item.id === `native-repository:${result.commonDir}` ? toRepository(result, item) : item);
+          repositories = repositories.map(item => item.id === `${nativeRepositoryIdPrefix}${result.commonDir}` ? toRepository(result, item) : item);
           worktree = toWorktree(result);
         } catch (error) {
           errors.push(`${worktree.path}：${errorMessage(error)}`);
@@ -641,7 +647,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       if (version === statusVersion && get().activeWorktreeId === worktree.id) {
         if (fallback) {
           const group = get().repositories.find(item => item.worktrees.some(candidate => candidate.id === worktree.id))!;
-          const returnedId = `native-repository:${result.commonDir}`;
+          const returnedId = `${nativeRepositoryIdPrefix}${result.commonDir}`;
           if (result.path !== worktree.path || returnedId !== group.id) {
             const reassigned = returnedId === fallback.removedId
               ? { groupId: group.id, paths: new Set([worktree.path, result.path, ...result.worktrees.map(item => item.path)]) }
@@ -757,7 +763,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       try {
         const result = await nativeGit.open(path);
         for (const entryPath of [path, result.path, ...result.worktrees.map(item => item.path)]) {
-          if (restoredRepositoryIds.has(entryPath)) restoredRepositoryIds.set(entryPath, `native-repository:${result.commonDir}`);
+          if (restoredRepositoryIds.has(entryPath)) restoredRepositoryIds.set(entryPath, `${nativeRepositoryIdPrefix}${result.commonDir}`);
         }
         void applyNativeRepository(result, null);
         set({ view: 'changes', branches: emptyBranches });
@@ -791,6 +797,48 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       useHistory.getState().forgetWorktrees(repository.worktrees);
       demoBranchStates.delete(id);
       for (const [path, current] of restoredRepositoryIds) if (current === id) restoredRepositoryIds.delete(path);
+    },
+    removeWorktree: async (repositoryId, worktreeId, mode) => {
+      const state = get();
+      if (state.busy || state.restoring || state.backgroundFetchingRepositoryIds.includes(repositoryId)) throw new Error('Git 操作正在进行，请稍候。');
+      const repository = state.repositories.find(item => item.id === repositoryId);
+      const target = repository?.worktrees.find(item => item.id === worktreeId);
+      if (!repository || !target || worktreeRemovalMode(target) !== mode) throw new Error('工作树状态已变化，请刷新仓库后重试。');
+
+      const active = state.activeWorktreeId === worktreeId;
+      const remaining = { ...repository, worktrees: repository.worktrees.filter(item => item.id !== worktreeId) };
+      const sameRepository = availableWorktrees(remaining);
+      const [next, ...fallback] = active ? [...sameRepository, ...worktreesAfterRemoval(state.repositories, repositoryId)] : [];
+      const activeWorktreeId = active ? next?.id ?? '' : state.activeWorktreeId;
+      const commonDir = repositoryId.slice(nativeRepositoryIdPrefix.length);
+      beginMutation({ preserveDiff: true });
+      let warning: string | null;
+      try {
+        ({ warning } = await nativeGit.removeWorktree(commonDir, target.path, mode));
+        const current = get();
+        const drafts = { ...current.drafts };
+        const mergeDrafts = { ...current.mergeDrafts };
+        delete drafts[worktreeId];
+        delete mergeDrafts[worktreeId];
+        set({ drafts, mergeDrafts });
+        useHistory.getState().forgetWorktrees([target]);
+        const repositories = current.repositories.map(item => item.id === repositoryId ? remaining : item);
+        if (active) activateWorktree(next, repositories);
+        else set({ repositories });
+
+        try {
+          const session = readSession();
+          /** 裸仓库没有主工作目录，登记入口可能恰好是本次删除的关联工作树。 */
+          const entries = session.repositories.flatMap(entry => registeredId(entry) === repositoryId && entry.path === target.path
+            ? sameRepository.slice(0, 1).map(item => ({ id: repositoryId, path: item.path })) : [entry]);
+          saveSession({ repositories: entries, activeWorktreeId });
+          if (restoredRepositoryIds.get(target.path) === repositoryId) restoredRepositoryIds.delete(target.path);
+        } catch { warning ??= '工作树已移除，但无法保存仓库会话。'; }
+      } catch (cause) {
+        throw Object.assign(new Error(errorMessage(cause)), { cause });
+      } finally { set({ busy: false }); }
+      if (next?.source === 'native') void refresh({}, { remaining: fallback });
+      return { warning };
     },
     setAutoRefreshError: autoRefreshError => set({ autoRefreshError }),
     refresh,

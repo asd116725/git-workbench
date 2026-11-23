@@ -58,6 +58,147 @@ fn commit_empty(repo: &Path, subject: &str) {
     git(repo, &["commit", "--allow-empty", "-m", subject]).unwrap();
 }
 
+fn removal_fixture() -> (TempDir, PathBuf, PathBuf) {
+    let directory = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(directory.path()).unwrap();
+    let main = root.join("main");
+    let linked = root.join("linked space");
+    fs::create_dir(&main).unwrap();
+    git(&main, &["init", "-b", "main"]).unwrap();
+    configure(&main);
+    fs::write(main.join("tracked.txt"), "initial\n").unwrap();
+    fs::write(main.join(".gitignore"), ".env\nignore/\n").unwrap();
+    git(&main, &["add", "."]).unwrap();
+    git(&main, &["commit", "-m", "initial"]).unwrap();
+    git(
+        &main,
+        &["worktree", "add", "-b", "topic", linked.to_str().unwrap()],
+    )
+    .unwrap();
+    (directory, main, linked)
+}
+
+#[test]
+fn remove_clean_worktree_removes_ignored_files_and_keeps_branch() {
+    let (_directory, main, linked) = removal_fixture();
+    fs::write(linked.join(".env"), "ignored\n").unwrap();
+
+    let result = remove_worktree(
+        &common_directory(&main).unwrap(),
+        linked.to_str().unwrap(),
+        WorktreeRemovalMode::Delete,
+    )
+    .unwrap();
+
+    assert!(result.warning.is_none());
+    assert!(!linked.exists());
+    assert_eq!(worktree_metadata(&main).unwrap().len(), 1);
+    assert_eq!(
+        git_line(&main, &["rev-parse", "topic"]).unwrap(),
+        git_line(&main, &["rev-parse", "HEAD"]).unwrap()
+    );
+}
+
+#[test]
+fn refuse_removal_with_staged_unstaged_or_untracked_changes() {
+    let (_directory, main, linked) = removal_fixture();
+    let common = common_directory(&main).unwrap();
+    let tracked = linked.join("tracked.txt");
+    fs::write(&tracked, "updated\n").unwrap();
+    let remove = || {
+        remove_worktree(
+            &common,
+            linked.to_str().unwrap(),
+            WorktreeRemovalMode::Delete,
+        )
+    };
+    assert!(remove().unwrap_err().contains("未提交改动"));
+    git(&linked, &["add", "tracked.txt"]).unwrap();
+    assert!(remove().unwrap_err().contains("未提交改动"));
+    git(
+        &linked,
+        &[
+            "restore",
+            "--source=HEAD",
+            "--staged",
+            "--worktree",
+            "tracked.txt",
+        ],
+    )
+    .unwrap();
+    git(&linked, &["config", "status.showUntrackedFiles", "no"]).unwrap();
+    let untracked = linked.join("untracked.txt");
+    fs::write(&untracked, "local\n").unwrap();
+    assert!(remove().unwrap_err().contains("未跟踪文件"));
+    assert_eq!(fs::read_to_string(untracked).unwrap(), "local\n");
+    assert_eq!(worktree_metadata(&main).unwrap().len(), 2);
+}
+
+#[test]
+fn refuse_removal_of_main_locked_or_in_progress_worktree() {
+    let (_directory, main, linked) = removal_fixture();
+    let common = common_directory(&main).unwrap();
+    let remove =
+        |path: &Path| remove_worktree(&common, path.to_str().unwrap(), WorktreeRemovalMode::Delete);
+    assert!(remove(&main).unwrap_err().contains("主工作区"));
+    git(&main, &["worktree", "lock", linked.to_str().unwrap()]).unwrap();
+    assert!(remove(&linked).unwrap_err().contains("锁定"));
+    git(&main, &["worktree", "unlock", linked.to_str().unwrap()]).unwrap();
+    let merge_head = git_line(
+        &linked,
+        &[
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "MERGE_HEAD",
+        ],
+    )
+    .unwrap();
+    fs::write(
+        merge_head,
+        git_line(&linked, &["rev-parse", "HEAD"]).unwrap(),
+    )
+    .unwrap();
+    assert!(remove(&linked).unwrap_err().contains("Git 操作"));
+    assert!(linked.is_dir());
+}
+
+#[test]
+fn clean_only_the_requested_missing_record_and_reject_a_reappearing_directory() {
+    let (directory, main, linked) = removal_fixture();
+    let common = common_directory(&main).unwrap();
+    let other = fs::canonicalize(directory.path()).unwrap().join("other");
+    git(
+        &main,
+        &["worktree", "add", "-b", "other", other.to_str().unwrap()],
+    )
+    .unwrap();
+    fs::remove_dir_all(&linked).unwrap();
+    fs::remove_dir_all(&other).unwrap();
+    let clean = |path: &Path| {
+        remove_worktree(
+            &common,
+            path.to_str().unwrap(),
+            WorktreeRemovalMode::CleanMissing,
+        )
+    };
+    assert!(clean(&linked).unwrap().warning.is_none());
+    let remaining = worktree_metadata(&main).unwrap();
+    assert_eq!(remaining.len(), 2);
+    assert!(
+        remaining
+            .iter()
+            .any(|item| item.path == other.to_str().unwrap() && item.prunable.is_some())
+    );
+
+    fs::create_dir(&other).unwrap();
+    let local = other.join("keep.txt");
+    fs::write(&local, "reappeared\n").unwrap();
+    assert!(clean(&other).is_err());
+    assert_eq!(fs::read_to_string(local).unwrap(), "reappeared\n");
+    assert_eq!(worktree_metadata(&main).unwrap().len(), 2);
+}
+
 fn find_branch(repo: &Path, name: &str) -> GitBranch {
     branches(repo)
         .unwrap()

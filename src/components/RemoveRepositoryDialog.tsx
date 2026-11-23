@@ -38,17 +38,17 @@ export function RemoveRepositoryDialog({ target, onClose, onRestoreFocus }: {
   }
 
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-    <DialogContent className="remove-repository-dialog" overlayClassName="remove-repository-overlay" showCloseButton={false}
+    <DialogContent className="removal-confirmation-dialog" overlayClassName="removal-confirmation-overlay" showCloseButton={false}
       onOpenAutoFocus={event => { event.preventDefault(); cancel.current?.focus(); }}
       onCloseAutoFocus={event => { event.preventDefault(); onRestoreFocus(); }}>
       <DialogTitle>{t('从列表移除仓库？')}</DialogTitle>
-      <DialogDescription asChild><div className="remove-repository-description">
-        <div className="remove-repository-target"><strong>{target.name}</strong><span dir="auto">{target.path}</span></div>
+      <DialogDescription asChild><div className="removal-confirmation-description">
+        <div className="removal-confirmation-target"><strong>{target.name}</strong><span dir="auto">{target.path}</span></div>
         <p>{t('此仓库的全部 {count} 个工作树（包括关联工作树）都将从列表移除。', { count: target.worktreeCount })}</p>
         <p>{t('本地文件、Git 历史和未提交改动将保留。之后可通过「打开仓库」重新添加。')}</p>
       </div></DialogDescription>
       {error && <p role="alert" className="inline-error">{translateMessage(error)}</p>}
-      <div className="remove-repository-actions">
+      <div className="removal-confirmation-actions">
         <Button ref={cancel} variant="outline" onClick={onClose}>{t('取消')}</Button>
         <Button variant="destructive" disabled={disabled} onClick={confirm}>{t('移除仓库')}</Button>
       </div>

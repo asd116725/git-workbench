@@ -190,15 +190,22 @@ fn repository_root(path: &str) -> GitResult<PathBuf> {
 fn with_repository<T>(path: &str, operation: impl FnOnce(&Path) -> GitResult<T>) -> GitResult<T> {
     let root = repository_root(path)?;
     let common_dir = common_directory(&root)?;
+    with_common_directory(common_dir, |_| operation(&root))
+}
+
+fn with_common_directory<T>(
+    common_dir: PathBuf,
+    operation: impl FnOnce(&Path) -> GitResult<T>,
+) -> GitResult<T> {
     let lock = REPOSITORY_LOCKS
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
         .map_err(|_| "仓库锁不可用，请重启应用。")?
-        .entry(common_dir)
+        .entry(common_dir.clone())
         .or_insert_with(|| Arc::new(Mutex::new(())))
         .clone();
     let _guard = lock.lock().map_err(|_| "仓库操作已中断，请重启应用。")?;
-    operation(&root)
+    operation(&common_dir)
 }
 
 fn has_head(repo: &Path) -> GitResult<bool> {
@@ -851,6 +858,26 @@ pub async fn git_open(path: String) -> GitResult<GitRepository> {
 #[tauri::command]
 pub async fn git_status(repo_path: String) -> GitResult<GitRepository> {
     blocking(move || with_repository(&repo_path, status)).await
+}
+
+/// 从公共 Git 目录操作，目标工作树可以是当前工作区或已不存在的路径。
+#[tauri::command]
+pub async fn git_remove_worktree(
+    common_dir: String,
+    worktree_path: String,
+    mode: navigation::WorktreeRemovalMode,
+) -> GitResult<navigation::WorktreeRemovalResult> {
+    blocking(move || {
+        let common = fs::canonicalize(&common_dir)
+            .map_err(|error| format!("无法定位 Git 公共目录：{error}"))?;
+        if common_directory(&common)? != common {
+            return Err("工作树状态已变化，请刷新仓库后重试。".into());
+        }
+        with_common_directory(common, |common| {
+            navigation::remove_worktree(common, &worktree_path, mode)
+        })
+    })
+    .await
 }
 
 /// 按所选比较区域读取两份文本，并返回不适合文本展示的原因。
