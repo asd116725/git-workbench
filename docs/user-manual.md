@@ -31,6 +31,8 @@ After a repository opens successfully, the app saves its path and the last selec
 
 If opening fails, check that the directory exists, your account can access it, and `git -C /path/to/repository status` works. Git errors, including ownership checks, appear in the interface. Confirm the directory owner before following Git's suggested resolution.
 
+Error and auto-refresh logs at the top of the workspace provide **Copy log** and **Expand full screen** actions. Copying includes the complete log, including content outside the scroll area, with terminal color codes removed and indentation and line breaks preserved. A successful copy shows **Copied**; if copying fails, select the text and copy it manually. The expanded view keeps the window title bar and lets you toggle word wrap. Use **Exit full screen** or Esc to return without changing the commit draft or the original log scroll position.
+
 ## 3. Worktrees
 
 When a repository opens, the app reads the linked worktrees registered with Git and lists them under the same repository. Each entry shows its name and branch; click one to change the operation target.

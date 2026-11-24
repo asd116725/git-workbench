@@ -883,6 +883,21 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
     "en": "Copy failed. Select and copy the hash in the commit details.",
     "zh-TW": "複製失敗，請在提交詳情中選取 Hash 複製。"
   },
+  "错误日志": { "en": "Error log", "zh-TW": "錯誤記錄" },
+  "自动刷新日志": { "en": "Automatic refresh log", "zh-TW": "自動重新整理記錄" },
+  "复制日志": { "en": "Copy log", "zh-TW": "複製記錄" },
+  "已复制": { "en": "Copied", "zh-TW": "已複製" },
+  "已复制完整日志": { "en": "Full log copied", "zh-TW": "已複製完整記錄" },
+  "复制失败，请选择日志文本后手动复制。": {
+    "en": "Copy failed. Select the log text to copy it manually.",
+    "zh-TW": "複製失敗，請選取記錄文字後手動複製。"
+  },
+  "全屏展开": { "en": "Expand full screen", "zh-TW": "全螢幕展開" },
+  "退出全屏": { "en": "Exit full screen", "zh-TW": "離開全螢幕" },
+  "自动换行": { "en": "Word wrap", "zh-TW": "自動換行" },
+  "可滚动的日志正文": { "en": "Scrollable log text", "zh-TW": "可捲動的記錄文字" },
+  "1 行": { "en": "1 line", "zh-TW": "1 行" },
+  "{count} 行": { "en": "{count} lines", "zh-TW": "{count} 行" },
   "远程 · ": {
     "en": "Remote · ",
     "zh-TW": "遠端 · "

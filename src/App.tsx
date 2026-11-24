@@ -22,6 +22,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CodeDiff } from './components/CodeDiff';
 import { CommitComposer } from './components/CommitComposer';
+import { ErrorLog } from './components/ErrorLog';
 import { HistoryView } from './components/HistoryView';
 import { useHistory } from './lib/history-store';
 import { BranchPickerDialog } from './components/BranchPickerDialog';
@@ -296,6 +297,7 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
     function handleKey(event: KeyboardEvent) {
       if (!shortcutsEnabled || event.defaultPrevented || document.querySelector('[role="dialog"]')) return;
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && !event.isComposing) {
+        if (event.target instanceof Element && event.target.closest('.error-log')) return;
         const message = worktree.operation?.kind === 'merge' ? getMergeMessage(worktree, mergeDrafts) : drafts[worktree.id]?.message ?? '';
         if (!busy && !refreshing && !commitBlockReason(worktree, message)) {
           event.preventDefault();
@@ -408,6 +410,7 @@ export default function App() {
   const { sidebarSide, sidebarCollapsed, sidebarWidth, setSidebarSide, setSidebarCollapsed, setSidebarWidth, layoutResetKey } = usePreferences();
   const repositoryPanel = usePanelRef();
   const bodyRef = useRef<HTMLDivElement>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
   const layoutScroll = useRef<Array<{ element: HTMLElement; top: number; left: number }>>([]);
   const [initialSidebarWidth] = useState(() => sidebarCollapsed ? 44 : sidebarWidth);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -450,9 +453,9 @@ export default function App() {
   const sidebarHandle = <ResizeHandle key="repository-resize" className="resize-handle" disabled={sidebarCollapsed} disableDoubleClick aria-label={t("调整仓库列表宽度")} onDoubleClick={() => {
     if (!sidebarCollapsed) setSidebarWidth(usePreferences.getInitialState().sidebarWidth);
   }} />;
-  const workspacePanel = <Panel key="workspace" id="workspace" minSize="690px"><main className="workspace">
-    {error && <div className="git-error" role="alert"><Icon name="warning" /><pre>{translateMessage(error)}</pre></div>}
-    {autoRefreshError && <div className="git-error" role="status"><Icon name="warning" /><pre>{translateMessage(autoRefreshError)}</pre></div>}
+  const workspacePanel = <Panel key="workspace" id="workspace" minSize="690px"><main ref={workspaceRef} className="workspace" tabIndex={-1}>
+    <ErrorLog key={'error:' + activeWorktreeId} message={error} role="alert" fallbackFocusRef={workspaceRef} />
+    <ErrorLog key={'auto-refresh:' + activeWorktreeId} message={autoRefreshError} role="status" fallbackFocusRef={workspaceRef} />
     {repository && worktree ? <>
       <WorkbenchToolbar worktree={worktree} onBranchOpen={() => setBranchOpen(true)} onMergeOpen={() => setMergeTarget({ worktreeId: worktree.id })} />
       <RemoteIntegrationNotice worktree={worktree} onMerge={source => setMergeTarget({ worktreeId: worktree.id, source })} />

@@ -49,15 +49,18 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
+  overlayClassName,
   showCloseButton = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  /** 内容区域的边界与窗口不重合时，用于调整遮罩范围。 */
+  overlayClassName?: string
   showCloseButton?: boolean
 }) {
   useI18n();
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
