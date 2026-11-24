@@ -1,6 +1,6 @@
 import { getLanguage, t } from '../lib/i18n';
 import { translateMessage } from '../lib/i18n-system';
-import type { GitBranch, GitBranchSync, Worktree } from '../lib/types';
+import type { GitBranch, GitBranchSync, Repository, Worktree } from '../lib/types';
 
 /** 提交时间为 Unix 秒，保留未来时间语义，避免系统时钟差异显示成负数。 */
 export function commitAge(committedAt: number) {
@@ -12,8 +12,28 @@ export function commitAge(committedAt: number) {
 }
 
 /** 自定义名称保留原文；没有别名时按元数据翻译主工作区的默认名称。 */
-export function worktreeLabel(worktree: Worktree, customName?: string): string {
+export function worktreeLabel<T extends Pick<Worktree, 'name' | 'isMain'>>(worktree: T, customName?: string): string {
   return customName ?? (worktree.isMain ? t('主工作区') : worktree.name);
+}
+
+type WorktreeLabel = Pick<Worktree, 'id' | 'name' | 'isMain'>;
+
+/** 项目分组内可以省略重复的目录名前缀，工作树别名和会引起重名的后缀保持原样。 */
+export function terminalWorktreeLabel(
+  repository: Pick<Repository, 'name'> & { worktrees: WorktreeLabel[] },
+  worktree: WorktreeLabel,
+  names: Record<string, string>,
+): string {
+  const full = worktreeLabel(worktree, names[worktree.id]);
+  const prefix = repository.name + '-';
+  if (worktree.isMain || names[worktree.id] || !full.startsWith(prefix)) return full;
+  const suffix = full.slice(prefix.length);
+  const occupied = repository.worktrees.some(other => {
+    if (other.id === worktree.id) return false;
+    const label = worktreeLabel(other, names[other.id]);
+    return label === suffix || (!other.isMain && !names[other.id] && label === full);
+  });
+  return suffix && !occupied ? suffix : full;
 }
 
 /** 依据分离状态翻译 Git 生成的 HEAD 标签，普通分支名与提交 SHA 保持原文。 */

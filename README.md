@@ -71,7 +71,7 @@ The app is **ad-hoc signed and not Apple-notarized**. See [first-launch instruct
 
 - **Local repositories:** open existing repositories and linked worktrees. Cloning, initialization, and creating or removing worktrees require Git or another tool.
 - **Desktop staging:** files, directories, and groups are supported. Individual-hunk staging and a built-in conflict editor are not available; resolve conflicts in your editor, then return to finish the merge.
-- **Branch synchronization:** switching to a branch with a remote upstream checks for updates and attempts a fast-forward pull. Sync counts use locally fetched refs; use **Fetch** to update them. [Branch and remote workflows →](docs/user-manual.md#43-fetch-pull-and-push)
+- **Branch synchronization:** the development build switches branches locally by default. Use **Switch and update** to fast-forward from a remote upstream. Sync counts use locally fetched refs and can be refreshed with **Fetch**. [Branch and remote workflows →](docs/user-manual.md#43-fetch-pull-and-push)
 - **Session drafts:** commit drafts last only for the current app session. Save them before fully quitting with `⌘Q` or updating. Repository paths, display names, ordering, and preferences persist.
 - **Updates:** download and install new versions from [Releases](https://github.com/asd116725/git-workbench/releases); there is no automatic updater.
 

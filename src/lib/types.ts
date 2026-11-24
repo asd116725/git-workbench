@@ -73,6 +73,8 @@ export interface Worktree {
   files: FileSnapshot[];
   commits: Commit[];
   source?: 'native';
+  /** 本地切换已确认但尚无该分支文件快照，重读失败原因独立于 Git 操作警告。 */
+  checkoutRead?: { branch: string; error: string | null };
   hasHead?: boolean;
   isMain?: boolean;
   detached?: boolean;
@@ -126,6 +128,8 @@ export interface GitBranch extends GitBranchSync {
   kind: 'local' | 'remote';
   current: boolean;
   worktreePath: string | null;
+  /** Git 解析的上游远程名，点号表示跟踪本地分支。 */
+  upstreamRemote?: string | null;
   localName: string | null;
   lastCommit: {
     shortHash: string;
@@ -136,7 +140,7 @@ export interface GitBranch extends GitBranchSync {
   };
 }
 
-/** 分支已切换成功时，hook 或自动拉取失败仅作为警告返回，避免误报为未切换。 */
+/** 分支已切换成功时，hook 或显式上游更新失败仅作为警告返回，避免误报为未切换。 */
 export interface GitCheckoutResult {
   branch: string;
   warning: string | null;

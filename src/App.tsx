@@ -7,7 +7,7 @@ import { translateMessage } from './lib/i18n-system';
 import { version as appVersion } from '../package.json';
 import { isTauri } from '@tauri-apps/api/core';
 import { open as chooseDirectory } from '@tauri-apps/plugin-dialog';
-import { Group, Panel, Separator as ResizeHandle, usePanelRef } from 'react-resizable-panels';
+import { Group, Panel, Separator as ResizeHandle, useGroupRef, usePanelRef } from 'react-resizable-panels';
 import { CircleMinus, PanelLeft, PanelRight } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -42,6 +42,8 @@ import { DiscardChangesDialog } from './components/DiscardChangesDialog';
 import { isUntrackedChange } from './lib/discard';
 import { ChangeFileTree } from './components/ChangeFileTree';
 import { FileIcon } from './components/FileIcon';
+import { TerminalWorkspace } from './components/TerminalWorkspace';
+import { isTerminalWorktree, useTerminalWorkspace } from './lib/terminal-workspace';
 import { branchLabel, worktreeLabel, worktreeSyncDescription } from './components/branch-display';
 import { buildChangeTree } from './lib/change-tree';
 import { findWorktree, getMergeMessage, getRegisteredRepositoryPath, usePreferences, useWorkbench } from './lib/store';
@@ -69,16 +71,17 @@ function errorMessage(error: unknown) { return error instanceof Error ? error.me
 function firstAvailableWorktree(repository: Repository) { return repository.worktrees.find(worktree => worktree.available !== false && !worktree.bare); }
 
 /** 操作绑定入口所在的工作树，不改变侧栏选择。 */
-function WorktreeActions({ worktree, name, busy, fetching, onRename, onRemove }: {
+function WorktreeActions({ worktree, name, busy, fetching, onOpenTerminal, onRename, onRemove }: {
   worktree: Worktree;
   name: string;
   busy: boolean;
   fetching: boolean;
+  onOpenTerminal?: () => void;
   onRename: (trigger: HTMLButtonElement) => void;
   onRemove: (trigger: HTMLButtonElement, mode: RemoveWorktreeTarget['mode']) => void;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
-  const openDialog = useRef<((trigger: HTMLButtonElement) => void) | null>(null);
+  const afterMenuClose = useRef<((trigger: HTMLButtonElement) => void) | null>(null);
   const removalMode = worktreeRemovalMode(worktree);
   /** 跨过按钮下方剩余的 26px 卡片高度，再留 4px 间距。 */
   const menuOffset = 30;
@@ -93,20 +96,21 @@ function WorktreeActions({ worktree, name, busy, fetching, onRename, onRemove }:
   return <DropdownMenu>
     <DropdownMenuTrigger asChild><Button ref={trigger} variant="ghost" size="icon-xs" className="worktree-actions" disabled={busy} aria-label={t('工作树 {name} 的更多操作', { name })}><Icon name="ellipsis" /></Button></DropdownMenuTrigger>
     <DropdownMenuContent align="end" sideOffset={menuOffset} className="worktree-actions-menu" onCloseAutoFocus={event => {
-      if (!openDialog.current || !trigger.current) return;
-      /** 菜单完成关闭后交给弹窗聚焦，避免菜单回焦抢走输入焦点。 */
+      if (!afterMenuClose.current || !trigger.current) return;
+      /** 等菜单关闭后再交接焦点，避免菜单回焦抢走弹窗或终端的输入焦点。 */
       event.preventDefault();
-      openDialog.current(trigger.current);
-      openDialog.current = null;
+      afterMenuClose.current(trigger.current);
+      afterMenuClose.current = null;
     }}>
       <DropdownMenuItem onSelect={copyPath}><Icon name="copy" />{t('复制文件夹路径')}</DropdownMenuItem>
       <DropdownMenuItem disabled={worktree.available === false} onSelect={() => void openFolder(worktree.path).catch(error => toast.error(t('无法打开文件夹'), { description: translateMessage(errorMessage(error)) }))}><Icon name="folder-opened" />{t('打开文件夹')}</DropdownMenuItem>
+      {onOpenTerminal && <DropdownMenuItem onSelect={() => { afterMenuClose.current = onOpenTerminal; }}><Icon name="terminal" />{t('在终端中打开')}</DropdownMenuItem>}
       <DropdownMenuSeparator />
-      <DropdownMenuItem onSelect={() => { openDialog.current = onRename; }}><Icon name="edit" />{t('自定义名称')}</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => { afterMenuClose.current = onRename; }}><Icon name="edit" />{t('自定义名称')}</DropdownMenuItem>
       {removalMode && <>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={fetching} variant="destructive" onSelect={() => {
-          openDialog.current = entry => onRemove(entry, removalMode);
+          afterMenuClose.current = entry => onRemove(entry, removalMode);
         }}><Icon name="trash" />{t(removalMode === 'cleanMissing' ? '清理失效记录…' : '删除工作树…')}</DropdownMenuItem>
       </>}
     </DropdownMenuContent>
@@ -139,7 +143,12 @@ function RepositoryActions({ name, disabled, fetching, onRename, onRemove }: {
 }
 
 /** 仓库展开只由箭头控制，名称与工作区按钮只负责选择。 */
-function RepositorySidebar({ onOpen, onSettings, onMove }: { onOpen: () => void; onSettings: () => void; onMove: () => void }) {
+function RepositorySidebar({ onOpen, onSettings, onMove, onOpenTerminal }: {
+  onOpen: () => void;
+  onSettings: () => void;
+  onMove: () => void;
+  onOpenTerminal: (repository: Repository, worktree: Worktree) => void;
+}) {
   useI18n();
   const { repositories, activeWorktreeId, selectWorktree, busy, restoring, backgroundFetchingRepositoryIds } = useWorkbench();
   const { sidebarSide, sidebarCollapsed, sidebarWidth, setSidebarCollapsed } = usePreferences();
@@ -233,6 +242,7 @@ function RepositorySidebar({ onOpen, onSettings, onMove }: { onOpen: () => void;
           ><Icon name={worktree.isMain ? 'device-desktop' : 'worktree'} /><span className="worktree-copy"><span className="worktree-title"><span className="worktree-name">{name}</span>{worktree.isMain && names[worktree.id] && <span className="worktree-kind" title={t('主工作区')}>{t('主')}</span>}{!worktree.isMain && <span className="worktree-kind">{t("关联")}</span>}{worktree.locked !== undefined && worktree.locked !== null && <Icon name="lock" className="worktree-lock" />}{activeWorktreeId === worktree.id && <span className="worktree-current">{t("当前")}</span>}</span><span className="worktree-branch"><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="worktree-branch-name">{worktree.bare ? t("裸仓库") : worktree.available === false ? t("目录不可用") : branchLabel(worktree)}</span>{syncDescription && <BranchSyncCounts sync={worktree.branchSync} />}</span></span>{syncDescription && <span className="sr-only">{syncDescription}</span>}</button></TooltipTrigger><TooltipContent className="worktree-tooltip">{details}</TooltipContent></Tooltip>
               {sortHandle(repository.id, worktree.id, name, worktreeIds)}
               <WorktreeActions worktree={worktree} name={name} busy={busy || restoring} fetching={fetching}
+                onOpenTerminal={isTerminalWorktree(worktree) ? () => onOpenTerminal(repository, worktree) : undefined}
                 onRename={trigger => rename(worktree.id, worktree.isMain ? 'main' : 'worktree', worktreeLabel(worktree), trigger)}
                 onRemove={(trigger, mode) => setRemoveWorktreeTarget({ repositoryId: repository.id, worktree, name, mode, trigger })} />
             </div>;
@@ -267,8 +277,8 @@ function WorkbenchToolbar({ worktree, onBranchOpen, onMergeOpen }: { worktree: W
       <TabsList className="view-tabs-list"><TabsTrigger value="changes">{t("本地更改")}</TabsTrigger><TabsTrigger value="history">{t("提交历史")}</TabsTrigger></TabsList>
     </Tabs>
     <div className="toolbar-actions">
-      <Button variant="outline" size="sm" className="branch-trigger" disabled={busy || refreshing} onClick={onBranchOpen} aria-label={t("管理分支：{value1}", { value1: branchLabel(worktree) })} title={t("查看、切换、创建或删除本地分支")}><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="truncate">{branchLabel(worktree)}</span><Icon name="chevron-down" /></Button>
-      {real && <Hint label={mergeBlocked ? translateMessage(mergeBlocked) : t("将其他分支合并到 {value1}", { value1: branchLabel(worktree) })}><span><Button variant="ghost" size="sm" className="merge-trigger" disabled={busy || refreshing || Boolean(mergeBlocked)} onClick={onMergeOpen}><Icon name="git-merge" />{t("合并")}</Button></span></Hint>}
+      <Button variant="outline" size="sm" className="branch-trigger" disabled={busy || (refreshing && !worktree.checkoutRead)} onClick={onBranchOpen} aria-label={t("管理分支：{value1}", { value1: branchLabel(worktree) })} title={t("查看、切换、创建或删除本地分支")}><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="truncate">{branchLabel(worktree)}</span><Icon name="chevron-down" /></Button>
+      {real && <Hint label={mergeBlocked ? translateMessage(mergeBlocked) : t("将其他分支合并到 {value1}", { value1: branchLabel(worktree) })}><span><Button variant="ghost" size="sm" className="merge-trigger" disabled={busy || refreshing || Boolean(worktree.checkoutRead) || Boolean(mergeBlocked)} onClick={onMergeOpen}><Icon name="git-merge" />{t("合并")}</Button></span></Hint>}
       <Separator orientation="vertical" className="toolbar-separator" />
       {(real || view === 'history') && <Button variant="ghost" size="sm" disabled={busy || refreshingView} onClick={() => void (view === 'history' ? useHistory.getState().refresh(worktree) : refresh()).catch(error => toast.error(translateMessage(errorMessage(error))))}><Icon name="refresh" className={refreshingView ? 'spin' : ''} />{refreshingView ? t("刷新中") : t("刷新")}</Button>}
       <RemoteActions key={`${worktree.id}:${worktree.branch}`} worktree={worktree} />
@@ -337,7 +347,7 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
   const changedCount = new Set([...getChanges(worktree, 'unstaged'), ...getChanges(worktree, 'staged')].map(item => item.id)).size;
 
   async function handleCommit() {
-    if (busy || refreshing) return;
+    if (busy || refreshing || worktree.checkoutRead) return;
     try {
       if (worktree.operation?.kind === 'merge') {
         const result = await continueMerge();
@@ -355,9 +365,9 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
     function handleKey(event: KeyboardEvent) {
       if (!shortcutsEnabled || event.defaultPrevented || document.querySelector('[role="dialog"]')) return;
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && !event.isComposing) {
-        if (event.target instanceof Element && event.target.closest('.error-log')) return;
+        if (event.target instanceof Element && event.target.closest('.error-log, [data-terminal-workspace]')) return;
         const message = worktree.operation?.kind === 'merge' ? getMergeMessage(worktree, mergeDrafts) : drafts[worktree.id]?.message ?? '';
-        if (!busy && !refreshing && !commitBlockReason(worktree, message)) {
+        if (!busy && !refreshing && !worktree.checkoutRead && !commitBlockReason(worktree, message)) {
           event.preventDefault();
           void handleCommit();
         }
@@ -370,8 +380,10 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
   return <Group orientation="horizontal" className={`changes-view ${busy ? 'is-committing' : ''}`} defaultLayout={layout.changes ? { changes: layout.changes, diff: layout.diff } : undefined} onLayoutChanged={setLayout}>
     <Panel id="changes" defaultSize="24.2%" minSize="270px" maxSize="420px">
       <section className="changes-panel" aria-label={t("文件变更与提交")}>
-        <div className="changes-heading"><h1>{t("本地更改")}</h1><Badge variant="secondary" className="count-badge">{changedCount}</Badge><div className="file-view-switch" role="group" aria-label={t("文件显示方式")}>{(['tree', 'list'] as const).map(mode => <Hint key={mode} label={mode === 'tree' ? t("树形视图") : t("列表视图")}><Button variant="ghost" size="icon-xs" aria-label={mode === 'tree' ? t("树形视图") : t("列表视图")} aria-pressed={fileView === mode} onClick={() => setFileView(mode)}><Icon name={mode === 'tree' ? 'list-tree' : 'list-flat'} /></Button></Hint>)}</div></div>
-        <div className="file-groups">{worktree.files.some(file => file.git?.conflicted) && <FileGroup worktree={worktree} area="unstaged" conflictsOnly disabled={busy || refreshing} />}<FileGroup worktree={worktree} area="unstaged" disabled={busy || refreshing} /><FileGroup worktree={worktree} area="staged" disabled={busy || refreshing} /></div>
+        <div className="changes-heading"><h1>{t("本地更改")}</h1><Badge variant="secondary" className="count-badge">{worktree.checkoutRead ? '…' : changedCount}</Badge><div className="file-view-switch" role="group" aria-label={t("文件显示方式")}>{(['tree', 'list'] as const).map(mode => <Hint key={mode} label={mode === 'tree' ? t("树形视图") : t("列表视图")}><Button variant="ghost" size="icon-xs" aria-label={mode === 'tree' ? t("树形视图") : t("列表视图")} aria-pressed={fileView === mode} onClick={() => setFileView(mode)}><Icon name={mode === 'tree' ? 'list-tree' : 'list-flat'} /></Button></Hint>)}</div></div>
+        <div className="file-groups">{worktree.checkoutRead ? <div className="branch-placeholder" role="status">
+          {!worktree.checkoutRead.error || refreshing ? <><Icon name="loading" className="spin" />{t("正在读取文件状态…")}</> : <>{t("文件状态读取失败")}<Button variant="outline" size="sm" onClick={() => void refresh()}>{t("重新读取")}</Button></>}
+        </div> : <>{worktree.files.some(file => file.git?.conflicted) && <FileGroup worktree={worktree} area="unstaged" conflictsOnly disabled={busy || refreshing} />}<FileGroup worktree={worktree} area="unstaged" disabled={busy || refreshing} /><FileGroup worktree={worktree} area="staged" disabled={busy || refreshing} /></>}</div>
         <CommitComposer key={JSON.stringify([worktree.id, worktree.path, worktree.branch, worktree.detached])} worktree={worktree} busy={busy || refreshing} onCommit={handleCommit} />
       </section>
     </Panel>
@@ -467,6 +479,12 @@ export default function App() {
   const { repositories, activeWorktreeId, view, busy, restoring, refreshing, error, autoRefreshError } = useWorkbench();
   const { sidebarSide, sidebarCollapsed, sidebarWidth, setSidebarSide, setSidebarCollapsed, setSidebarWidth, layoutResetKey } = usePreferences();
   const repositoryPanel = usePanelRef();
+  const terminalLayout = useGroupRef();
+  const terminal = useTerminalWorkspace();
+  /** 记住停靠时的高度比例，供最大化或收起后恢复。 */
+  const dockedTerminalPercent = useRef(34);
+  const terminalToggle = useRef<HTMLButtonElement>(null);
+  const terminalWasVisible = useRef(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<HTMLElement>(null);
   const layoutScroll = useRef<Array<{ element: HTMLElement; top: number; left: number }>>([]);
@@ -481,6 +499,20 @@ export default function App() {
   const worktree = findWorktree(repositories, activeWorktreeId);
   const changedCount = worktree ? new Set([...getChanges(worktree, 'unstaged'), ...getChanges(worktree, 'staged')].map(item => item.id)).size : 0;
   const real = worktree?.source === 'native';
+  const terminalMaximized = terminal.visible && terminal.maximized;
+  const terminalDocked = terminal.visible && !terminal.maximized;
+  const showTerminalToggle = native && (terminal.hasSessions || (worktree && isTerminalWorktree(worktree)));
+
+  useLayoutEffect(() => {
+    /** 等分栏注册本次最小高度，避免收起或最大化被上一次约束拦截。 */
+    const frame = requestAnimationFrame(() => {
+      const size = terminalMaximized ? 100 : terminal.visible ? dockedTerminalPercent.current : 0;
+      terminalLayout.current?.setLayout({ 'git-pane': 100 - size, 'terminal-pane': size });
+    });
+    if (terminalWasVisible.current && !terminal.visible) (terminalToggle.current ?? workspaceRef.current)?.focus({ preventScroll: true });
+    terminalWasVisible.current = terminal.visible;
+    return () => cancelAnimationFrame(frame);
+  }, [terminalLayout, terminal.visible, terminalMaximized, layoutResetKey, sidebarSide]);
 
   useEffect(() => startNativeAppearance(), []);
   useEffect(() => { void useWorkbench.getState().restoreSession(); }, []);
@@ -507,20 +539,37 @@ export default function App() {
   }
 
   /** 面板使用稳定的 key 调整顺序，保留仓库树、编辑器与 AI 会话的组件状态。 */
-  const sidebarPanel = <Panel key="repositories" id="repositories" panelRef={repositoryPanel} defaultSize={initialSidebarWidth} minSize="240px" maxSize="360px" collapsible collapsedSize="44px" groupResizeBehavior="preserve-pixel-size"><RepositorySidebar onOpen={() => setRepositoryOpen(true)} onSettings={() => setSettingsOpen(true)} onMove={moveSidebar} /></Panel>;
+  const sidebarPanel = <Panel key="repositories" id="repositories" panelRef={repositoryPanel} defaultSize={initialSidebarWidth} minSize="240px" maxSize="360px" collapsible collapsedSize="44px" groupResizeBehavior="preserve-pixel-size"><RepositorySidebar onOpen={() => setRepositoryOpen(true)} onSettings={() => setSettingsOpen(true)} onMove={moveSidebar} onOpenTerminal={terminal.start} /></Panel>;
   const sidebarHandle = <ResizeHandle key="repository-resize" className="resize-handle" disabled={sidebarCollapsed} disableDoubleClick aria-label={t("调整仓库列表宽度")} onDoubleClick={() => {
     if (!sidebarCollapsed) setSidebarWidth(usePreferences.getInitialState().sidebarWidth);
   }} />;
   const workspacePanel = <Panel key="workspace" id="workspace" minSize="690px"><main ref={workspaceRef} className="workspace" tabIndex={-1}>
-    <ErrorLog key={'error:' + activeWorktreeId} message={error} role="alert" fallbackFocusRef={workspaceRef} />
+    <ErrorLog key={'error:' + activeWorktreeId} message={[error, worktree?.checkoutRead?.error].filter(Boolean).join('\n') || null} role="alert" fallbackFocusRef={workspaceRef} />
     <ErrorLog key={'auto-refresh:' + activeWorktreeId} message={autoRefreshError} role="status" fallbackFocusRef={workspaceRef} />
-    {repository && worktree ? <>
-      <WorkbenchToolbar worktree={worktree} onBranchOpen={() => setBranchOpen(true)} onMergeOpen={() => setMergeTarget({ worktreeId: worktree.id })} />
-      <RemoteIntegrationNotice worktree={worktree} onMerge={source => setMergeTarget({ worktreeId: worktree.id, source })} />
-      {worktree.operation && <MergeStatusBanner key={`${worktree.id}:${worktree.operation.kind}:${worktree.operation.head}:${worktree.operation.mergeHeads.join(',')}`} worktree={worktree} />}
-      {view === 'changes' ? <ChangesView key={activeWorktreeId} worktree={worktree} shortcutsEnabled={!settingsOpen && !repositoryOpen && !branchOpen && !mergeOpen} /> : <HistoryView key={activeWorktreeId} worktree={worktree} />}
-      <footer className="statusbar"><span className="status-branch"><Icon name="git-branch" />{branchLabel(worktree)}</span><span className="status-divider" /><span>{view === 'history' ? t("历史只读") : busy ? t("Git 操作进行中…") : refreshing ? t("正在刷新…") : changedCount ? t("{value1} 个文件有更改", { value1: changedCount }) : t("工作区干净")}</span><span className={`status-demo ${real ? 'status-native' : ''}`}><Icon name={real ? 'repo' : 'beaker'} />{real ? t("本地 Git") : t("演示模式")}</span><RemoteCheckIndicator worktree={worktree} /><span className="status-spacer" /><span className="status-path" title={worktree.path}>{worktree.path}</span></footer>
-    </> : restoring ? <div className="diff-message" role="status"><Icon name="loading spin" />{t("正在恢复上次打开的仓库…")}</div> : <WelcomeView onOpen={() => setRepositoryOpen(true)} />}
+    <Group orientation="vertical" className="workspace-dock" groupRef={terminalLayout} onLayoutChanged={(layout, { isUserInteraction }) => {
+      if (isUserInteraction && terminalDocked) dockedTerminalPercent.current = layout['terminal-pane'];
+    }}>
+      <Panel id="git-pane" defaultSize="100%" minSize={terminalDocked ? '230px' : '0%'}>
+        <div className="workspace-content" inert={terminalMaximized}>
+          {repository && worktree ? <>
+            <WorkbenchToolbar worktree={worktree} onBranchOpen={() => setBranchOpen(true)} onMergeOpen={() => setMergeTarget({ worktreeId: worktree.id })} />
+            <RemoteIntegrationNotice worktree={worktree} onMerge={source => setMergeTarget({ worktreeId: worktree.id, source })} />
+            {worktree.operation && <MergeStatusBanner key={`${worktree.id}:${worktree.operation.kind}:${worktree.operation.head}:${worktree.operation.mergeHeads.join(',')}`} worktree={worktree} />}
+            {view === 'changes' ? <ChangesView key={activeWorktreeId} worktree={worktree} shortcutsEnabled={!settingsOpen && !repositoryOpen && !branchOpen && !mergeOpen && !terminalMaximized} /> : <HistoryView key={activeWorktreeId} worktree={worktree} />}
+          </> : restoring ? <div className="diff-message" role="status"><Icon name="loading spin" />{t("正在恢复上次打开的仓库…")}</div> : <WelcomeView onOpen={() => setRepositoryOpen(true)} />}
+        </div>
+      </Panel>
+      <ResizeHandle className="terminal-resize-handle" data-terminal-workspace aria-label={t('调整终端面板高度')} hidden={!terminalDocked} disabled={!terminalDocked} disableDoubleClick />
+      <Panel id="terminal-pane" defaultSize="0%" minSize={terminalDocked ? '160px' : '0%'}>
+        {terminal.visible && <TerminalWorkspace terminal={terminal} repositories={repositories} onCollapse={terminal.hide} />}
+      </Panel>
+    </Group>
+    {(worktree || showTerminalToggle) && <footer className="statusbar">
+      {worktree && <><span className="status-branch"><Icon name="git-branch" />{branchLabel(worktree)}</span><span className="status-divider" /><span>{view === 'history' ? t("历史只读") : busy ? t("Git 操作进行中…") : refreshing ? t("正在刷新…") : worktree.checkoutRead?.error ? t("文件状态读取失败") : changedCount ? t("{value1} 个文件有更改", { value1: changedCount }) : t("工作区干净")}</span><span className={`status-demo ${real ? 'status-native' : ''}`}><Icon name={real ? 'repo' : 'beaker'} />{real ? t("本地 Git") : t("演示模式")}</span><RemoteCheckIndicator worktree={worktree} /></>}
+      <span className="status-spacer" />
+      {worktree && <span className="status-path" title={worktree.path}>{worktree.path}</span>}
+      {showTerminalToggle && <Button ref={terminalToggle} variant="ghost" size="sm" className="status-terminal-toggle" data-terminal-workspace aria-expanded={terminal.visible} aria-controls="terminal-pane" onClick={() => terminal.toggle(repository, worktree)}><Icon name="terminal" />{t('终端')}</Button>}
+    </footer>}
   </main></Panel>;
 
   return <TooltipProvider delayDuration={400}><div className={`workbench ${native ? 'native-window' : 'browser-window'}`}>

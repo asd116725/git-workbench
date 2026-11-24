@@ -237,7 +237,7 @@ The list includes `main`, `feature/search`, and `release/launch`; `feature/previ
 2. Type to filter local and fetched remote branches, then select a branch or use `↑` / `↓` and `Enter`.
 3. Check the active branch and any synchronization message after switching.
 
-Branches used by another worktree cannot be selected. Switching to a branch with a remote upstream checks for updates and attempts a fast-forward pull. Local edits or divergent history may require attention; the app does not automatically stash them.
+Branches used by another worktree cannot be selected. In the development build, the default switch runs locally. Choose **Switch and update** on a branch with a remote upstream to attempt a fast-forward pull. You may need to resolve local edits or divergent history first.
 
 <a id="create-branch"></a>
 

@@ -291,18 +291,38 @@ describe('远程引用检查调度', () => {
     expect(checkRemote).toHaveBeenCalledTimes(2);
   });
 
-  it('切换和清理都会使旧远程检查失效', async () => {
+  it('分支状态暂空或切换同仓工作树时沿用一分钟节流，清理时取消检查', async () => {
     const stop = start();
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(100);
     const oldSignal = checkRemote.mock.calls[0][0];
+    const repository = useWorkbench.getState().repositories[0];
+    const [first, second] = repository.worktrees;
+    useWorkbench.setState({ repositories: [{ ...repository, worktrees: [{ ...first, branch: 'feature', remote: undefined }, second] }] });
+    useWorkbench.setState({ repositories: [{ ...repository, worktrees: [{ ...first, branch: 'feature' }, second] }] });
     useWorkbench.setState({ activeWorktreeId: linked.id });
-    expect(oldSignal.aborted).toBe(true);
+    await vi.advanceTimersByTimeAsync(59_899);
+    expect(checkRemote).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
     expect(checkRemote).toHaveBeenCalledTimes(2);
-    const newSignal = checkRemote.mock.calls[1][0];
     stop();
-    expect(newSignal.aborted).toBe(true);
+    expect(oldSignal.aborted).toBe(true);
     await vi.advanceTimersByTimeAsync(120_000);
     expect(checkRemote).toHaveBeenCalledTimes(2);
+  });
+
+  it('走访另一仓库再回来，共享引用已有的检查仍等到原周期到期', async () => {
+    const first = useWorkbench.getState().repositories[0];
+    const other = { ...remoteMain, id: 'other', path: '/test/other' };
+    useWorkbench.setState({ repositories: [first, { id: 'another-group', name: 'other', worktrees: [other] }] });
+    start();
+    await vi.advanceTimersByTimeAsync(10_000);
+    useWorkbench.setState({ activeWorktreeId: other.id });
+    await vi.advanceTimersByTimeAsync(10_000);
+    useWorkbench.setState({ activeWorktreeId: remoteMain.id });
+    await vi.advanceTimersByTimeAsync(39_999);
+    expect(checkRemote).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(checkRemote).toHaveBeenCalledTimes(3);
   });
 
   it('本地文件订阅失败时仍能检查远程引用', async () => {

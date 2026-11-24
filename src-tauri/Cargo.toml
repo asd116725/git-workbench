@@ -30,6 +30,9 @@ trash = "=5.2.9"
 [target.'cfg(unix)'.dependencies]
 libc = "=0.2.190"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+portable-pty = "0.9"
+
 [profile.release]
 codegen-units = 1
 lto = true

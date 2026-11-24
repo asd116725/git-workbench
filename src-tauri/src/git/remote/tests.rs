@@ -128,6 +128,103 @@ fn fetch_only_updates_refs_and_preserves_dirty_index_and_worktree() {
     assert_eq!(fs::read(repo.join("base.txt")).unwrap(), b"working\n");
 }
 
+#[cfg(unix)]
+#[test]
+fn background_fetch_releases_the_common_lock_while_waiting_for_upload_pack() {
+    use std::{os::unix::fs::PermissionsExt, sync::mpsc};
+
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    let linked = repo.with_file_name("linked");
+    git(
+        repo,
+        &["worktree", "add", "-b", "linked", linked.to_str().unwrap()],
+    )
+    .unwrap();
+    git(repo, &["branch", "--no-track", "target"]).unwrap();
+    let base = git_line(repo, &["rev-parse", "HEAD"]).unwrap();
+    commit_file(&fixture.peer, "peer.txt", "fetched later\n");
+    git(&fixture.peer, &["push", "origin", "main"]).unwrap();
+    let upstream = git_line(&fixture.peer, &["rev-parse", "HEAD"]).unwrap();
+    fs::write(repo.join("base.txt"), "staged\n").unwrap();
+    git(repo, &["add", "base.txt"]).unwrap();
+    fs::write(repo.join("base.txt"), "unstaged\n").unwrap();
+    let index = fs::read(repo.join(".git/index")).unwrap();
+    fs::write(repo.join(".git/FETCH_HEAD"), "preserve FETCH_HEAD\n").unwrap();
+    let uploader = repo.join(".git/slow-upload-pack");
+    fs::write(&uploader, "#!/bin/sh\ntouch .git/started\nwhile test ! -f .git/release; do sleep 0.05; done\nexec git upload-pack \"$@\"\n").unwrap();
+    fs::set_permissions(&uploader, fs::Permissions::from_mode(0o700)).unwrap();
+    git(
+        repo,
+        &[
+            "config",
+            "remote.origin.uploadpack",
+            "./.git/slow-upload-pack",
+        ],
+    )
+    .unwrap();
+    thread::scope(|scope| {
+        let fetching = scope.spawn(|| {
+            tauri::async_runtime::block_on(git_fetch(
+                repo.to_string_lossy().into_owned(),
+                Some(true),
+            ))
+        });
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !repo.join(".git/started").exists() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(repo.join(".git/started").exists());
+        let (sender, receiver) = mpsc::channel();
+        let started = Instant::now();
+        let linked = &linked;
+        scope.spawn(move || {
+            let result = tauri::async_runtime::block_on(git_checkout(
+                linked.to_string_lossy().into_owned(),
+                "refs/heads/target".into(),
+                None,
+            ));
+            let _ = sender.send(result);
+        });
+        let switched = receiver.recv_timeout(Duration::from_secs(3));
+        let elapsed = started.elapsed();
+        let before_release = git_line(repo, &["rev-parse", "origin/main"]).unwrap();
+        fs::write(repo.join(".git/release"), "").unwrap();
+        fetching.join().unwrap().unwrap();
+        assert_eq!(
+            switched
+                .expect("后台传输仍在进行时应该能切换分支")
+                .unwrap()
+                .branch,
+            "target"
+        );
+        eprintln!("后台传输等待期间切换目标分支耗时 {elapsed:?}");
+        assert_eq!(before_release, base);
+    });
+    assert_eq!(
+        git_line(repo, &["rev-parse", "origin/main"]).unwrap(),
+        upstream
+    );
+    assert_eq!(git_line(repo, &["rev-parse", "HEAD"]).unwrap(), base);
+    assert_eq!(git_line(&linked, &["rev-parse", "HEAD"]).unwrap(), base);
+    assert_eq!(fs::read(repo.join(".git/index")).unwrap(), index);
+    assert_eq!(fs::read(repo.join("base.txt")).unwrap(), b"unstaged\n");
+    assert_eq!(
+        fs::read(repo.join(".git/FETCH_HEAD")).unwrap(),
+        b"preserve FETCH_HEAD\n"
+    );
+    assert!(!repo.join("peer.txt").exists());
+    assert!(
+        git_line(
+            repo,
+            &["for-each-ref", "--format=%(refname)", "refs/git-workbench/"]
+        )
+        .unwrap()
+        .is_empty()
+    );
+}
+
 #[test]
 fn background_fetch_does_not_prune_local_branches_or_tags() {
     let fixture = Fixture::new();
@@ -174,6 +271,357 @@ fn background_fetch_reports_when_the_active_upstream_is_excluded() {
     assert!(commit_exists(repo, "refs/remotes/origin/side").unwrap());
 }
 
+#[cfg(unix)]
+#[test]
+fn background_fetch_keeps_external_changes_to_the_remote_config_and_tracking_ref() {
+    use std::os::unix::fs::PermissionsExt;
+    for (name, change) in [
+        (
+            "config",
+            "git config remote.origin.url /changed-remotely.git",
+        ),
+        ("tracking", "git update-ref refs/remotes/origin/main HEAD"),
+        (
+            "symbolic",
+            "git symbolic-ref refs/remotes/origin/main refs/heads/main",
+        ),
+    ] {
+        let fixture = Fixture::new();
+        fixture.seed();
+        let repo = &fixture.local;
+        let before = git_line(repo, &["rev-parse", "origin/main"]).unwrap();
+        commit_file(&fixture.peer, "peer.txt", "peer\n");
+        git(&fixture.peer, &["push", "origin", "main"]).unwrap();
+        if name == "tracking" {
+            commit_file(repo, "local.txt", "local\n");
+        }
+        let head = git_line(repo, &["rev-parse", "HEAD"]).unwrap();
+        let script = repo.join(".git/concurrent-upload-pack");
+        fs::write(
+            &script,
+            format!("#!/bin/sh\n{change} || exit 1\nexec git upload-pack \"$@\"\n"),
+        )
+        .unwrap();
+        fs::set_permissions(&script, fs::Permissions::from_mode(0o700)).unwrap();
+        git(
+            repo,
+            &[
+                "config",
+                "remote.origin.uploadpack",
+                "./.git/concurrent-upload-pack",
+            ],
+        )
+        .unwrap();
+        let result = fetch(repo, true);
+        assert_eq!(
+            git_line(repo, &["rev-parse", "origin/main"]).unwrap(),
+            if name == "config" {
+                before
+            } else {
+                head.clone()
+            },
+            "{name}: {result:?}"
+        );
+        assert_eq!(git_line(repo, &["rev-parse", "HEAD"]).unwrap(), head);
+        if name == "symbolic" {
+            assert_eq!(
+                git_line(repo, &["symbolic-ref", "refs/remotes/origin/main"]).unwrap(),
+                "refs/heads/main"
+            );
+        }
+        assert!(result.is_err(), "{name}");
+        assert!(
+            git_line(
+                repo,
+                &["for-each-ref", "--format=%(refname)", "refs/git-workbench/"]
+            )
+            .unwrap()
+            .is_empty()
+        );
+    }
+}
+
+#[test]
+fn background_fetch_prunes_only_safe_tracking_refs_and_keeps_excluded_refs() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    git(
+        repo,
+        &[
+            "config",
+            "--add",
+            "remote.origin.fetch",
+            "^refs/heads/hidden/*",
+        ],
+    )
+    .unwrap();
+    for name in [
+        "refs/remotes/origin/deleted",
+        "refs/remotes/origin/hidden/deleted",
+        "refs/remotes/other/deleted",
+    ] {
+        git(repo, &["update-ref", name, "HEAD"]).unwrap();
+    }
+    git(
+        repo,
+        &[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/main",
+        ],
+    )
+    .unwrap();
+    fetch(repo, true).unwrap();
+    assert!(!commit_exists(repo, "refs/remotes/origin/deleted").unwrap());
+    assert!(commit_exists(repo, "refs/remotes/origin/hidden/deleted").unwrap());
+    assert!(commit_exists(repo, "refs/remotes/other/deleted").unwrap());
+    assert_eq!(
+        git_line(repo, &["symbolic-ref", "refs/remotes/origin/HEAD"]).unwrap(),
+        "refs/remotes/origin/main"
+    );
+}
+
+#[test]
+fn background_fetch_accepts_short_branch_and_head_sources_without_writing_local_branches() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    git(
+        repo,
+        &[
+            "config",
+            "remote.origin.fetch",
+            "main:refs/remotes/origin/main",
+        ],
+    )
+    .unwrap();
+    git(
+        repo,
+        &[
+            "config",
+            "--add",
+            "remote.origin.fetch",
+            "HEAD:refs/remotes/origin/default",
+        ],
+    )
+    .unwrap();
+    commit_file(&fixture.peer, "peer.txt", "peer\n");
+    git(&fixture.peer, &["push", "origin", "main"]).unwrap();
+    let expected = git_line(&fixture.peer, &["rev-parse", "HEAD"]).unwrap();
+    fetch(repo, true).unwrap();
+    for reference in ["refs/remotes/origin/main", "refs/remotes/origin/default"] {
+        assert_eq!(git_line(repo, &["rev-parse", reference]).unwrap(), expected);
+    }
+    assert_ne!(git_line(repo, &["rev-parse", "HEAD"]).unwrap(), expected);
+}
+
+#[test]
+fn background_fetch_preserves_a_dangling_symbolic_tracking_ref() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    git(
+        repo,
+        &[
+            "symbolic-ref",
+            "refs/remotes/origin/main",
+            "refs/heads/missing",
+        ],
+    )
+    .unwrap();
+    assert!(fetch(repo, true).is_err());
+    assert_eq!(
+        git_line(
+            repo,
+            &["symbolic-ref", "--no-recurse", "refs/remotes/origin/main"]
+        )
+        .unwrap(),
+        "refs/heads/missing"
+    );
+    assert!(!commit_exists(repo, "refs/heads/missing").unwrap());
+}
+
+#[test]
+fn large_reftable_import_uses_manual_fetch_then_small_background_updates_resume() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    let reftable = fixture.local.with_file_name("reftable");
+    let init = run_git(
+        &fixture.local,
+        &[
+            "init",
+            "--ref-format=reftable",
+            "-b",
+            "main",
+            reftable.to_str().unwrap(),
+        ],
+    )
+    .unwrap();
+    if init.status.code() == Some(129) {
+        return; // 旧版 Git 无法创建 reftable 测试仓库。
+    }
+    checked(init).unwrap();
+    git(
+        &reftable,
+        &["remote", "add", "origin", fixture.remote.to_str().unwrap()],
+    )
+    .unwrap();
+    let oid = git_line(&fixture.remote, &["rev-parse", "HEAD"]).unwrap();
+    let seeds: String = (1..=12)
+        .map(|n| format!("create refs/heads/batch-{n} {oid}\n"))
+        .collect();
+    git_with_input(
+        &fixture.remote,
+        &["update-ref", "--stdin"],
+        seeds.as_bytes(),
+    )
+    .unwrap();
+    assert!(fetch(&reftable, true).unwrap_err().contains("请手动获取"));
+    assert!(
+        git_line(
+            &reftable,
+            &["for-each-ref", "--format=%(refname)", "refs/remotes/"]
+        )
+        .unwrap()
+        .is_empty()
+    );
+    fetch(&reftable, false).unwrap();
+    assert_eq!(
+        git_line(&reftable, &["rev-parse", "origin/batch-12"]).unwrap(),
+        oid
+    );
+    git(&fixture.remote, &["branch", "later", "main"]).unwrap();
+    fetch(&reftable, true).unwrap();
+    assert_eq!(
+        git_line(&reftable, &["rev-parse", "origin/later"]).unwrap(),
+        oid
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn background_fetch_defers_to_manual_fetch_when_a_reference_hook_controls_updates() {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    let before = git_line(repo, &["rev-parse", "origin/main"]).unwrap();
+    commit_file(&fixture.peer, "peer.txt", "peer\n");
+    git(&fixture.peer, &["push", "origin", "main"]).unwrap();
+    let hooks = repo.join(".git/approval-hooks");
+    fs::create_dir(&hooks).unwrap();
+    let hook = hooks.join("reference-transaction");
+    fs::write(&hook, "#!/bin/sh\ncat >/dev/null\nif test \"$1\" = prepared; then touch .git/hook-checked; exit 1; fi\n").unwrap();
+    fs::set_permissions(&hook, fs::Permissions::from_mode(0o700)).unwrap();
+    git(repo, &["config", "core.hooksPath", ".git/approval-hooks"]).unwrap();
+
+    assert!(fetch(repo, true).unwrap_err().contains("请手动获取"));
+    assert!(!repo.join(".git/hook-checked").exists());
+    assert_eq!(
+        git_line(repo, &["rev-parse", "origin/main"]).unwrap(),
+        before
+    );
+    assert!(fetch(repo, false).is_err());
+    assert!(repo.join(".git/hook-checked").exists());
+    assert_eq!(
+        git_line(repo, &["rev-parse", "origin/main"]).unwrap(),
+        before
+    );
+}
+
+#[test]
+fn background_fetch_bounds_publication_when_an_external_process_holds_a_ref_lock() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    let before = git_line(repo, &["rev-parse", "origin/main"]).unwrap();
+    commit_file(&fixture.peer, "peer.txt", "peer\n");
+    git(&fixture.peer, &["push", "origin", "main"]).unwrap();
+    git(repo, &["config", "core.filesRefLockTimeout", "8000"]).unwrap();
+    fs::write(repo.join(".git/refs/remotes/origin/main.lock"), "external").unwrap();
+    let start = Instant::now();
+    assert!(fetch(repo, true).is_err());
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "后台操作应迅速释放公共目录锁"
+    );
+    assert_eq!(
+        git_line(repo, &["rev-parse", "origin/main"]).unwrap(),
+        before
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn background_fetch_timeout_removes_the_staged_refs_and_preserves_tracking() {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    let before = git_line(repo, &["rev-parse", "origin/main"]).unwrap();
+    let script = repo.join(".git/stalled-upload-pack");
+    fs::write(&script, "#!/bin/sh\ntouch .git/stalled\nexec sleep 30\n").unwrap();
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o700)).unwrap();
+    git(
+        repo,
+        &[
+            "config",
+            "remote.origin.uploadpack",
+            "./.git/stalled-upload-pack",
+        ],
+    )
+    .unwrap();
+    let error = background::fetch_remote(
+        repo,
+        &common_directory(repo).unwrap(),
+        "origin",
+        Instant::now() + Duration::from_secs(4),
+    )
+    .unwrap_err();
+    assert!(error.contains("超时"), "{error}");
+    assert!(repo.join(".git/stalled").exists());
+    assert_eq!(
+        git_line(repo, &["rev-parse", "origin/main"]).unwrap(),
+        before
+    );
+    assert!(
+        git_line(
+            repo,
+            &["for-each-ref", "--format=%(refname)", "refs/git-workbench/"]
+        )
+        .unwrap()
+        .is_empty()
+    );
+}
+
+#[test]
+fn background_fetch_preserves_the_old_ref_on_a_directory_file_conflict() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    let before = git_line(repo, &["rev-parse", "HEAD"]).unwrap();
+    git(repo, &["update-ref", "refs/remotes/origin/topic", "HEAD"]).unwrap();
+    git(&fixture.peer, &["push", "origin", "HEAD:topic/sub"]).unwrap();
+    match fetch(repo, true) {
+        Ok(_) => {
+            assert!(!commit_exists(repo, "refs/remotes/origin/topic").unwrap());
+            assert_eq!(
+                git_line(repo, &["rev-parse", "refs/remotes/origin/topic/sub"]).unwrap(),
+                before
+            );
+        }
+        Err(error) => {
+            assert!(error.contains("请手动获取"), "{error}");
+            assert_eq!(
+                git_line(repo, &["rev-parse", "refs/remotes/origin/topic"]).unwrap(),
+                before
+            );
+            assert!(!commit_exists(repo, "refs/remotes/origin/topic/sub").unwrap());
+        }
+    }
+}
+
 #[test]
 fn fetch_includes_remotes_marked_to_skip_fetch_all() {
     let fixture = Fixture::new();
@@ -190,13 +638,16 @@ fn fetch_includes_remotes_marked_to_skip_fetch_all() {
     )
     .unwrap();
     git(repo, &["config", "remote.origin.skipFetchAll", "true"]).unwrap();
+    git(repo, &["config", "remote.origin.promisor", "false"]).unwrap();
     git(repo, &["config", "remote.secondary.skipFetchAll", "true"]).unwrap();
-    commit_file(&fixture.peer, "next.txt", "remote next\n");
-    push(&fixture.peer, None).unwrap();
-    fetch(repo, false).unwrap();
-    let expected = git_line(&fixture.peer, &["rev-parse", "HEAD"]).unwrap();
-    for reference in ["refs/remotes/origin/main", "refs/remotes/secondary/main"] {
-        assert_eq!(git_line(repo, &["rev-parse", reference]).unwrap(), expected);
+    for (background, message) in [(false, "manual fetch\n"), (true, "background fetch\n")] {
+        commit_file(&fixture.peer, "next.txt", message);
+        push(&fixture.peer, None).unwrap();
+        fetch(repo, background).unwrap();
+        let expected = git_line(&fixture.peer, &["rev-parse", "HEAD"]).unwrap();
+        for reference in ["refs/remotes/origin/main", "refs/remotes/secondary/main"] {
+            assert_eq!(git_line(repo, &["rev-parse", reference]).unwrap(), expected);
+        }
     }
 }
 
@@ -216,12 +667,14 @@ fn fetch_uses_real_remote_names_even_when_a_group_has_the_same_name() {
     )
     .unwrap();
     git(repo, &["config", "remotes.origin", "secondary"]).unwrap();
-    commit_file(&fixture.peer, "next.txt", "remote next\n");
-    push(&fixture.peer, None).unwrap();
-    fetch(repo, false).unwrap();
-    let expected = git_line(&fixture.peer, &["rev-parse", "HEAD"]).unwrap();
-    for reference in ["refs/remotes/origin/main", "refs/remotes/secondary/main"] {
-        assert_eq!(git_line(repo, &["rev-parse", reference]).unwrap(), expected);
+    for (background, message) in [(false, "manual fetch\n"), (true, "background fetch\n")] {
+        commit_file(&fixture.peer, "next.txt", message);
+        push(&fixture.peer, None).unwrap();
+        fetch(repo, background).unwrap();
+        let expected = git_line(&fixture.peer, &["rev-parse", "HEAD"]).unwrap();
+        for reference in ["refs/remotes/origin/main", "refs/remotes/secondary/main"] {
+            assert_eq!(git_line(repo, &["rev-parse", reference]).unwrap(), expected);
+        }
     }
 }
 
@@ -242,15 +695,17 @@ fn fetch_continues_after_a_failed_remote_and_reports_each_failure() {
         )
         .unwrap();
     }
-    commit_file(&fixture.peer, "next.txt", "remote next\n");
-    push(&fixture.peer, None).unwrap();
-    let error = fetch(repo, false).unwrap_err();
-    assert!(error.contains("a-missing"));
-    assert!(error.contains("z-missing"));
-    assert_eq!(
-        git_line(repo, &["rev-parse", "origin/main"]).unwrap(),
-        git_line(&fixture.peer, &["rev-parse", "HEAD"]).unwrap()
-    );
+    for (background, message) in [(false, "manual fetch\n"), (true, "background fetch\n")] {
+        commit_file(&fixture.peer, "next.txt", message);
+        push(&fixture.peer, None).unwrap();
+        let error = fetch(repo, background).unwrap_err();
+        assert!(error.contains("a-missing"));
+        assert!(error.contains("z-missing"));
+        assert_eq!(
+            git_line(repo, &["rev-parse", "origin/main"]).unwrap(),
+            git_line(&fixture.peer, &["rev-parse", "HEAD"]).unwrap()
+        );
+    }
 }
 
 #[test]

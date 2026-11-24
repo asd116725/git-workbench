@@ -165,8 +165,10 @@ interface WorkbenchState {
   /** 后台获取不锁界面，取消信号用于丢弃旧工作区或已卸载的响应。 */
   checkRemote: (signal: AbortSignal) => Promise<void>;
   runRemote: (action: GitRemoteAction, remote?: string) => Promise<GitRemoteResult>;
-  loadBranches: () => Promise<void>;
-  checkoutBranch: (fullName: string) => Promise<GitCheckoutResult>;
+  /** 分支选择器已有缓存时可以合并刷新，合并、创建与删除仍要求立即读取。 */
+  loadBranches: (options?: { allowCached?: boolean }) => Promise<void>;
+  /** 普通切换只等本地 Git 确认，显式更新还等待上游快进结果。 */
+  checkoutBranch: (fullName: string, syncUpstream?: boolean) => Promise<GitCheckoutResult>;
   createBranch: (name: string, startRef: string, checkout: boolean) => Promise<GitCreateBranchResult>;
   previewDeleteBranch: (fullName: string) => Promise<GitDeleteBranchPreview>;
   deleteBranch: (preview: GitDeleteBranchPreview, force: boolean) => Promise<GitDeleteBranchResult>;
@@ -235,6 +237,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   let diffVersion = 0;
   let statusVersion = 0;
   let branchVersion = 0;
+  let pickerRead: { version: number; promise: Promise<void> } | undefined;
   let autoRefreshVersion = 0;
   let remoteCheckVersion = 0;
   let previousRemoteCheck: RemoteCheckState | null = null;
@@ -359,14 +362,17 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     }
   }
 
+  function repositoriesWith(worktree: Worktree) {
+    return get().repositories.map(repository => ({
+      ...repository, worktrees: repository.worktrees.map(item => item.id === worktree.id ? worktree : item),
+    }));
+  }
+
   function replaceWorktree(worktree: Worktree) {
     const state = get();
     const selection = resolveSelection(worktree, state.selection);
     set({
-      repositories: state.repositories.map(repository => ({
-        ...repository,
-        worktrees: repository.worktrees.map(item => item.id === worktree.id ? worktree : item),
-      })),
+      repositories: repositoriesWith(worktree),
       selection,
     });
     if (worktree.source !== 'native') refreshDemoSync();
@@ -430,6 +436,15 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     ++remoteCheckVersion;
     set(state => ({ busy: true, refreshing: false, error: null, branches: { ...state.branches, loading: false },
       remoteCheck: state.remoteCheck?.checking ? previousRemoteCheck : state.remoteCheck }));
+  }
+
+  /** 写操作会使先前状态读取失效；释放写锁时接续尚未完成的 checkout 快照。 */
+  function finishMutation() {
+    const state = get();
+    const pending = findWorktree(state.repositories, state.activeWorktreeId)?.checkoutRead;
+    const resume = pending && !pending.error;
+    set({ busy: false, ...(resume && { refreshing: true }) });
+    if (resume) void refresh();
   }
 
   /** 获取结束后补读共享引用；若期间来了更新的本地刷新，弃用旧结果再读。 */
@@ -510,23 +525,31 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     }
   }
 
-  /** 切换已成功时先更新身份；刷新失败也不能继续展示原分支文件。 */
-  async function applyBranchSwitch(worktree: Worktree, branch: string) {
+  /** 本地切换一经确认就撤下旧文件，同时修正缓存列表里的当前分支和工作树占用。 */
+  function publishBranchSwitch(worktree: Worktree, branch: string, selectedRef?: string) {
     ++diffVersion;
     const real = worktree.source === 'native';
-    const updated = { ...worktree, branch, detached: false, hasHead: true, remote: undefined, branchSync: null, files: real ? [] : worktree.files };
+    const updated = { ...worktree, branch, detached: false, hasHead: true, remote: undefined, branchSync: null,
+      checkoutRead: real && selectedRef ? { branch, error: null } : undefined, files: real ? [] : worktree.files };
+    const cached = get().branches.items;
+    const localRef = `refs/heads/${branch}`;
+    const items = cached.map(item => {
+      if (item.fullName === localRef) return { ...item, current: true, worktreePath: worktree.path };
+      return item.current ? { ...item, current: false, worktreePath: null } : item;
+    });
+    const remote = cached.find(item => item.kind === 'remote' && item.fullName === selectedRef);
+    if (remote && !items.some(item => item.current)) {
+      items.unshift({ ...remote, fullName: localRef, name: branch, kind: 'local', current: true, worktreePath: worktree.path,
+        upstream: remote.fullName, localName: null, ahead: null, behind: null });
+    }
     set(state => ({
-      repositories: state.repositories.map(repository => ({
-        ...repository,
-        worktrees: repository.worktrees.map(item => item.id === worktree.id ? updated : item),
-      })),
+      repositories: repositoriesWith(updated),
       selection: real ? null : state.selection,
       diff: real ? emptyDiff : state.diff,
-      branches: emptyBranches,
+      remoteCheck: null,
+      branches: { ...emptyBranches, items },
       view: 'changes',
     }));
-    if (real) await refreshAfterMutation(worktree);
-    else refreshDemoSync();
   }
 
   /** 仅修改引用时保留阅读状态；已完成的写入不因随后刷新失败而变成操作失败。 */
@@ -535,8 +558,11 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     beginMutation({ preserveDiff: true });
     try {
       const result = await action();
-      if (result.switched) await applyBranchSwitch(worktree, result.branch);
-      else if (worktree.source !== 'native') refreshDemoSync();
+      if (result.switched) {
+        publishBranchSwitch(worktree, result.branch);
+        if (worktree.source === 'native') await refreshAfterMutation(worktree);
+      }
+      if (worktree.source !== 'native') refreshDemoSync();
       await loadBranches(currentWorktree());
       const warning = [result.warning, get().error, get().branches.error && `操作已完成，但分支列表刷新失败：${get().branches.error}`].filter(Boolean).join('\n') || null;
       return { ...result, warning };
@@ -639,9 +665,12 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     if (!worktree || get().busy) return;
     if (silent && (get().refreshing || get().autoRefreshing)) return;
     if (worktree.source !== 'native') { refreshDemoSync(); void loadDiff(worktree, get().selection); return; }
+    const checkout = worktree.checkoutRead;
     const version = ++statusVersion;
     const autoVersion = silent ? ++autoRefreshVersion : autoRefreshVersion;
-    set(silent ? { autoRefreshing: true, autoRefreshError: null } : { refreshing: true, error: null, autoRefreshError: null });
+    set(silent ? { autoRefreshing: true, autoRefreshError: null } : {
+      refreshing: true, ...(checkout ? {} : { error: null }), autoRefreshError: null,
+    });
     try {
       const result = await nativeGit.status(worktree.path);
       if (version === statusVersion && get().activeWorktreeId === worktree.id) {
@@ -656,7 +685,9 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
             return;
           }
         }
-        await applyNativeRepository(result, get().selection, silent);
+        const diff = applyNativeRepository(result, get().selection, silent && !checkout);
+        if (checkout) set({ refreshing: false });
+        await diff;
       }
     } catch (error) {
       if (version === statusVersion) {
@@ -666,7 +697,9 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
           return;
         }
         invalidateBranchSync(worktree);
-        set(silent
+        if (checkout) {
+          set({ repositories: repositoriesWith({ ...currentWorktree(), checkoutRead: { ...checkout, error: `操作已完成，但刷新失败：${message}` } }) });
+        } else set(silent
           ? { autoRefreshError: `自动刷新失败，可点击「刷新」重试：${errorMessage(error)}` }
           : { error: errorMessage(error) });
       }
@@ -773,7 +806,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
         const worktree = findWorktree(get().repositories, get().activeWorktreeId);
         if (worktree) void loadDiff(worktree, get().selection);
         throw Object.assign(new Error(message), { cause: error });
-      } finally { set({ busy: false }); }
+      } finally { finishMutation(); }
     },
     removeRepository: id => {
       const state = get();
@@ -836,7 +869,10 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
         } catch { warning ??= '工作树已移除，但无法保存仓库会话。'; }
       } catch (cause) {
         throw Object.assign(new Error(errorMessage(cause)), { cause });
-      } finally { set({ busy: false }); }
+      } finally {
+        if (next && get().activeWorktreeId === next.id) set({ busy: false });
+        else finishMutation();
+      }
       if (next?.source === 'native') void refresh({}, { remaining: fallback });
       return { warning };
     },
@@ -853,11 +889,17 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       activateWorktree(worktree, get().repositories);
       rememberSession();
     },
-    loadBranches: async () => {
+    loadBranches: async ({ allowCached = false } = {}) => {
       const worktree = findWorktree(get().repositories, get().activeWorktreeId);
-      if (worktree) await loadBranches(worktree);
+      if (!worktree) return;
+      if (!allowCached) return loadBranches(worktree);
+      if (pickerRead?.version === branchVersion) return pickerRead.promise;
+      const promise = loadBranches(worktree);
+      pickerRead = { version: branchVersion, promise };
+      await promise;
+      if (pickerRead?.promise === promise) pickerRead = undefined;
     },
-    checkoutBranch: async fullName => {
+    checkoutBranch: async (fullName, syncUpstream) => {
       const worktree = currentWorktree();
       if (worktree.source !== 'native') {
         const result = await runBranchMutation(worktree, async () => {
@@ -869,21 +911,23 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
         return { branch: result.branch, warning: result.warning };
       }
       if (worktree.operation) throw new Error('请先完成或中止当前 Git 操作，再切换分支。');
-      beginMutation();
+      beginMutation({ preserveDiff: true });
+      let switched = false;
       try {
-        const { branch, warning = null } = await nativeGit.checkout(worktree.path, fullName);
-        await applyBranchSwitch(worktree, branch);
-        await loadBranches(currentWorktree());
-        if (warning) {
-          set(state => ({ error: [warning, state.error].filter(Boolean).join('\n') }));
-        }
-        return { branch, warning };
+        const result = await nativeGit.checkout(worktree.path, fullName, syncUpstream);
+        const warning = result.warning ?? null;
+        publishBranchSwitch(worktree, result.branch, fullName);
+        switched = true;
+        set({ error: warning });
+        return { branch: result.branch, warning };
       } catch (error) {
         const message = errorMessage(error);
         set({ error: message });
-        void loadDiff(worktree, get().selection);
         throw Object.assign(new Error(message), { cause: error });
-      } finally { set({ busy: false }); }
+      } finally {
+        finishMutation();
+        void get().loadBranches({ allowCached: switched });
+      }
     },
     createBranch: async (name, startRef, checkout) => {
       const worktree = currentWorktree();

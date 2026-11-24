@@ -285,119 +285,25 @@ fn is_symbolic_ref(repo: &Path, reference: &str) -> GitResult<bool> {
         .success())
 }
 
-/// 后台只使用目的地为远程跟踪引用的映射，并保留原负规则，防止触及本地分支或标签。
-fn background_refspecs<'a>(
-    repo: &Path,
-    configured: &'a [String],
-    symbolic_refs: &str,
-) -> GitResult<(Vec<&'a str>, bool)> {
-    let mut included = Vec::new();
-    let mut skipped = false;
-    for spec in configured {
-        if spec.starts_with('^') {
-            included.push(spec.as_str());
-            continue;
-        }
-        let Some((_, target)) = spec.split_once(':') else {
-            continue;
-        };
-        let safe = target.starts_with("refs/remotes/")
-            && if target.contains('*') {
-                !symbolic_refs.lines().any(|line| {
-                    line.split_once('\t').is_some_and(|(name, referent)| {
-                        !referent.is_empty()
-                            && !referent.starts_with("refs/remotes/")
-                            && matches_refspec(target, name)
-                    })
-                })
-            } else {
-                !is_symbolic_ref(repo, target)?
-            };
-        if safe {
-            included.push(spec.as_str());
-        } else {
-            skipped = true;
-        }
-    }
-    Ok((included, skipped))
-}
+mod background;
 
-fn fetch(repo: &Path, background: bool) -> GitResult<GitRemoteResult> {
-    let remotes = remote_names(repo)?;
+/// 单独指定真实远程，避开 skipFetchAll 和同名远程组；所有远程共用一次超时预算。
+fn fetch_remotes(
+    remotes: Vec<String>,
+    timeout: Duration,
+    mut fetch_remote: impl FnMut(&str, Instant) -> GitResult<()>,
+) -> GitResult<GitRemoteResult> {
     if remotes.is_empty() {
         return Err("尚未配置远程仓库，请先添加 remote。".into());
     }
-    // 单独指定真实远程，绕过 skipFetchAll 与同名 remote group；整组共享超时预算。
-    let timeout = if background {
-        BACKGROUND_FETCH_TIMEOUT
-    } else {
-        REMOTE_TIMEOUT
-    };
     let deadline = Instant::now() + timeout;
-    let active_upstream = if background {
-        current_branch(repo)?
-            .map(|branch| upstream_config(repo, &branch))
-            .transpose()?
-            .and_then(|(remote, target)| remote.zip(target))
-            .map(|(remote, target)| (remote, format!("refs/heads/{target}")))
-    } else {
-        None
-    };
-    let symbolic_refs = if background {
-        git_line(
-            repo,
-            &[
-                "for-each-ref",
-                "--format=%(refname)%09%(symref)",
-                "refs/remotes",
-            ],
-        )?
-    } else {
-        String::new()
-    };
     let mut errors = Vec::new();
     for remote in remotes {
-        let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+        if Instant::now() >= deadline {
             errors.push(format!("获取已超时，尚未获取 {remote} 及后续远程。"));
             break;
-        };
-        let mut args = vec!["fetch", "--prune", "--no-recurse-submodules"];
-        let configured;
-        let mut refspecs = Vec::new();
-        if background {
-            configured = config_values(repo, &format!("remote.{remote}.fetch"))?;
-            let (safe_specs, skipped) = background_refspecs(repo, &configured, &symbolic_refs)?;
-            let has_positive = safe_specs.iter().any(|spec| !spec.starts_with('^'));
-            let omitted_upstream = active_upstream.as_ref().is_some_and(|(name, target)| {
-                name == &remote
-                    && (is_fetch_excluded(&configured, target)
-                        || !safe_specs.iter().any(|spec| {
-                            spec.split_once(':').is_some_and(|(source, _)| {
-                                matches_refspec(source.trim_start_matches('+'), target)
-                            })
-                        }))
-            });
-            if skipped || !has_positive || omitted_upstream {
-                errors.push(format!(
-                    "{remote}：部分远程引用无法安全地在后台获取，请手动获取。"
-                ));
-            }
-            if !has_positive {
-                continue;
-            }
-            refspecs = safe_specs;
-            args.extend([
-                "--refmap=",
-                "--no-tags",
-                "--no-prune-tags",
-                "--no-write-fetch-head",
-                "--no-auto-gc",
-            ]);
         }
-        args.extend(["--", &remote]);
-        args.extend(refspecs);
-        let command = remote_command(repo, &args);
-        if let Err(error) = run_remote_command(command, remaining).and_then(checked) {
+        if let Err(error) = fetch_remote(&remote, deadline) {
             errors.push(format!("{remote}：{error}"));
         }
     }
@@ -405,6 +311,27 @@ fn fetch(repo: &Path, background: bool) -> GitResult<GitRemoteResult> {
         return Err(format!("未能完成全部远程的获取：\n{}", errors.join("\n")));
     }
     Ok(GitRemoteResult { warning: None })
+}
+
+fn fetch(repo: &Path, background: bool) -> GitResult<GitRemoteResult> {
+    let common = common_directory(repo)?;
+    if background {
+        let remotes = with_common_directory(common.clone(), |_| remote_names(repo))?;
+        fetch_remotes(remotes, BACKGROUND_FETCH_TIMEOUT, |name, deadline| {
+            background::fetch_remote(repo, &common, name, deadline)
+        })
+    } else {
+        with_common_directory(common, |_| {
+            fetch_remotes(remote_names(repo)?, REMOTE_TIMEOUT, |name, deadline| {
+                let command = remote_command(
+                    repo,
+                    &["fetch", "--prune", "--no-recurse-submodules", "--", name],
+                );
+                checked(run_before_deadline(command, deadline)?)?;
+                Ok(())
+            })
+        })
+    }
 }
 
 fn pull(repo: &Path) -> GitResult<GitRemoteResult> {
@@ -730,9 +657,10 @@ fn push(repo: &Path, selected_remote: Option<&str>) -> GitResult<GitRemoteResult
 #[tauri::command]
 pub async fn git_fetch(repo_path: String, background: Option<bool>) -> GitResult<GitRemoteResult> {
     blocking(move || {
-        with_repository(&repo_path, |repo| {
-            fetch(repo, background.unwrap_or_default())
-        })
+        fetch(
+            &repository_root(&repo_path)?,
+            background.unwrap_or_default(),
+        )
     })
     .await
 }

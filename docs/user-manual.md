@@ -17,7 +17,9 @@ Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-re
 
 Drag pane boundaries to resize them. **Commit history** opens a read-only three-pane view; see [commit history](#81-commit-history). The top bar also provides fetch, pull, and push; see [remote operations](#43-fetch-pull-and-push).
 
-On macOS, the red close button only hides the main window. Repositories, the current diff, and uncommitted drafts remain in memory. Click the Dock icon to restore the window. To quit the app, use `⌘Q` or **Quit** in the app menu. After a full quit, repository paths are restored as described below, but commit drafts are not preserved across processes.
+On macOS, the red close button hides the main window and ends its integrated terminal shells and jobs. Click the Dock icon to restore repositories, the current diff, and drafts. Use `⌘Q` or **Quit** from the app menu to end the app and its terminal jobs. Repository paths are restored on startup. Commit drafts last for the current app session.
+
+Terminal tabs remember their starting directories, order, and selection. Open the terminal panel after restarting the app to restore its tabs and start a fresh shell in the selected tab's original directory. Collapsing the terminal panel keeps its jobs running.
 
 ## 2. Open a local repository
 
@@ -139,7 +141,9 @@ Branches cannot be created or deleted while a merge, rebase, cherry-pick, or sim
 
 ## 4.3 Fetch, pull, and push
 
-Starting with 1.6.2, switching to a branch with a remote upstream checks the server and automatically pulls fast-forward updates, including commits not previously fetched. Branches without a remote upstream are only switched. If divergence, network errors, or local changes prevent pulling, the selected branch remains active and a warning explains the failure; resolve it and pull manually.
+In the development build, branch management closes when the local switch finishes. Background fetch updates remote refs and incoming commit counts. Use **Pull** from the toolbar when the branch is behind, or choose **Switch and update** to switch and pull in one action. If divergence, a network error, or local changes prevent a fast-forward pull, the selected branch stays active and a warning explains what happened.
+
+The v1.16.0 installer automatically attempts a fast-forward pull after switching to a branch with a remote upstream, a behavior introduced in v1.6.2.
 
 These features are available starting with 1.3.0. Configure a remote for the repository first. The app uses your installed Git's credentials and SSH configuration; it does not provide a sign-in form.
 
