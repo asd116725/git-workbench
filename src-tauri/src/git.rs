@@ -908,24 +908,29 @@ pub async fn git_commit(
     blocking(move || with_repository(&repo_path, |repo| commit(repo, &summary, &description))).await
 }
 
-/// 列出本地和远程分支，并标记其他工作区已占用的分支。
+/// 读取展示用分支列表。写操作会重新核对目标，因此此读取不参与仓库写锁。
 #[tauri::command]
 pub async fn git_branches(repo_path: String) -> GitResult<Vec<GitBranch>> {
-    blocking(move || with_repository(&repo_path, branches)).await
+    blocking(move || branches(&repository_root(&repo_path)?)).await
 }
 
-/// 使用 Git 的普通切换语义，保留脏文件保护与其他工作区的分支占用限制。
+/// 普通切换使用本地引用，仅在显式请求时继续快进拉取远程上游。
 #[tauri::command]
 pub async fn git_checkout(
     repo_path: String,
     full_name: String,
+    sync_upstream: Option<bool>,
 ) -> GitResult<navigation::CheckoutResult> {
     blocking(move || {
         with_repository(&repo_path, |repo| {
             if operation(repo)?.is_some() {
                 return Err("请先完成或中止当前 Git 操作，再切换分支。".into());
             }
-            checkout(repo, &full_name)
+            if sync_upstream.unwrap_or_default() {
+                checkout(repo, &full_name)
+            } else {
+                navigation::checkout_local(repo, &full_name)
+            }
         })
     })
     .await

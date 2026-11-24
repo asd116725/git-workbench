@@ -6,6 +6,16 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-11-24
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.17.0/CHANGELOG.zh-CN.md#1170---2026-11-24)
+
+- Open an integrated terminal in a worktree. Create multiple shell tabs, switch terminal themes, and restore tab directories, order, and selection after restarting.
+- Switch branches locally by default. Use **Switch and update** to fetch and fast-forward from the remote upstream. Background fetch can update incoming counts without holding up local branch switching.
+- Delete linked worktrees or clean up individual stale entries from the sidebar. Deletion preserves local branches and checks for uncommitted changes. The confirmation identifies the directory and explains how ignored files are handled.
+
+The macOS Apple Silicon (arm64) installer uses ad-hoc signing and has not been notarized by Apple. See the [installation guide](https://github.com/asd116725/git-workbench/blob/v1.17.0/docs/installation.md).
+
 ## [1.16.0] - 2026-11-19
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.16.0/CHANGELOG.zh-CN.md#1160---2026-11-19)

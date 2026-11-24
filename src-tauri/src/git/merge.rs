@@ -1038,6 +1038,7 @@ mod tests {
         let error = tauri::async_runtime::block_on(git_checkout(
             repo.root.to_string_lossy().into_owned(),
             "refs/heads/feature".into(),
+            None,
         ))
         .unwrap_err();
         assert!(error.contains("完成或中止"));

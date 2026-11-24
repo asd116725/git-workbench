@@ -39,6 +39,8 @@ pub struct GitBranch {
     pub current: bool,
     pub worktree_path: Option<String>,
     pub upstream: Option<String>,
+    /// `.` 表示上游是本地分支，界面无需提供远程更新操作。
+    pub upstream_remote: Option<String>,
     /// 相对本分支上游的本地引用计数；无上游、上游不可用或远程分支均为 null。
     pub ahead: Option<u64>,
     pub behind: Option<u64>,
@@ -336,15 +338,20 @@ fn tracking_counts(tracking: &str, short: &str) -> Option<(u64, u64)> {
     }
 }
 
+/// Remote 名支持斜线，剩余的分支名最短时对应实际匹配的最长 remote 名。
+fn remote_local_name<'a>(name: &'a str, remotes: &str) -> Option<&'a str> {
+    remotes
+        .lines()
+        .filter_map(|remote| name.strip_prefix(remote)?.strip_prefix('/'))
+        .min_by_key(|branch| branch.len())
+}
+
 pub(super) fn branches(repo: &Path) -> GitResult<Vec<GitBranch>> {
     let worktrees = worktree_metadata(repo)?;
     let current = worktrees
         .iter()
         .find(|worktree| Path::new(&worktree.path) == repo);
-    let remote_output = git_line(repo, &["remote"])?;
-    let mut remotes: Vec<&str> = remote_output.lines().collect();
-    // remote 名称本身允许斜线；先匹配最长名称，避免把 team/origin 当成 team。
-    remotes.sort_by_key(|remote| std::cmp::Reverse(remote.len()));
+    let remotes = git_line(repo, &["remote"])?;
     // 一次枚举计算所有分支；仅固定此命令的语言，确保 tracking 机器字段可解析。
     let output = command(repo)
         .env("LC_ALL", "C")
@@ -352,7 +359,7 @@ pub(super) fn branches(repo: &Path) -> GitResult<Vec<GitBranch>> {
             "for-each-ref",
             "--sort=refname",
             "--sort=-committerdate",
-            "--format=%(refname)%00%(symref)%00%(upstream)%00%(objectname:short=7)%00%(authorname)%00%(subject)%00%(committerdate:unix)%00%(upstream:track,nobracket)%00%(upstream:trackshort)%00",
+            "--format=%(refname)%00%(symref)%00%(upstream)%00%(upstream:remotename)%00%(objectname:short=7)%00%(authorname)%00%(subject)%00%(committerdate:unix)%00%(upstream:track,nobracket)%00%(upstream:trackshort)%00",
             "refs/heads/",
             "refs/remotes/",
         ])
@@ -365,6 +372,7 @@ pub(super) fn branches(repo: &Path) -> GitResult<Vec<GitBranch>> {
         let full_name = fields.next().ok_or("无法解析 Git 分支列表。")?;
         let symbolic = fields.next().ok_or("Git 分支记录不完整。")?;
         let upstream = fields.next().ok_or("Git 分支记录不完整。")?;
+        let upstream_remote = fields.next().ok_or("Git 分支记录不完整。")?;
         if !symbolic.is_empty() {
             continue;
         }
@@ -383,10 +391,7 @@ pub(super) fn branches(repo: &Path) -> GitResult<Vec<GitBranch>> {
         let (kind, name, local_name) = if let Some(name) = full_name.strip_prefix("refs/heads/") {
             ("local", name, None)
         } else if let Some(name) = full_name.strip_prefix("refs/remotes/") {
-            let local_name = remotes
-                .iter()
-                .find_map(|remote| name.strip_prefix(&format!("{remote}/")))
-                .map(str::to_owned);
+            let local_name = remote_local_name(name, &remotes).map(str::to_owned);
             ("remote", name, local_name)
         } else {
             continue;
@@ -407,6 +412,7 @@ pub(super) fn branches(repo: &Path) -> GitResult<Vec<GitBranch>> {
                 .then(|| occupied.map(|worktree| worktree.path.clone()))
                 .flatten(),
             upstream: (!upstream.is_empty()).then(|| upstream.into()),
+            upstream_remote: (!upstream_remote.is_empty()).then(|| upstream_remote.into()),
             ahead: counts.map(|counts| counts.0),
             behind: counts.map(|counts| counts.1),
             local_name,
@@ -466,47 +472,72 @@ fn switch_branch(
     }
 }
 
-/// 只接受刚枚举到的完整引用，不把界面输入拼成命令或 Git 的 revision 表达式。
-pub(super) fn checkout(repo: &Path, full_name: &str) -> GitResult<CheckoutResult> {
-    let branches = branches(repo)?;
-    let selected = branches
-        .iter()
-        .find(|branch| branch.full_name == full_name)
-        .ok_or("该分支已不存在，请刷新分支列表后重试。")?;
-    if let Some(path) = &selected.worktree_path {
-        if Path::new(path) != repo {
-            return Err(format!(
-                "该分支已被工作区“{path}”占用，请从左侧切换到该工作区。"
-            ));
-        }
+/// 仅查指定引用及其跟踪关系。前缀下的其他引用和符号引用不能作为切换目标。
+fn checkout_upstream(repo: &Path, reference: &str) -> GitResult<Option<String>> {
+    let output = git_line(
+        repo,
+        &[
+            "for-each-ref",
+            "--format=%(refname)%00%(symref)%00%(upstream)",
+            "--",
+            reference,
+        ],
+    )?;
+    Ok(output.lines().find_map(|line| {
+        let (name, rest) = line.split_once('\0')?;
+        let (symbolic, upstream) = rest.split_once('\0')?;
+        (name == reference && symbolic.is_empty()).then(|| upstream.to_owned())
+    }))
+}
+
+fn ensure_checkout_available(repo: &Path, branch: &str) -> GitResult<()> {
+    let worktrees = worktree_metadata(repo)?;
+    if let Some(occupied) = worktrees.iter().find(|worktree| {
+        !worktree.detached
+            && !worktree.bare
+            && worktree.branch == branch
+            && Path::new(&worktree.path) != repo
+    }) {
+        return Err(format!(
+            "该分支已被工作区“{}”占用，请从左侧切换到该工作区。",
+            occupied.path
+        ));
     }
-    let (branch, warning) = if selected.kind == "local" {
-        let warning = switch_branch(
-            repo,
-            &["switch", "--no-guess", "--", &selected.name],
-            &selected.name,
-            None,
-        )?;
-        (selected.name.clone(), warning)
+    Ok(())
+}
+
+/// 普通切换只修改本地工作区，直接核对所选完整引用，避免枚举所有分支的提交与跟踪计数。
+pub(super) fn checkout_local(repo: &Path, full_name: &str) -> GitResult<CheckoutResult> {
+    let missing = "该分支已不存在，请刷新分支列表后重试。";
+    let (name, local) = full_name
+        .strip_prefix("refs/heads/")
+        .map(|name| (name, true))
+        .or_else(|| {
+            full_name
+                .strip_prefix("refs/remotes/")
+                .map(|name| (name, false))
+        })
+        .ok_or(missing)?;
+    if checkout_upstream(repo, full_name)?.is_none() {
+        return Err(missing.into());
+    }
+    let (branch, warning) = if local {
+        ensure_checkout_available(repo, name)?;
+        let warning = switch_branch(repo, &["switch", "--no-guess", "--", name], name, None)?;
+        (name.into(), warning)
     } else {
-        let local_name = selected
-            .local_name
-            .as_deref()
+        let remotes = git_line(repo, &["remote"])?;
+        let local_name = remote_local_name(name, &remotes)
             .ok_or("该远程分支没有对应的 remote 配置，无法建立跟踪分支。")?;
-        let warning = if let Some(existing) = branches
-            .iter()
-            .find(|branch| branch.kind == "local" && branch.name == local_name)
+        let warning = if let Some(upstream) =
+            checkout_upstream(repo, &format!("refs/heads/{local_name}"))?
         {
-            if existing.upstream.as_deref() != Some(full_name) {
+            if upstream != full_name {
                 return Err(format!(
                     "本地分支“{local_name}”已存在且未跟踪所选远程分支，请直接选择本地分支或先调整跟踪关系。"
                 ));
             }
-            if let Some(path) = &existing.worktree_path {
-                if Path::new(path) != repo {
-                    return Err(format!("本地分支“{local_name}”已被工作区“{path}”占用。"));
-                }
-            }
+            ensure_checkout_available(repo, local_name)?;
             switch_branch(
                 repo,
                 &["switch", "--no-guess", "--", local_name],
@@ -531,6 +562,12 @@ pub(super) fn checkout(repo: &Path, full_name: &str) -> GitResult<CheckoutResult
         };
         (local_name.into(), warning)
     };
+    Ok(CheckoutResult { branch, warning })
+}
+
+/// 显式更新和创建后切换沿用快进策略，并保留切换已成功时的警告。
+pub(super) fn checkout(repo: &Path, full_name: &str) -> GitResult<CheckoutResult> {
+    let CheckoutResult { branch, warning } = checkout_local(repo, full_name)?;
     // 切换已完成，后续拉取失败只能作为警告；hook 已报错时不继续自动操作。
     let warning = warning.or_else(|| match remote::pull_after_checkout(repo, &branch) {
         Ok(result) => result.warning,

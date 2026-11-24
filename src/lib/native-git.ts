@@ -85,7 +85,7 @@ export function toWorktree(repository: NativeRepository): Worktree {
   };
 }
 
-/** 以公共 Git 目录归组，刷新元数据时保留兄弟目录已经加载的文件与历史。 */
+/** 以公共 Git 目录归组，兄弟工作树只有仍在同一分支或分离提交时才能复用已读快照。 */
 export function toRepository(result: NativeRepository, previous?: Repository): Repository {
   const current = toWorktree(result);
   return {
@@ -94,10 +94,11 @@ export function toRepository(result: NativeRepository, previous?: Repository): R
     worktrees: result.worktrees.map(metadata => {
       if (metadata.path === result.path) return current;
       const cached = previous?.worktrees.find(worktree => worktree.path === metadata.path);
+      const changed = cached && (cached.branch !== metadata.branch || cached.detached !== metadata.detached);
       return {
         files: [],
         commits: [],
-        ...cached,
+        ...(changed ? { checkoutRead: { branch: metadata.branch, error: null } } : cached),
         ...metadata,
         branchSync: metadata.branchSync ?? null,
         id: `native:${metadata.path}`,
@@ -120,7 +121,9 @@ export const nativeGit = {
   pull: (repoPath: string) => invoke<GitRemoteResult>('git_pull', { repoPath }),
   push: (repoPath: string, remote?: string) => invoke<GitRemoteResult>('git_push', { repoPath, remote: remote ?? null }),
   branches: (repoPath: string) => invoke<GitBranch[]>('git_branches', { repoPath }),
-  checkout: (repoPath: string, fullName: string) => invoke<GitCheckoutResult>('git_checkout', { repoPath, fullName }),
+  /** 默认仅切换本地分支，显式更新才允许获取上游并快进。 */
+  checkout: (repoPath: string, fullName: string, syncUpstream = false) =>
+    invoke<GitCheckoutResult>('git_checkout', syncUpstream ? { repoPath, fullName, syncUpstream } : { repoPath, fullName }),
   createBranch: (repoPath: string, name: string, startRef: string, checkout: boolean) => invoke<GitCreateBranchResult>('git_create_branch', { repoPath, name, startRef, checkout }),
   previewDeleteBranch: (repoPath: string, fullName: string) => invoke<GitDeleteBranchPreview>('git_delete_branch_preview', { repoPath, fullName }),
   deleteBranch: (repoPath: string, preview: GitDeleteBranchPreview, force: boolean) => invoke<GitDeleteBranchResult>('git_delete_branch', { repoPath, preview, force }),

@@ -22,13 +22,15 @@ function switchDisabledReason(branch: GitBranch, worktreePath: string) {
 }
 
 /** 切换与删除使用并列按钮，避免嵌套交互元素和删除点击触发切换。 */
-function BranchRow({ branch, worktreePath, locked, blocked, switching, onSwitch, onDelete }: {
+function BranchRow({ branch, worktreePath, locked, blocked, switching, canUpdate, manageLocked, onSwitch, onDelete }: {
   branch: GitBranch;
   worktreePath: string;
   locked: boolean;
   blocked: string | null;
-  switching: boolean;
-  onSwitch: (fullName: string) => Promise<void>;
+  switching: 'local' | 'sync' | null;
+  canUpdate: boolean;
+  manageLocked: boolean;
+  onSwitch: (fullName: string, syncUpstream?: boolean) => Promise<void>;
   onDelete: (branch: GitBranch) => Promise<void>;
 }) {
   useI18n();
@@ -43,9 +45,10 @@ function BranchRow({ branch, worktreePath, locked, blocked, switching, onSwitch,
     <button type="button" className={`branch-option ${branch.current ? 'is-current' : ''}`} disabled={locked || Boolean(blocked) || Boolean(reason)} aria-label={t("切换到 {value1}", { value1: branch.name })} aria-describedby={[`commit-${branch.fullName}`, syncDescription && `branch-sync-${branch.fullName}`].filter(Boolean).join(' ')} aria-current={branch.current ? 'true' : undefined} title={[branch.name, summary, date.toLocaleString(getLanguage()), `${reason ?? blocked ?? t("切换分支")} · ${context}`, syncDescription].filter(Boolean).join('\n')} onClick={() => void onSwitch(branch.fullName)}>
       <i className={`codicon codicon-${switching ? 'loading spin' : branch.current ? 'check' : branch.kind === 'remote' ? 'cloud' : 'git-branch'}`} aria-hidden="true" />
       <span className="branch-option-copy"><span className="branch-option-heading"><strong>{branch.name}</strong><BranchSyncStatus branch={branch} /><time dateTime={date.toISOString()}>{commitAge(commit.committedAt)}</time></span><small id={`commit-${branch.fullName}`}>{summary}</small></span>
-      {reason ? <span className="branch-tag">{reason}</span> : <i className="codicon codicon-arrow-right branch-enter" aria-hidden="true" />}
+      {switching ? <span className="branch-tag" role="status">{t(switching === 'sync' ? "正在切换并更新…" : "正在切换…")}</span> : reason ? <span className="branch-tag">{reason}</span> : <i className="codicon codicon-arrow-right branch-enter" aria-hidden="true" />}
     </button>
-    {branch.kind === 'local' && <Button type="button" variant="ghost" size="icon-sm" className="branch-delete-action" disabled={locked || Boolean(deleteBlocked)} aria-label={t("删除本地分支 {value1}", { value1: branch.name })} title={deleteBlocked ?? t("删除本地分支")} onClick={() => void onDelete(branch)}><i className="codicon codicon-trash" aria-hidden="true" /></Button>}
+    {canUpdate && !reason && (branch.kind === 'remote' || (branch.upstreamRemote && branch.upstreamRemote !== '.')) && <Button type="button" variant="ghost" size="sm" className="branch-update-action" disabled={locked || Boolean(blocked)} aria-label={t("切换并更新 {value1}", { value1: branch.name })} title={t("切换并更新")} onClick={() => void onSwitch(branch.fullName, true)}>{t("切换并更新")}</Button>}
+    {branch.kind === 'local' && <Button type="button" variant="ghost" size="icon-sm" className="branch-delete-action" disabled={manageLocked || Boolean(deleteBlocked)} aria-label={t("删除本地分支 {value1}", { value1: branch.name })} title={deleteBlocked ?? t("删除本地分支")} onClick={() => void onDelete(branch)}><i className="codicon codicon-trash" aria-hidden="true" /></Button>}
   </div>;
 }
 
@@ -63,7 +66,7 @@ export function BranchPickerDialog({ worktree, open, onOpenChange }: {
   const [view, setView] = useState<'list' | 'create' | 'delete'>('list');
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [switchingRef, setSwitchingRef] = useState<string | null>(null);
+  const [switching, setSwitching] = useState<{ ref: string; mode: 'local' | 'sync' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [name, setName] = useState('');
   const [startRef, setStartRef] = useState('');
@@ -78,6 +81,7 @@ export function BranchPickerDialog({ worktree, open, onOpenChange }: {
   const requestVersion = useRef(0);
   const mutation = useRef(false);
   const locked = busy || submitting;
+  const manageLocked = locked || branches.loading || Boolean(worktree.checkoutRead);
   const blocked = worktree.operation ? t("请先完成或中止当前 Git 操作，再创建、删除或切换分支。") : null;
   const hasHead = worktree.hasHead !== false;
   const hasStart = hasHead || branches.items.some(branch => branch.kind === 'local' || branch.localName);
@@ -87,7 +91,7 @@ export function BranchPickerDialog({ worktree, open, onOpenChange }: {
 
   useEffect(() => {
     const requests = requestVersion;
-    if (open) void loadBranches();
+    if (open) void loadBranches({ allowCached: true });
     return () => { ++requests.current; };
   }, [open, worktree.id, loadBranches]);
 
@@ -115,16 +119,16 @@ export function BranchPickerDialog({ worktree, open, onOpenChange }: {
     else { ++requestVersion.current; onOpenChange(value); }
   }
 
-  async function switchBranch(fullName: string) {
+  async function switchBranch(fullName: string, syncUpstream = false) {
     const branch = branches.items.find(item => item.fullName === fullName);
     if (!branch || locked || mutation.current || blocked || switchDisabledReason(branch, worktree.path)) return;
     mutation.current = true;
     const version = ++requestVersion.current;
     setError(null);
     setSubmitting(true);
-    setSwitchingRef(branch.fullName);
+    setSwitching({ ref: branch.fullName, mode: syncUpstream ? 'sync' : 'local' });
     try {
-      const result = await checkoutBranch(branch.fullName);
+      const result = await checkoutBranch(branch.fullName, syncUpstream);
       if (!currentRequest(version)) return;
       if (result.warning) toast.warning(t("已切换到 {value1}", { value1: result.branch }), { description: translateMessage(result.warning) });
       else toast.success(t("已切换到 {value1}", { value1: result.branch }), { description: demo ? t("演示操作，未修改本地仓库") : displayName });
@@ -133,12 +137,12 @@ export function BranchPickerDialog({ worktree, open, onOpenChange }: {
       if (currentRequest(version)) setError(errorMessage(cause));
     } finally {
       mutation.current = false;
-      if (currentRequest(version)) { setSubmitting(false); setSwitchingRef(null); }
+      if (currentRequest(version)) { setSubmitting(false); setSwitching(null); }
     }
   }
 
   function openCreate() {
-    if (locked || blocked || !hasStart) return;
+    if (manageLocked || blocked || !hasStart) return;
     setName('');
     setStartRef(branches.items.find(branch => branch.current)?.fullName ?? (hasHead ? 'HEAD' : branches.items.find(branch => branch.kind === 'local' || branch.localName)?.fullName ?? ''));
     setCheckout(true);
@@ -171,7 +175,7 @@ export function BranchPickerDialog({ worktree, open, onOpenChange }: {
 
   /** 每次重读都撤销强制删除授权，过期预览不会沿用用户对旧提交的确认。 */
   async function inspectDelete(branch: GitBranch) {
-    if (locked || blocked || branch.kind !== 'local' || branch.current || branch.worktreePath) return;
+    if (manageLocked || blocked || branch.kind !== 'local' || branch.current || branch.worktreePath) return;
     const version = ++requestVersion.current;
     setDeleting(branch);
     setView('delete');
@@ -217,7 +221,7 @@ export function BranchPickerDialog({ worktree, open, onOpenChange }: {
   /** 方向键只遍历切换按钮；删除按钮通过 Tab 单独访问，避免误触。 */
   function navigate(event: KeyboardEvent<HTMLElement>) {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-    if ((event.target as HTMLElement).closest('.branch-delete-action')) return;
+    if ((event.target as HTMLElement).closest('.branch-delete-action, .branch-update-action')) return;
     const rows = [...(listRef.current?.querySelectorAll<HTMLButtonElement>('.branch-option:not(:disabled)') ?? [])];
     if (!rows.length) return;
     const index = rows.indexOf(document.activeElement as HTMLButtonElement);
@@ -233,20 +237,20 @@ export function BranchPickerDialog({ worktree, open, onOpenChange }: {
       <DialogHeader><DialogTitle>{view === 'create' ? t("新建分支") : view === 'delete' ? t("删除本地分支") : t("分支管理")}</DialogTitle><DialogDescription><span className="branch-worktree-context"><span className="branch-context-name" title={displayName}>{displayName}</span><span aria-hidden="true">·</span><span className="branch-context-current"><span>{t('当前')}</span><span className="branch-context-branch" title={currentBranch}>{currentBranch}</span></span></span>{demo && <span className="branch-demo-label">{t("演示模式 · 模拟数据")}</span>}</DialogDescription></DialogHeader>
       {blocked && <p className="branch-operation-note" role="status">{blocked}</p>}
       {view === 'list' && <>
-        <div className="branch-list-toolbar"><div className="branch-search"><i className="codicon codicon-search" aria-hidden="true" /><Input ref={searchRef} aria-label={t("搜索分支")} placeholder={t("搜索本地或远程分支…")} value={search} disabled={locked} onChange={event => setSearch(event.target.value)} onKeyDown={navigate} autoComplete="off" spellCheck={false} /><kbd>↑ ↓</kbd></div><Button type="button" disabled={locked || Boolean(blocked) || branches.loading || !hasStart} title={!hasStart ? t("没有可用起点，请先完成首次提交。") : undefined} onClick={openCreate}><i className="codicon codicon-add" aria-hidden="true" />{t("新建分支")}</Button></div>
+        <div className="branch-list-toolbar"><div className="branch-search"><i className="codicon codicon-search" aria-hidden="true" /><Input ref={searchRef} aria-label={t("搜索分支")} placeholder={t("搜索本地或远程分支…")} value={search} disabled={locked} onChange={event => setSearch(event.target.value)} onKeyDown={navigate} autoComplete="off" spellCheck={false} /><kbd>↑ ↓</kbd></div><Button type="button" disabled={manageLocked || Boolean(blocked) || !hasStart} title={!hasStart ? t("没有可用起点，请先完成首次提交。") : undefined} onClick={openCreate}><i className="codicon codicon-add" aria-hidden="true" />{t("新建分支")}</Button></div>
         {!hasStart && !branches.loading && !branches.error && <p className="branch-operation-note">{t("没有可用起点，请先完成首次提交。")}</p>}
         {(error || branches.error) && <pre className="inline-error" role="alert">{translateMessage(error || branches.error || '')}</pre>}
         <div className="branch-results" ref={listRef} onKeyDown={navigate} aria-label={t("分支列表")} aria-busy={branches.loading || locked}>
-          {switchingRef || branches.loading ? <div className="branch-placeholder" role="status"><i className="codicon codicon-loading spin" aria-hidden="true" />{switchingRef ? t("正在切换并检查远程更新，落后时自动快进拉取…") : t("正在读取分支…")}</div> : branches.error ? <div className="branch-placeholder"><Button variant="outline" onClick={() => void loadBranches()}>{t("重新读取分支")}</Button></div> : filtered.length === 0 ? <div className="branch-placeholder">{query ? t("没有匹配“{value1}”的分支", { value1: search }) : t("暂无分支记录，完成首次提交后可在此查看。")}</div> : (['local', 'remote'] as const).map(kind => {
+          {branches.loading && !branches.items.length ? <div className="branch-placeholder" role="status"><i className="codicon codicon-loading spin" aria-hidden="true" />{t("正在读取分支…")}</div> : branches.error ? <div className="branch-placeholder"><Button variant="outline" onClick={() => void loadBranches()}>{t("重新读取分支")}</Button></div> : filtered.length === 0 ? <div className="branch-placeholder">{query ? t("没有匹配“{value1}”的分支", { value1: search }) : t("暂无分支记录，完成首次提交后可在此查看。")}</div> : (['local', 'remote'] as const).map(kind => {
             const items = filtered.filter(branch => branch.kind === kind);
             if (!items.length) return null;
             return <section key={kind} className="branch-section" aria-label={kind === 'local' ? t("本地分支") : t("远程分支")}>
               <div className="branch-section-heading">{kind === 'local' ? t("本地分支") : t("远程分支")}<span>{items.length}</span><small>{t("最近提交优先")}</small></div>
-              {items.map(branch => <BranchRow key={branch.fullName} branch={branch} worktreePath={worktree.path} locked={locked} blocked={blocked} switching={switchingRef === branch.fullName} onSwitch={switchBranch} onDelete={inspectDelete} />)}
+              {items.map(branch => <BranchRow key={branch.fullName} branch={branch} worktreePath={worktree.path} locked={locked} blocked={blocked} switching={switching?.ref === branch.fullName ? switching.mode : null} canUpdate={!demo} manageLocked={manageLocked} onSwitch={switchBranch} onDelete={inspectDelete} />)}
             </section>;
           })}
         </div>
-        <p className="branch-footer">{t("远程分支来自本地已获取的记录；切换后会检查远程上游并自动快进拉取。")}</p>
+        {!demo && <p className="branch-footer">{t("点击分支可在本地切换。「切换并更新」会获取上游，并在可快进时拉取。")}</p>}
       </>}
       {view === 'create' && <>
         {error && <pre className="inline-error" role="alert">{translateMessage(error)}</pre>}

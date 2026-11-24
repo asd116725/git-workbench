@@ -37,7 +37,7 @@ describe('外观选择与启动恢复', () => {
   it('首次渲染前恢复浅色，重新加载记住选择但不保存系统解析值', async () => {
     const appearance = await import('./appearance');
     appearance.useAppearance.getState().setTheme('light');
-    expect(JSON.parse(saved.get('git-workbench.appearance')!).state).toEqual({ theme: 'light' });
+    expect(JSON.parse(saved.get('git-workbench.appearance')!).state).toEqual({ theme: 'light', terminalTheme: 'classic' });
     vi.resetModules();
     const restored = await import('./appearance');
     stop = restored.initializeAppearance();
@@ -65,6 +65,27 @@ describe('外观选择与启动恢复', () => {
     expect(listeners.size).toBe(0);
     useAppearance.getState().setTheme('dark');
     expect(document.documentElement.dataset.theme).toBe('light');
+  });
+
+  it('从旧外观配置恢复时继续使用经典深色终端，终端主题单独保存', async () => {
+    saved.set('git-workbench.appearance', JSON.stringify({ state: { theme: 'light' }, version: 0 }));
+    const { useAppearance } = await import('./appearance');
+    expect(useAppearance.getState().terminalTheme).toBe('classic');
+    useAppearance.getState().setTerminalTheme('warm');
+    expect(useAppearance.getState().resolvedTheme).toBe('light');
+    vi.resetModules();
+    const restored = (await import('./appearance')).useAppearance.getState();
+    expect(restored).toMatchObject({ theme: 'light', terminalTheme: 'warm' });
+  });
+
+  it('终端跟随实际工作台外观，指定主题独立生效，无效配置回退到经典深色', async () => {
+    saved.set('git-workbench.appearance', JSON.stringify({ state: { theme: 'system', terminalTheme: 'unknown' }, version: 0 }));
+    const { useAppearance } = await import('./appearance');
+    const { resolveTerminalPalette } = await import('./terminal-theme');
+    expect(useAppearance.getState().terminalTheme).toBe('classic');
+    expect(resolveTerminalPalette('workbench', 'light')).toBe(resolveTerminalPalette('light', 'dark'));
+    expect(resolveTerminalPalette('workbench', 'dark')).toBe(resolveTerminalPalette('classic', 'light'));
+    expect(resolveTerminalPalette('warm', 'light')).toBe(resolveTerminalPalette('warm', 'dark'));
   });
 
   it('切换外观不修改仓库和草稿，恢复布局不修改主题', async () => {

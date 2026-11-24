@@ -412,6 +412,234 @@ describe('真实分支列表与切换', () => {
     expect(useWorkbench.getState().error).toBeNull();
   });
 
+  it('本地切换先公布新身份和缓存列表，慢状态或旧分支响应不能覆盖下一次切换', async () => {
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    await useWorkbench.getState().loadBranches();
+    const oldStatus = deferred<NativeRepository>();
+    const oldBranches = deferred<GitBranch[]>();
+    let branch = 'main';
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if (command === 'git_checkout') {
+        branch = (args as { fullName: string }).fullName.slice('refs/heads/'.length);
+        return { branch };
+      }
+      if (command === 'git_status') return branch === 'feature' ? oldStatus.promise : baseRepository;
+      if (command === 'git_branches') return branch === 'feature' ? oldBranches.promise : [mainBranch, featureBranch];
+      return textDiff;
+    });
+
+    const completed = vi.fn();
+    const first = useWorkbench.getState().checkoutBranch(featureBranch.fullName).then(completed);
+    try {
+      await vi.waitFor(() => expect(completed).toHaveBeenCalledOnce(), { timeout: 300 });
+      expect(currentWorktree()).toMatchObject({ branch: 'feature', files: [] });
+      expect(useWorkbench.getState()).toMatchObject({ busy: false, refreshing: true, diff: { file: null } });
+      expect(useWorkbench.getState().branches.items.find(item => item.current)?.name).toBe('feature');
+      await expect(useWorkbench.getState().stage('first.ts')).rejects.toThrow();
+      await vi.waitFor(() => expect(mockedInvoke.mock.calls.filter(([command]) => command === 'git_branches')).toHaveLength(2));
+      await useWorkbench.getState().checkoutBranch(mainBranch.fullName);
+    } finally {
+      oldStatus.resolve({ ...baseRepository, branch: 'feature', files: [] });
+      oldBranches.resolve([{ ...featureBranch, current: true }]);
+      await first;
+    }
+    await vi.waitFor(() => expect(currentWorktree().files).toHaveLength(2));
+    expect(currentWorktree().branch).toBe('main');
+    expect(useWorkbench.getState().branches.items.find(item => item.current)?.name).toBe('main');
+  });
+
+  it('显式切换并更新传递原生同步选项，保留已切换的警告', async () => {
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    const warning = '更新失败，本地切换已完成';
+    mockedInvoke.mockImplementation(async command => {
+      if (command === 'git_checkout') return { branch: 'feature', warning };
+      if (command === 'git_status') return { ...baseRepository, branch: 'feature', files: [] };
+      return [];
+    });
+    await expect(useWorkbench.getState().checkoutBranch(featureBranch.fullName, true)).resolves.toEqual({ branch: 'feature', warning });
+    expect(mockedInvoke).toHaveBeenCalledWith('git_checkout', { repoPath: baseRepository.path, fullName: featureBranch.fullName, syncUpstream: true });
+  });
+
+  it('切换后立即换工作树，前一个工作树的晚到读取不能抢回活动面板', async () => {
+    const repository = { ...baseRepository, worktrees: [mainMetadata, linkedMetadata] };
+    const pending = deferred<NativeRepository>();
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if (command === 'git_open') return repository;
+      if (command === 'git_checkout') return { branch: 'topic' };
+      if (command === 'git_status') return (args as { repoPath: string }).repoPath === repository.path
+        ? pending.promise : { ...repository, path: linkedMetadata.path, branch: 'feature', files: [] };
+      if (command === 'git_branches') return [];
+      return textDiff;
+    });
+    await useWorkbench.getState().openRepository(repository.path);
+    await useWorkbench.getState().checkoutBranch('refs/heads/topic');
+    useWorkbench.getState().selectWorktree('native:' + linkedMetadata.path);
+    await vi.waitFor(() => expect(useWorkbench.getState().refreshing).toBe(false));
+    pending.resolve({ ...repository, branch: 'topic' });
+    await pending.promise;
+    await Promise.resolve();
+    expect(currentWorktree()).toMatchObject({ path: linkedMetadata.path, branch: 'feature', files: [] });
+  });
+
+  it('连续切换的第二次失败时仍补读已确认的分支文件，并保留切换错误', async () => {
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    const firstStatus = deferred<NativeRepository>();
+    let reads = 0;
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if (command === 'git_checkout') {
+        if ((args as { fullName: string }).fullName === mainBranch.fullName) throw '分支冲突';
+        return { branch: 'feature' };
+      }
+      if (command === 'git_status') return ++reads === 1 ? firstStatus.promise : { ...baseRepository, branch: 'feature' };
+      if (command === 'git_branches') return [{ ...featureBranch, current: true }];
+      return textDiff;
+    });
+    await useWorkbench.getState().checkoutBranch(featureBranch.fullName);
+    await expect(useWorkbench.getState().checkoutBranch(mainBranch.fullName)).rejects.toThrow('分支冲突');
+    firstStatus.resolve(baseRepository);
+    await vi.waitFor(() => expect(currentWorktree().checkoutRead).toBeUndefined());
+    expect(currentWorktree()).toMatchObject({ branch: 'feature' });
+    expect(currentWorktree().files).toHaveLength(2);
+    expect(useWorkbench.getState().error).toBe('分支冲突');
+  });
+
+  it.each([
+    { branch: 'external', detached: false },
+    { branch: 'main', detached: true },
+  ])('兄弟工作树发现外部切换 $branch/$detached 后禁止使用旧索引，并在补读成功后恢复', async identity => {
+    const worktrees = [mainMetadata, linkedMetadata];
+    const changed = [{ ...mainMetadata, ...identity }, linkedMetadata];
+    let readable = false;
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if (command === 'git_open') return { ...baseRepository, worktrees, operation: { kind: 'merge', head: 'a', mergeHeads: ['b'], message: 'merge', source: 'topic' } };
+      if (command === 'git_status') {
+        if ((args as { repoPath: string }).repoPath === linkedMetadata.path) {
+          return { ...baseRepository, path: linkedMetadata.path, branch: linkedMetadata.branch, worktrees: changed };
+        }
+        if (!readable) throw '无法读取新索引';
+        return { ...baseRepository, branch: identity.branch, worktrees: changed, files: [{ ...baseRepository.files[0], path: 'new.ts' }] };
+      }
+      return textDiff;
+    });
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    useWorkbench.getState().selectWorktree('native:' + linkedMetadata.path);
+    await vi.waitFor(() => expect(useWorkbench.getState().refreshing).toBe(false));
+    useWorkbench.getState().selectWorktree('native:' + mainMetadata.path);
+    await vi.waitFor(() => expect(useWorkbench.getState().refreshing).toBe(false));
+
+    await expect(useWorkbench.getState().stage('first.ts')).rejects.toThrow('该文件状态已变化');
+    expect(mockedInvoke.mock.calls.some(([command]) => command === 'git_stage')).toBe(false);
+    expect(currentWorktree().files).toEqual([]);
+    expect(currentWorktree().operation).toBeUndefined();
+    expect(currentWorktree().remote).toBeUndefined();
+    expect(currentWorktree().checkoutRead).toMatchObject({ branch: identity.branch, error: expect.stringContaining('无法读取新索引') });
+
+    readable = true;
+    await useWorkbench.getState().refresh();
+    expect(currentWorktree().checkoutRead).toBeUndefined();
+    expect(currentWorktree().files.map(file => file.path)).toEqual(['new.ts']);
+  });
+
+  it('checkout 文件快照失败后离开再返回，持续显示该工作树缺失的快照', async () => {
+    const repository = { ...baseRepository, worktrees: [mainMetadata, linkedMetadata] };
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if (command === 'git_open') return repository;
+      if (command === 'git_checkout') return { branch: 'topic' };
+      if (command === 'git_status' && (args as { repoPath: string }).repoPath === repository.path) throw '权限不足';
+      if (command === 'git_status') return { ...repository, path: linkedMetadata.path, branch: 'feature', worktrees: [{ ...mainMetadata, branch: 'topic' }, linkedMetadata] };
+      if (command === 'git_branches') return [];
+      return textDiff;
+    });
+    await useWorkbench.getState().openRepository(repository.path);
+    await useWorkbench.getState().checkoutBranch('refs/heads/topic');
+    useWorkbench.getState().selectWorktree('native:' + linkedMetadata.path);
+    await vi.waitFor(() => expect(useWorkbench.getState().refreshing).toBe(false));
+    useWorkbench.getState().selectWorktree('native:' + repository.path);
+    await vi.waitFor(() => expect(useWorkbench.getState().refreshing).toBe(false));
+    expect(currentWorktree().checkoutRead?.error).toContain('权限不足');
+  });
+
+  it.each(['open', 'remove'])('%s 打断 checkout 文件读取后重新读当前快照', async action => {
+    const repository = { ...baseRepository, worktrees: [mainMetadata, linkedMetadata] };
+    const stale = deferred<NativeRepository>();
+    let reads = 0;
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if (command === 'git_open') {
+        if ((args as { path: string }).path === '/invalid') throw '无效仓库';
+        return repository;
+      }
+      if (command === 'git_checkout') return { branch: 'topic' };
+      if (command === 'git_status') return ++reads === 1 ? stale.promise : { ...baseRepository, branch: 'topic' };
+      if (command === 'git_remove_worktree') return { warning: null };
+      if (command === 'git_branches') return [];
+      return textDiff;
+    });
+    await useWorkbench.getState().openRepository(repository.path);
+    await useWorkbench.getState().checkoutBranch('refs/heads/topic');
+    if (action === 'open') await expect(useWorkbench.getState().openRepository('/invalid')).rejects.toThrow('无效仓库');
+    else await useWorkbench.getState().removeWorktree(useWorkbench.getState().repositories[0].id, 'native:' + linkedMetadata.path, 'delete');
+    stale.resolve(repository);
+    await vi.waitFor(() => expect(currentWorktree().files).toHaveLength(2));
+    expect(currentWorktree().branch).toBe('topic');
+    expect(useWorkbench.getState().refreshing).toBe(false);
+  });
+
+  it('静默补读成功只消除文件读取错误，保留 checkout hook 警告', async () => {
+    const warning = 'hook 未完成';
+    let available = false;
+    mockedInvoke.mockImplementation(async command => {
+      if (command === 'git_open') return baseRepository;
+      if (command === 'git_checkout') return { branch: 'topic', warning };
+      if (command === 'git_status') {
+        if (!available) throw '无法读取目录';
+        return { ...baseRepository, branch: 'topic' };
+      }
+      if (command === 'git_branches') return [];
+      return textDiff;
+    });
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    await useWorkbench.getState().checkoutBranch('refs/heads/topic');
+    await vi.waitFor(() => expect(useWorkbench.getState().refreshing).toBe(false));
+    available = true;
+    await useWorkbench.getState().refresh({ silent: true });
+    expect(currentWorktree().files).toHaveLength(2);
+    expect(currentWorktree().checkoutRead).toBeUndefined();
+    expect(useWorkbench.getState().error).toBe(warning);
+  });
+
+  it('点选已被外部删除的缓存分支后重读列表，保留本地切换失败原因', async () => {
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    await useWorkbench.getState().loadBranches();
+    mockedInvoke.mockImplementation(async command => {
+      if (command === 'git_checkout') throw '分支不存在';
+      if (command === 'git_branches') return [mainBranch];
+      return textDiff;
+    });
+    await expect(useWorkbench.getState().checkoutBranch(featureBranch.fullName)).rejects.toThrow('分支不存在');
+    await vi.waitFor(() => expect(useWorkbench.getState().branches.items).toEqual([mainBranch]));
+    expect(useWorkbench.getState().error).toBe('分支不存在');
+  });
+
+  it('重复打开同个分支选择器复用在途读取，显式重读仍立即查询', async () => {
+    await useWorkbench.getState().openRepository(baseRepository.path);
+    await useWorkbench.getState().loadBranches();
+    const pending = deferred<GitBranch[]>();
+    mockedInvoke.mockClear();
+    mockedInvoke.mockImplementation(async command => {
+      if (command === 'git_checkout') return { branch: 'feature' };
+      if (command === 'git_status') return { ...baseRepository, branch: 'feature', files: [] };
+      return pending.promise;
+    });
+    await useWorkbench.getState().checkoutBranch(featureBranch.fullName);
+    const reopening = useWorkbench.getState().loadBranches({ allowCached: true });
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === 'git_branches')).toHaveLength(1);
+    const explicit = useWorkbench.getState().loadBranches();
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === 'git_branches')).toHaveLength(2);
+    pending.resolve([{ ...featureBranch, current: true }]);
+    await Promise.all([reopening, explicit]);
+    expect(useWorkbench.getState().branches.items[0].name).toBe('feature');
+  });
+
   it('切换失败保留原分支、选中文件和草稿', async () => {
     await useWorkbench.getState().openRepository(baseRepository.path);
     const draft = { message: '继续编辑\n\n未提交' };
@@ -462,7 +690,7 @@ describe('真实分支列表与切换', () => {
     expect(currentWorktree().branch).toBe('feature');
     expect(currentWorktree().files).toEqual([]);
     expect(useWorkbench.getState().diff.file).toBeNull();
-    expect(useWorkbench.getState().error).toBe('操作已完成，但刷新失败：目录暂时不可用');
+    expect(currentWorktree().checkoutRead?.error).toBe('操作已完成，但刷新失败：目录暂时不可用');
   });
 
   it('post-checkout hook 警告仍按切换成功刷新，提示保留到界面', async () => {

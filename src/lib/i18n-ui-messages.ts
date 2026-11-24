@@ -1,5 +1,37 @@
 /** 应用界面文案；分支、路径、提交信息与文件内容始终保留原文。 */
 export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
+  "终端": {"en": "Terminal", "zh-TW": "終端機"},
+  "终端主题": {"en": "Terminal theme", "zh-TW": "終端機主題"},
+  "经典深色": {"en": "Classic dark", "zh-TW": "經典深色"},
+  "暖色": {"en": "Warm", "zh-TW": "暖色"},
+  "高对比": {"en": "High contrast", "zh-TW": "高對比"},
+  "跟随工作台": {"en": "Match workbench", "zh-TW": "跟隨工作台"},
+  "在终端中打开": {"en": "Open in terminal", "zh-TW": "在終端機中開啟"},
+  "调整终端面板高度": {"en": "Resize terminal panel", "zh-TW": "調整終端機面板高度"},
+  "终端会话": {"en": "Terminal sessions", "zh-TW": "終端機工作階段"},
+  "新建终端": {"en": "New terminal", "zh-TW": "新增終端機"},
+  "选择项目": {"en": "Select a project", "zh-TW": "選擇專案"},
+  "搜索项目": {"en": "Search projects", "zh-TW": "搜尋專案"},
+  "选择工作树": {"en": "Select a worktree", "zh-TW": "選擇工作樹"},
+  "返回项目列表": {"en": "Back to projects", "zh-TW": "返回專案清單"},
+  "1 个工作树": {"en": "1 worktree", "zh-TW": "1 個工作樹"},
+  "{count} 个工作树": {"en": "{count} worktrees", "zh-TW": "{count} 個工作樹"},
+  "没有匹配的项目": {"en": "No matching projects", "zh-TW": "沒有符合的專案"},
+  "没有可用的本地工作树": {"en": "No local worktrees available", "zh-TW": "沒有可用的本機工作樹"},
+  "{name}，有新输出": {"en": "{name}, new output", "zh-TW": "{name}，有新輸出"},
+  "起始目录：{path}": {"en": "Starting directory: {path}", "zh-TW": "起始目錄：{path}"},
+  "关闭终端 {name}": {"en": "Close terminal {name}", "zh-TW": "關閉終端機 {name}"},
+  "还原终端面板": {"en": "Restore terminal panel", "zh-TW": "還原終端機面板"},
+  "最大化终端面板": {"en": "Maximize terminal panel", "zh-TW": "最大化終端機面板"},
+  "收起终端": {"en": "Collapse terminal", "zh-TW": "收合終端機"},
+  "正在启动终端…": {"en": "Starting terminal…", "zh-TW": "正在啟動終端機…"},
+  "终端启动失败": {"en": "Could not start terminal", "zh-TW": "終端機啟動失敗"},
+  "Shell 已退出": {"en": "Shell exited", "zh-TW": "Shell 已結束"},
+  "Shell 已退出，退出码 {code}": {"en": "Shell exited with code {code}", "zh-TW": "Shell 已結束，結束代碼 {code}"},
+  "重新启动": {"en": "Restart", "zh-TW": "重新啟動"},
+  "关闭这个终端？": {"en": "Close this terminal?", "zh-TW": "關閉這個終端機？"},
+  "关闭会终止这个 Shell 和该终端中的任务。": {"en": "Closing this terminal ends its shell and jobs.", "zh-TW": "關閉將終止這個 Shell 及該終端機中的工作。"},
+  "关闭终端": {"en": "Close terminal", "zh-TW": "關閉終端機"},
   "未合并": {"en": "Unmerged", "zh-TW": "未合併"},
   "此侧不存在": {"en": "Absent on this side", "zh-TW": "此側不存在"},
   "当前侧（ours）": {"en": "Current side (ours)", "zh-TW": "目前側（ours）"},
@@ -786,14 +818,16 @@ export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
     "en": "Latest commits first",
     "zh-TW": "最近提交優先"
   },
-  "远程分支来自本地已获取的记录；切换后会检查远程上游并自动快进拉取。": {
-    "en": "Remote branches use fetched references. Switching checks the remote upstream and pulls fast-forward updates automatically.",
-    "zh-TW": "遠端分支來自本機已擷取的記錄；切換後會檢查遠端上游並自動快進拉取。"
+  "点击分支可在本地切换。「切换并更新」会获取上游，并在可快进时拉取。": {
+    "en": "Select a branch to switch locally. Switch and update fetches its upstream and pulls if a fast-forward is possible.",
+    "zh-TW": "點選分支可在本機切換。「切換並更新」會擷取上游，並在可快轉時拉取。"
   },
-  "正在切换并检查远程更新，落后时自动快进拉取…": {
-    "en": "Switching and checking remote updates; pulling fast-forward updates when behind…",
-    "zh-TW": "正在切換並檢查遠端更新，落後時自動快進拉取…"
-  },
+  "切换并更新": { "en": "Switch and update", "zh-TW": "切換並更新" },
+  "切换并更新 {value1}": { "en": "Switch and update {value1}", "zh-TW": "切換並更新 {value1}" },
+  "正在切换…": { "en": "Switching…", "zh-TW": "正在切換…" },
+  "正在切换并更新…": { "en": "Switching and updating…", "zh-TW": "正在切換並更新…" },
+  "正在读取文件状态…": { "en": "Reading file status…", "zh-TW": "正在讀取檔案狀態…" },
+  "文件状态读取失败": { "en": "Could not read file status", "zh-TW": "檔案狀態讀取失敗" },
   "正在检查分支…": {
     "en": "Checking branch…",
     "zh-TW": "正在檢查分支…"

@@ -9,11 +9,12 @@ describe('原生工作区同步快照', () => {
   it('兄弟目录使用各自上游，不复制当前分支数字', () => {
     expect(toRepository(source).worktrees.map(item => item.branchSync)).toEqual([main.branchSync, linked.branchSync]);
   });
-  it.each([null, undefined])('新元数据缺少同步信息时清除兄弟旧快照，保留已加载文件', branchSync => {
+  it.each([null, undefined])('同一分支缺少同步信息时清除兄弟旧计数，保留已加载文件', branchSync => {
     const previous = toRepository(source);
     previous.worktrees[1].files = [{ id: 'draft.ts', path: 'draft.ts', language: 'typescript', head: '', index: '', working: 'draft' }];
-    const next = toRepository({ ...source, worktrees: [main, { ...linked, branch: 'other', branchSync }] }, previous);
-    expect(next.worktrees[1]).toMatchObject({ branch: 'other', branchSync: null });
+    const next = toRepository({ ...source, worktrees: [main, { ...linked, branchSync }] }, previous);
+    expect(next.worktrees[1]).toMatchObject({ branch: 'feature', branchSync: null });
+    expect(next.worktrees[1].checkoutRead).toBeUndefined();
     expect(next.worktrees[1].files).toBe(previous.worktrees[1].files);
   });
   it('当前工作区分支读取期间变化时不使用另一分支的计数', () => {

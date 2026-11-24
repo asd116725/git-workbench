@@ -57,6 +57,27 @@ describe('分支管理入口和分支保护', () => {
     expect(html).toMatch(/class="branch-option is-current" disabled=""/);
   });
 
+  it('重新打开并刷新时保留已有行和独立可访问的切换并更新入口', () => {
+    hooks.workbench.mockReturnValue({ branches: { items: branches, loading: true, error: null }, busy: false, loadBranches: vi.fn() });
+    const html = renderToStaticMarkup(<BranchPickerDialog worktree={worktree} open onOpenChange={vi.fn()} />);
+    expect(deleteButton(html, '切换到 feature/search')).toBeDefined();
+    expect(deleteButton(html, '切换并更新 origin/main')).toBeDefined();
+  });
+
+  it('只有远程上游可以切换并更新，跟踪本地分支仍可普通切换', () => {
+    const items = [
+      branch('local', { upstream: 'refs/heads/main', upstreamRemote: '.' }),
+      branch('custom', { upstream: 'refs/team/main', upstreamRemote: 'team' }),
+      branch('missing'),
+    ];
+    hooks.workbench.mockReturnValue({ branches: { items, loading: false, error: null }, busy: false });
+    const html = renderToStaticMarkup(<BranchPickerDialog worktree={worktree} open onOpenChange={vi.fn()} />);
+    expect(deleteButton(html, '切换并更新 custom')).toBeDefined();
+    expect(deleteButton(html, '切换并更新 local')).toBeUndefined();
+    expect(deleteButton(html, '切换并更新 missing')).toBeUndefined();
+    expect(deleteButton(html, '切换到 local')).not.toContain(' disabled=""');
+  });
+
   it('保留非零计数的完整数字，并隐藏同步、未知、无上游与远程分支计数', () => {
     const renderBranch = (patch: Partial<GitBranch>) => {
       hooks.workbench.mockReturnValue({ branches: { items: [branch('feature/sync', { upstream: 'refs/remotes/origin/feature/sync', ahead: 3, behind: 2, ...patch })], loading: false, error: null }, busy: false, loadBranches: vi.fn() });

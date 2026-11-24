@@ -30,8 +30,9 @@ export function startAutoRefresh(): () => void {
   let path: string | null = null;
   let generation = 0;
   let scheduler: RefreshScheduler | undefined;
-  let remotePath: string | null = null;
-  let remoteScheduler: ReturnType<typeof createRemoteRefreshScheduler> | undefined;
+  let remoteRepositoryId: string | null = null;
+  let hasRemotes = false;
+  const remoteScheduler = createRemoteRefreshScheduler(signal => useWorkbench.getState().checkRemote(signal));
   const unlisteners: UnlistenFn[] = [];
 
   function reportError(error: unknown) {
@@ -45,7 +46,7 @@ export function startAutoRefresh(): () => void {
       return !busy && !restoring && !refreshing && !autoRefreshing;
     }
     scheduler?.setState({ focused, idle: isIdle() });
-    remoteScheduler?.setEligible(ready && focused && isIdle());
+    remoteScheduler.setState(remoteRepositoryId, ready && focused && hasRemotes && isIdle());
   }
 
   function updateWatch() {
@@ -65,13 +66,9 @@ export function startAutoRefresh(): () => void {
     const state = useWorkbench.getState();
     const worktree = findWorktree(state.repositories, state.activeWorktreeId);
     const nextPath = worktree?.source === 'native' && !worktree.bare && worktree.available !== false ? worktree.path : null;
-    const nextRemotePath = worktree?.remote?.remotes.length ? nextPath : null;
-    if (nextRemotePath !== remotePath) {
-      const previous = remoteScheduler;
-      remotePath = nextRemotePath;
-      remoteScheduler = remotePath ? createRemoteRefreshScheduler(signal => useWorkbench.getState().checkRemote(signal)) : undefined;
-      previous?.dispose();
-    }
+    // 同组工作树共享远程引用。切换后的状态可能暂未读回，保留已有的检查周期。
+    hasRemotes = Boolean(worktree?.remote?.remotes.length);
+    remoteRepositoryId = nextPath ? state.repositories.find(repo => repo.worktrees.some(item => item.id === state.activeWorktreeId))?.id ?? null : null;
     if (nextPath !== path) {
       scheduler?.dispose();
       path = nextPath;
@@ -135,7 +132,7 @@ export function startAutoRefresh(): () => void {
     disposed = true;
     unsubscribe();
     scheduler?.dispose();
-    remoteScheduler?.dispose();
+    remoteScheduler.dispose();
     for (const unlisten of unlisteners) unlisten();
     void watchRepository(null).catch(() => {});
   };

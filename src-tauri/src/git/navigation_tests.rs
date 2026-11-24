@@ -213,6 +213,119 @@ fn counts(repo: &Path, name: &str) -> (Option<u64>, Option<u64>) {
 }
 
 #[test]
+fn checkout_only_reads_the_selected_branch() {
+    let fixture = TrackingFixture::new();
+    let repo = &fixture.local;
+    git(repo, &["branch", "--no-track", "target"]).unwrap();
+    fs::write(repo.join("metadata.bin"), "metadata").unwrap();
+    let blob = git_line(repo, &["hash-object", "-w", "metadata.bin"]).unwrap();
+    git(repo, &["update-ref", "refs/remotes/origin/metadata", &blob]).unwrap();
+
+    assert_eq!(
+        checkout(repo, "refs/heads/target").unwrap().branch,
+        "target"
+    );
+    assert_eq!(
+        git_line(repo, &["branch", "--show-current"]).unwrap(),
+        "target"
+    );
+}
+
+#[test]
+fn checkout_rejects_prefix_matches_and_symbolic_refs() {
+    let fixture = TrackingFixture::new();
+    let repo = &fixture.local;
+    git(repo, &["branch", "--no-track", "topic/detail"]).unwrap();
+    git(
+        repo,
+        &[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/main",
+        ],
+    )
+    .unwrap();
+
+    assert!(checkout_local(repo, "refs/heads/topic").is_err());
+    assert!(checkout_local(repo, "refs/remotes/origin/HEAD").is_err());
+    assert_eq!(
+        git_line(repo, &["branch", "--show-current"]).unwrap(),
+        "main"
+    );
+}
+
+#[test]
+fn checkout_without_upstream_sync_uses_the_local_tip() {
+    let fixture = TrackingFixture::new();
+    let repo = &fixture.local;
+    let before = git_line(repo, &["rev-parse", "HEAD"]).unwrap();
+    git(repo, &["switch", "--no-track", "-c", "other"]).unwrap();
+    commit_empty(&fixture.peer, "unfetched");
+    git(&fixture.peer, &["push", "origin", "main"]).unwrap();
+    let result = tauri::async_runtime::block_on(git_checkout(
+        repo.to_string_lossy().into_owned(),
+        "refs/heads/main".into(),
+        None,
+    ))
+    .unwrap();
+    assert_eq!(result.branch, "main");
+    assert!(result.warning.is_none());
+    assert_eq!(git_line(repo, &["rev-parse", "HEAD"]).unwrap(), before);
+    assert_eq!(
+        git_line(repo, &["rev-parse", "origin/main"]).unwrap(),
+        before
+    );
+}
+
+#[test]
+fn branch_listing_does_not_wait_for_the_common_directory_lock() {
+    let fixture = TrackingFixture::new();
+    let path = fixture.local.to_string_lossy().into_owned();
+    let common = common_directory(&fixture.local).unwrap();
+    let (send, receive) = std::sync::mpsc::channel();
+    let listed = std::thread::scope(|threads| {
+        with_common_directory(common, |_| {
+            threads.spawn(move || {
+                send.send(tauri::async_runtime::block_on(git_branches(path)))
+                    .unwrap();
+            });
+            Ok(receive.recv_timeout(std::time::Duration::from_secs(3)))
+        })
+        .unwrap()
+    });
+
+    let branches = listed.expect("分支列表读取应独立于仓库写锁").unwrap();
+    assert!(
+        branches
+            .iter()
+            .any(|branch| branch.current && branch.name == "main")
+    );
+}
+
+#[test]
+fn branch_list_identifies_local_remote_and_missing_upstreams() {
+    let fixture = TrackingFixture::new();
+    let repo = &fixture.local;
+    git(
+        repo,
+        &["branch", "--track=direct", "local-tracking", "main"],
+    )
+    .unwrap();
+    git(repo, &["branch", "--no-track", "local-only", "main"]).unwrap();
+    for (name, upstream) in [
+        ("main", Some("origin")),
+        ("local-tracking", Some(".")),
+        ("local-only", None),
+    ] {
+        let branch = serde_json::to_value(find_branch(repo, name)).unwrap();
+        assert_eq!(
+            branch.get("upstreamRemote"),
+            Some(&serde_json::json!(upstream))
+        );
+    }
+}
+
+#[test]
 fn checkout_fetches_unseen_commits_and_fast_forwards_the_selected_branch() {
     for (target, new_tracking_branch) in [
         ("refs/heads/main", false),
@@ -230,7 +343,12 @@ fn checkout_fetches_unseen_commits_and_fast_forwards_the_selected_branch() {
             git(repo, &["branch", "-D", "main"]).unwrap();
         }
 
-        let result = checkout(repo, target).unwrap();
+        let result = tauri::async_runtime::block_on(git_checkout(
+            repo.to_string_lossy().into_owned(),
+            target.into(),
+            Some(true),
+        ))
+        .unwrap();
         assert_eq!(result.branch, "main");
         assert!(result.warning.is_none(), "{:?}", result.warning);
         assert_eq!(

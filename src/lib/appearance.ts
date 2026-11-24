@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { restoreTerminalTheme, type TerminalTheme } from './terminal-theme';
 
 /** 用户保存的外观模式。 */
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -14,7 +15,9 @@ export const themeBackgrounds = { light: '#ffffff', dark: '#282c34' } as const;
 interface AppearanceState {
   theme: ThemeMode;
   resolvedTheme: ResolvedTheme;
+  terminalTheme: TerminalTheme;
   setTheme: (theme: ThemeMode) => void;
+  setTerminalTheme: (terminalTheme: TerminalTheme) => void;
   setSystemTheme: (theme: ResolvedTheme) => void;
 }
 
@@ -30,17 +33,20 @@ function resolveTheme(theme: ThemeMode): ResolvedTheme {
 export const useAppearance = create<AppearanceState>()(persist(set => ({
   theme: 'dark',
   resolvedTheme: 'dark',
+  terminalTheme: 'classic',
   setTheme: theme => set({ theme, resolvedTheme: resolveTheme(theme) }),
+  setTerminalTheme: terminalTheme => set({ terminalTheme }),
   setSystemTheme: resolvedTheme => set(state => state.theme === 'system' && state.resolvedTheme !== resolvedTheme
     ? { resolvedTheme } : state),
 }), {
   name: 'git-workbench.appearance',
   storage: createJSONStorage(() => localStorage),
-  partialize: state => ({ theme: state.theme }),
+  partialize: state => ({ theme: state.theme, terminalTheme: state.terminalTheme }),
   merge: (saved, current) => {
-    const value = (saved as Partial<AppearanceState> | null)?.theme;
+    const preferences = saved as Partial<AppearanceState> | null;
+    const value = preferences?.theme;
     const theme = value === 'light' || value === 'system' ? value : 'dark';
-    return { ...current, theme, resolvedTheme: resolveTheme(theme) };
+    return { ...current, theme, resolvedTheme: resolveTheme(theme), terminalTheme: restoreTerminalTheme(preferences?.terminalTheme) };
   },
 }));
 
