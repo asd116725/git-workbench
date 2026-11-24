@@ -45,6 +45,7 @@ Git Workbench 是面向多项目、多分支开发的桌面 Git 客户端。把�
 | **仓库与 worktree** | 切换本地仓库与关联工作树，自定义[显示名称](docs/zh-CN/user-manual.md#31-自定义显示名称1100)，拖动调整[侧栏顺序](docs/zh-CN/user-manual.md#32-侧栏排序1100)。[从列表移除仓库](docs/zh-CN/user-manual.md#35-从列表移除仓库)时保留磁盘文件。 |
 | **Diff 与暂存** | 查看内联或并排 Diff，暂存或取消暂存文件、目录及整组变更，确认后撤销未暂存修改；只提交暂存内容，保留其他编辑。 |
 | **分支与同步** | 搜索、创建、删除及合并分支，获取、拉取、推送或首次发布分支，查看待拉取和待推送数量。 |
+| **内置终端** | 在工作树目录打开 Shell，管理多个标签，重启后可恢复起始目录和顺序。 |
 | **提交历史** | 同时浏览提交列表、变更文件与历史 Diff，搜索所选分支的完整可达历史，识别尚未推送的记录。 |
 | **可选 AI 草稿** | 使用 DeepSeek 根据暂存修改生成候选提交信息，先预览编辑，再明确填入草稿并手动提交。 |
 | **阅读与操作体验** | 调整分栏宽度、代码字号和 Diff 模式，选择浅色、深色或跟随系统外观，支持简体中文、繁體中文与 English。 |
@@ -53,13 +54,13 @@ Git Workbench 是面向多项目、多分支开发的桌面 Git 客户端。把�
 
 ## 下载与快速上手
 
-**v1.16.0 · macOS Apple Silicon（arm64）**
+**v1.17.0 · macOS Apple Silicon（arm64）**
 
 | 下载内容 | 链接 |
 | --- | --- |
-| macOS 安装包 | [GitWorkbench_1.16.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.16.0/GitWorkbench_1.16.0_macos_arm64.dmg) |
-| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.16.0/SHA256SUMS.txt) |
-| 版本说明 | [v1.16.0 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.16.0) |
+| macOS 安装包 | [GitWorkbench_1.17.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.17.0/GitWorkbench_1.17.0_macos_arm64.dmg) |
+| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.17.0/SHA256SUMS.txt) |
+| 版本说明 | [v1.17.0 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.17.0) |
 
 1. **安装应用**：使用同一 Release 的校验文件核对 DMG，将「代码管理」拖入 Applications。[安装说明 →](docs/zh-CN/installation.md)
 2. **打开项目**：确认 `git --version` 可用，点击「打开仓库」，选择已有本地仓库，关联 worktree 会一并列出。
@@ -69,9 +70,9 @@ Git Workbench 是面向多项目、多分支开发的桌面 Git 客户端。把�
 
 ## 支持范围与限制
 
-- **本地仓库**：打开已有仓库与关联 worktree；克隆、初始化及 worktree 的创建、删除需使用 Git 或其他工具。
+- **本地仓库**：打开已有仓库，删除关联工作树及清理失效记录。克隆、初始化及创建工作树需使用 Git 或其他工具。
 - **桌面暂存**：支持文件、目录和整组操作，暂不支持按变更块暂存或内置冲突编辑；冲突需在外部编辑器解决，再回到应用完成合并。
-- **分支同步**：开发版默认在本地切换，有远程上游时可选择「切换并更新」执行快进拉取。同步数量基于本地已获取的引用，点击「获取」可更新。[分支与远程操作 →](docs/zh-CN/user-manual.md#43-获取拉取与推送)
+- **分支同步**：默认在本地切换分支，有远程上游时可选择「切换并更新」执行快进拉取。同步数量基于本地已获取的引用，点击「获取」可更新。[分支与远程操作 →](docs/zh-CN/user-manual.md#43-获取拉取与推送)
 - **会话草稿**：提交草稿仅保留在本次应用会话中，使用 `⌘Q` 完全退出或更新前请另行保存。仓库路径、显示名称、顺序及偏好设置会持久保留。
 - **版本更新**：从 [Releases](https://github.com/asd116725/git-workbench/releases) 下载并安装新版本，暂无自动更新。
 

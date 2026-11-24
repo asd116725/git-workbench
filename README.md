@@ -45,6 +45,7 @@ Recorded in the native app with an English interface, captions, and fictional ex
 | **Repositories & worktrees** | Switch between local repositories and linked worktrees. Customize [display names](docs/user-manual.md#31-custom-display-names-1100) and drag to [reorder the sidebar](docs/user-manual.md#32-sidebar-ordering-1100). [Remove repositories from the list](docs/user-manual.md#35-remove-a-repository-from-the-list) while keeping their files on disk. |
 | **Diffs & staging** | Read inline or side-by-side diffs. Stage or unstage files, directories, or entire groups; discard unstaged changes after confirmation. Commit staged content while keeping other edits. |
 | **Branches & sync** | Search, create, delete, and merge branches. Fetch, pull, push, or publish a new branch, with incoming and outgoing commit counts. |
+| **Integrated terminal** | Open a shell in a worktree, manage multiple tabs, and restore their starting directories and order after restarting. |
 | **Commit history** | Browse commits, changed files, and historical diffs together. Search the selected branch's full reachable history and identify unpushed commits. |
 | **Optional AI drafts** | Ask DeepSeek for a commit-message candidate based on staged changes. Review and edit it, then explicitly apply it before committing. |
 | **A comfortable workspace** | Adjust pane widths, code font size, and diff mode. Choose Light, Dark, or System appearance and English, Simplified Chinese, or Traditional Chinese. |
@@ -53,13 +54,13 @@ Recorded in the native app with an English interface, captions, and fictional ex
 
 ## Download and get started
 
-**v1.16.0 · macOS Apple Silicon (arm64)**
+**v1.17.0 · macOS Apple Silicon (arm64)**
 
 | Download | Link |
 | --- | --- |
-| macOS installer | [GitWorkbench_1.16.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.16.0/GitWorkbench_1.16.0_macos_arm64.dmg) |
-| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.16.0/SHA256SUMS.txt) |
-| Release notes | [What's new in v1.16.0](https://github.com/asd116725/git-workbench/releases/tag/v1.16.0) |
+| macOS installer | [GitWorkbench_1.17.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.17.0/GitWorkbench_1.17.0_macos_arm64.dmg) |
+| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.17.0/SHA256SUMS.txt) |
+| Release notes | [What's new in v1.17.0](https://github.com/asd116725/git-workbench/releases/tag/v1.17.0) |
 
 1. **Install.** Verify the DMG with the checksum file from the same release, then drag **代码管理** (Git Workbench) into Applications. [Installation guide →](docs/installation.md)
 2. **Open your project.** Make sure `git --version` works, choose **Open repository**, and select an existing local repository. Its linked worktrees appear alongside it.
@@ -69,9 +70,9 @@ The app is **ad-hoc signed and not Apple-notarized**. See [first-launch instruct
 
 ## Support and limitations
 
-- **Local repositories:** open existing repositories and linked worktrees. Cloning, initialization, and creating or removing worktrees require Git or another tool.
+- **Local repositories:** open existing repositories, delete linked worktrees, and clean up stale entries. Cloning, initialization, and creating worktrees require Git or another tool.
 - **Desktop staging:** files, directories, and groups are supported. Individual-hunk staging and a built-in conflict editor are not available; resolve conflicts in your editor, then return to finish the merge.
-- **Branch synchronization:** the development build switches branches locally by default. Use **Switch and update** to fast-forward from a remote upstream. Sync counts use locally fetched refs and can be refreshed with **Fetch**. [Branch and remote workflows →](docs/user-manual.md#43-fetch-pull-and-push)
+- **Branch synchronization:** the app switches branches locally by default. Use **Switch and update** to fast-forward from a remote upstream. Sync counts use locally fetched refs and can be refreshed with **Fetch**. [Branch and remote workflows →](docs/user-manual.md#43-fetch-pull-and-push)
 - **Session drafts:** commit drafts last only for the current app session. Save them before fully quitting with `⌘Q` or updating. Repository paths, display names, ordering, and preferences persist.
 - **Updates:** download and install new versions from [Releases](https://github.com/asd116725/git-workbench/releases); there is no automatic updater.
 

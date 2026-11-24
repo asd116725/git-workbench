@@ -2,7 +2,7 @@
 
 **English** | [简体中文](zh-CN/user-manual.md)
 
-This manual covers the stable `1.16.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.16.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.16.0). The browser uses separate demo data and does not access real repositories.
+This manual covers the stable `1.17.0` desktop release. Installers are available only for macOS Apple Silicon (arm64) from the [v1.17.0 release](https://github.com/asd116725/git-workbench/releases/tag/v1.17.0). The browser uses separate demo data and does not access real repositories.
 
 Choose Simplified Chinese, Traditional Chinese, or English from [settings](#9-refreshing-and-settings). Screenshots show the v1.8.0 English interface with fictional demo data; the naming and sorting controls added in v1.10.0 are described below.
 
@@ -19,7 +19,7 @@ Drag pane boundaries to resize them. **Commit history** opens a read-only three-
 
 On macOS, the red close button hides the main window and ends its integrated terminal shells and jobs. Click the Dock icon to restore repositories, the current diff, and drafts. Use `⌘Q` or **Quit** from the app menu to end the app and its terminal jobs. Repository paths are restored on startup. Commit drafts last for the current app session.
 
-Terminal tabs remember their starting directories, order, and selection. Open the terminal panel after restarting the app to restore its tabs and start a fresh shell in the selected tab's original directory. Collapsing the terminal panel keeps its jobs running.
+Use **Terminal** in the status bar or **⋯ → Open in terminal** on a worktree to start a shell in that worktree. Terminal tabs remember their starting directories, order, and selection. Open the terminal panel after restarting the app to restore its tabs and start a fresh shell in the selected tab's original directory. Collapsing the terminal panel keeps its jobs running.
 
 ## 2. Open a local repository
 
@@ -47,7 +47,7 @@ Each project has its own group, with a folder icon and worktree count in the hea
 
 Each worktree has its own files, index, and commit draft for the current session. Staging and committing affect only the selected worktree. Check the path in the bottom bar before switching targets.
 
-After worktrees are added or deleted externally, Git metadata watching updates the list. You can also click **Refresh** for an immediate read. Worktrees whose directories have moved or become inaccessible cannot be opened normally. Creating, deleting, or repairing worktrees still requires Git commands or another tool.
+After worktrees are added or deleted externally, Git metadata watching updates the list. You can also click **Refresh** for an immediate read. Worktrees whose directories have moved or become inaccessible cannot be opened normally. Use Git or another tool to create or repair worktrees.
 
 ### 3.1 Custom display names (1.10.0)
 
@@ -74,6 +74,8 @@ The app remembers the side, collapsed state, and expanded width. Moving or colla
 ### 3.4 More worktree actions
 
 Open **⋯** on a main or linked worktree to copy its full folder path, open the folder in the system file manager, or customize its display name. Actions target that row without switching the active worktree. **Open folder** is disabled for unavailable directories; the registered path can still be copied and the display name changed. The six-dot handle remains available for sorting.
+
+On a linked worktree, use **⋯ → Delete worktree…** and confirm the target path. Deletion removes the directory and ignored files, keeps the local branch, and checks for uncommitted changes. For an entry whose directory is missing, use **⋯ → Clean up stale entry…** to remove its registration.
 
 ### 3.5 Remove a repository from the list
 
@@ -141,9 +143,7 @@ Branches cannot be created or deleted while a merge, rebase, cherry-pick, or sim
 
 ## 4.3 Fetch, pull, and push
 
-In the development build, branch management closes when the local switch finishes. Background fetch updates remote refs and incoming commit counts. Use **Pull** from the toolbar when the branch is behind, or choose **Switch and update** to switch and pull in one action. If divergence, a network error, or local changes prevent a fast-forward pull, the selected branch stays active and a warning explains what happened.
-
-The v1.16.0 installer automatically attempts a fast-forward pull after switching to a branch with a remote upstream, a behavior introduced in v1.6.2.
+By default, switching branches runs locally and closes branch management when it finishes. Background fetch updates remote refs and incoming commit counts. Use **Pull** from the toolbar when the branch is behind, or choose **Switch and update** to switch and pull in one action. If divergence, a network error, or local changes prevent a fast-forward pull, the selected branch stays active and a warning explains what happened.
 
 These features are available starting with 1.3.0. Configure a remote for the repository first. The app uses your installed Git's credentials and SSH configuration; it does not provide a sign-in form.
 
