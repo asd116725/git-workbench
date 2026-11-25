@@ -46,7 +46,7 @@ import { TerminalWorkspace } from './components/TerminalWorkspace';
 import { isTerminalWorktree, useTerminalWorkspace } from './lib/terminal-workspace';
 import { branchLabel, worktreeLabel, worktreeSyncDescription } from './components/branch-display';
 import { buildChangeTree } from './lib/change-tree';
-import { findWorktree, getMergeMessage, getRegisteredRepositoryPath, usePreferences, useWorkbench } from './lib/store';
+import { findWorktree, getMergeMessage, getRegisteredRepositoryPath, isActiveWorktreeBusy, pushForWorktree, usePreferences, useWorkbench } from './lib/store';
 import { commitBlockReason, mergeStartBlockReason } from './lib/merge-view';
 import { startAutoRefresh } from './lib/auto-refresh';
 import { getChanges, getFileStatus } from './lib/demo-git';
@@ -150,7 +150,7 @@ function RepositorySidebar({ onOpen, onSettings, onMove, onOpenTerminal }: {
   onOpenTerminal: (repository: Repository, worktree: Worktree) => void;
 }) {
   useI18n();
-  const { repositories, activeWorktreeId, selectWorktree, busy, restoring, backgroundFetchingRepositoryIds } = useWorkbench();
+  const { repositories, activeWorktreeId, selectWorktree, busy, restoring, pushes, backgroundFetchingRepositoryIds } = useWorkbench();
   const { sidebarSide, sidebarCollapsed, sidebarWidth, setSidebarCollapsed } = usePreferences();
   const names = useDisplayNames(state => state.names);
   const order = useSidebarOrder(state => state.order);
@@ -218,30 +218,32 @@ function RepositorySidebar({ onOpen, onSettings, onMove, onOpenTerminal }: {
         const worktrees = orderedItems(repository.worktrees, order.worktrees[repository.id]);
         const worktreeIds = worktrees.map(item => item.id);
         const fetching = backgroundFetchingRepositoryIds.includes(repository.id);
+        const push = pushes[repository.id];
         return <Collapsible className={`repository-group${active ? ' contains-current' : ''}`} defaultOpen={active} key={repository.id} {...sorting.rowProps(null, repository.id)}>
           <div className="repository-row">
             <CollapsibleTrigger className="repository-toggle" aria-label={t("展开或收起仓库 {name}", { name })}><Icon name="chevron-down" /></CollapsibleTrigger>
-            <button className="repository-select" disabled={busy} aria-label={t("选择仓库 {name}", { name })} title={name} onClick={() => {
+            <button className="repository-select" disabled={busy} aria-label={[t("选择仓库 {name}", { name }), push && t("推送中")].filter(Boolean).join(' · ')} title={name} onClick={() => {
               const first = firstAvailableWorktree(repository);
               if (!active && first) selectWorktree(first.id);
-            }}><span className="repository-icon"><Icon name="folder" /><Icon name="folder-opened" /></span><span className="repository-name">{name}</span><small className="repository-worktree-count" title={t("{value1} 个工作区", { value1: repository.worktrees.length })}><span className="repository-count-label">{t(repository.worktrees.length === 1 ? "1 工作树" : "{count} 工作树", { count: repository.worktrees.length })}</span>{active && <span className="repository-current-label">{t("当前 · {count}", { count: repository.worktrees.length })}</span>}</small></button>
+            }}><span className="repository-icon"><Icon name="folder" /><Icon name="folder-opened" /></span><span className="repository-name">{name}</span>{push && <PushProgress className="repository-push-progress" branch={push.branch} />}<small className="repository-worktree-count" title={t("{value1} 个工作区", { value1: repository.worktrees.length })}><span className="repository-count-label">{t(repository.worktrees.length === 1 ? "1 工作树" : "{count} 工作树", { count: repository.worktrees.length })}</span>{active && <span className="repository-current-label">{t("当前 · {count}", { count: repository.worktrees.length })}</span>}</small></button>
             {sortHandle(null, repository.id, name, repositoryIds)}
-            <RepositoryActions name={name} disabled={busy || restoring} fetching={fetching}
+            <RepositoryActions name={name} disabled={busy || restoring} fetching={fetching || Boolean(push)}
               onRename={trigger => rename(repository.id, 'project', repository.name, trigger)}
               onRemove={trigger => setRemoveTarget({ id: repository.id, name, path: getRegisteredRepositoryPath(repository), worktreeCount: repository.worktrees.length, trigger })} />
           </div>
           <CollapsibleContent><div className="worktree-list">{worktrees.map(worktree => {
             const syncDescription = worktreeSyncDescription(worktree);
             const name = worktreeLabel(worktree, names[worktree.id]);
+            const pushing = push?.worktreeId === worktree.id;
             const details = [name, worktree.isMain ? t('主工作区') : t('关联'), branchLabel(worktree), worktree.path, syncDescription, worktree.locked !== undefined && worktree.locked !== null ? t("锁定：{value1}", { value1: worktree.locked || t("已锁定") }) : '', worktree.prunable ? t("可清理：{value1}", { value1: worktree.prunable }) : ''].filter(Boolean).join('\n');
             return <div className="worktree-row-container" key={worktree.id} {...sorting.rowProps(repository.id, worktree.id)}><Tooltip><TooltipTrigger asChild><button
             disabled={busy || worktree.available === false || worktree.bare}
             className={`worktree-row ${activeWorktreeId === worktree.id ? 'selected' : ''}`}
             aria-current={activeWorktreeId === worktree.id ? 'page' : undefined}
             onClick={() => selectWorktree(worktree.id)}
-          ><Icon name={worktree.isMain ? 'device-desktop' : 'worktree'} /><span className="worktree-copy"><span className="worktree-title"><span className="worktree-name">{name}</span>{worktree.isMain && names[worktree.id] && <span className="worktree-kind" title={t('主工作区')}>{t('主')}</span>}{!worktree.isMain && <span className="worktree-kind">{t("关联")}</span>}{worktree.locked !== undefined && worktree.locked !== null && <Icon name="lock" className="worktree-lock" />}{activeWorktreeId === worktree.id && <span className="worktree-current">{t("当前")}</span>}</span><span className="worktree-branch"><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="worktree-branch-name">{worktree.bare ? t("裸仓库") : worktree.available === false ? t("目录不可用") : branchLabel(worktree)}</span>{syncDescription && <BranchSyncCounts sync={worktree.branchSync} />}</span></span>{syncDescription && <span className="sr-only">{syncDescription}</span>}</button></TooltipTrigger><TooltipContent className="worktree-tooltip">{details}</TooltipContent></Tooltip>
+          ><Icon name={worktree.isMain ? 'device-desktop' : 'worktree'} /><span className="worktree-copy"><span className="worktree-title"><span className="worktree-name">{name}</span>{worktree.isMain && names[worktree.id] && <span className="worktree-kind" title={t('主工作区')}>{t('主')}</span>}{!worktree.isMain && <span className="worktree-kind">{t("关联")}</span>}{worktree.locked !== undefined && worktree.locked !== null && <Icon name="lock" className="worktree-lock" />}{pushing ? <PushProgress className="worktree-current" branch={push.branch} /> : activeWorktreeId === worktree.id && <span className="worktree-current">{t("当前")}</span>}</span><span className="worktree-branch"><Icon name={worktree.detached ? 'git-commit' : 'git-branch'} /><span className="worktree-branch-name">{worktree.bare ? t("裸仓库") : worktree.available === false ? t("目录不可用") : branchLabel(worktree)}</span>{syncDescription && <BranchSyncCounts sync={worktree.branchSync} />}</span></span>{syncDescription && <span className="sr-only">{syncDescription}</span>}</button></TooltipTrigger><TooltipContent className="worktree-tooltip">{details}</TooltipContent></Tooltip>
               {sortHandle(repository.id, worktree.id, name, worktreeIds)}
-              <WorktreeActions worktree={worktree} name={name} busy={busy || restoring} fetching={fetching}
+              <WorktreeActions worktree={worktree} name={name} busy={busy || restoring} fetching={fetching || Boolean(push)}
                 onOpenTerminal={isTerminalWorktree(worktree) ? () => onOpenTerminal(repository, worktree) : undefined}
                 onRename={trigger => rename(worktree.id, worktree.isMain ? 'main' : 'worktree', worktreeLabel(worktree), trigger)}
                 onRemove={(trigger, mode) => setRemoveWorktreeTarget({ repositoryId: repository.id, worktree, name, mode, trigger })} />
@@ -265,9 +267,14 @@ function RepositorySidebar({ onOpen, onSettings, onMove, onOpenTerminal }: {
   </aside>;
 }
 
+function PushProgress({ branch, className }: { branch: string; className: string }) {
+  return <span className={`push-progress ${className}`} title={branch}><Icon name="loading spin" />{t("推送中")}</span>;
+}
+
 function WorkbenchToolbar({ worktree, onBranchOpen, onMergeOpen }: { worktree: Worktree; onBranchOpen: () => void; onMergeOpen: () => void }) {
   useI18n();
-  const { view, setView, busy, refreshing, refresh } = useWorkbench();
+  const { view, setView, refreshing, refresh } = useWorkbench();
+  const busy = useWorkbench(isActiveWorktreeBusy);
   const real = worktree.source === 'native';
   const mergeBlocked = mergeStartBlockReason(worktree);
   const historyLoading = useHistory(state => state.sessions[worktree.id]?.loading ?? false);
@@ -343,11 +350,14 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
   const { selection, closeFile, stageChunk, commit, continueMerge, mergeDrafts, drafts, busy, refreshing, diff, refresh } = useWorkbench();
   const { fontSize, diffMode, setDiffMode, fileView, setFileView, layout, setLayout } = usePreferences();
   const real = worktree.source === 'native';
+  const push = useWorkbench(pushForWorktree);
+  const locked = busy || refreshing || Boolean(push);
+  const waitingForSnapshot = Boolean(push && worktree.hasHead === undefined);
   const file = real ? diff.file : worktree.files.find(item => item.id === selection?.fileId) ?? null;
   const changedCount = new Set([...getChanges(worktree, 'unstaged'), ...getChanges(worktree, 'staged')].map(item => item.id)).size;
 
   async function handleCommit() {
-    if (busy || refreshing || worktree.checkoutRead) return;
+    if (locked || worktree.checkoutRead) return;
     try {
       if (worktree.operation?.kind === 'merge') {
         const result = await continueMerge();
@@ -367,7 +377,7 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && !event.isComposing) {
         if (event.target instanceof Element && event.target.closest('.error-log, [data-terminal-workspace]')) return;
         const message = worktree.operation?.kind === 'merge' ? getMergeMessage(worktree, mergeDrafts) : drafts[worktree.id]?.message ?? '';
-        if (!busy && !refreshing && !worktree.checkoutRead && !commitBlockReason(worktree, message)) {
+        if (!locked && !worktree.checkoutRead && !commitBlockReason(worktree, message)) {
           event.preventDefault();
           void handleCommit();
         }
@@ -380,16 +390,16 @@ function ChangesView({ worktree, shortcutsEnabled }: { worktree: Worktree; short
   return <Group orientation="horizontal" className={`changes-view ${busy ? 'is-committing' : ''}`} defaultLayout={layout.changes ? { changes: layout.changes, diff: layout.diff } : undefined} onLayoutChanged={setLayout}>
     <Panel id="changes" defaultSize="24.2%" minSize="270px" maxSize="420px">
       <section className="changes-panel" aria-label={t("文件变更与提交")}>
-        <div className="changes-heading"><h1>{t("本地更改")}</h1><Badge variant="secondary" className="count-badge">{worktree.checkoutRead ? '…' : changedCount}</Badge><div className="file-view-switch" role="group" aria-label={t("文件显示方式")}>{(['tree', 'list'] as const).map(mode => <Hint key={mode} label={mode === 'tree' ? t("树形视图") : t("列表视图")}><Button variant="ghost" size="icon-xs" aria-label={mode === 'tree' ? t("树形视图") : t("列表视图")} aria-pressed={fileView === mode} onClick={() => setFileView(mode)}><Icon name={mode === 'tree' ? 'list-tree' : 'list-flat'} /></Button></Hint>)}</div></div>
-        <div className="file-groups">{worktree.checkoutRead ? <div className="branch-placeholder" role="status">
-          {!worktree.checkoutRead.error || refreshing ? <><Icon name="loading" className="spin" />{t("正在读取文件状态…")}</> : <>{t("文件状态读取失败")}<Button variant="outline" size="sm" onClick={() => void refresh()}>{t("重新读取")}</Button></>}
-        </div> : <>{worktree.files.some(file => file.git?.conflicted) && <FileGroup worktree={worktree} area="unstaged" conflictsOnly disabled={busy || refreshing} />}<FileGroup worktree={worktree} area="unstaged" disabled={busy || refreshing} /><FileGroup worktree={worktree} area="staged" disabled={busy || refreshing} /></>}</div>
-        <CommitComposer key={JSON.stringify([worktree.id, worktree.path, worktree.branch, worktree.detached])} worktree={worktree} busy={busy || refreshing} onCommit={handleCommit} />
+        <div className="changes-heading"><h1>{t("本地更改")}</h1><Badge variant="secondary" className="count-badge">{worktree.checkoutRead || waitingForSnapshot ? '…' : changedCount}</Badge><div className="file-view-switch" role="group" aria-label={t("文件显示方式")}>{(['tree', 'list'] as const).map(mode => <Hint key={mode} label={mode === 'tree' ? t("树形视图") : t("列表视图")}><Button variant="ghost" size="icon-xs" aria-label={mode === 'tree' ? t("树形视图") : t("列表视图")} aria-pressed={fileView === mode} onClick={() => setFileView(mode)}><Icon name={mode === 'tree' ? 'list-tree' : 'list-flat'} /></Button></Hint>)}</div></div>
+        <div className="file-groups">{waitingForSnapshot ? <div className="branch-placeholder" role="status">{t("推送完成后读取文件状态。")}</div> : worktree.checkoutRead ? <div className="branch-placeholder" role="status">
+          {!worktree.checkoutRead.error || refreshing ? <><Icon name="loading" className="spin" />{t("正在读取文件状态…")}</> : <>{t("文件状态读取失败")}<Button variant="outline" size="sm" disabled={locked} onClick={() => void refresh()}>{t("重新读取")}</Button></>}
+        </div> : <>{worktree.files.some(file => file.git?.conflicted) && <FileGroup worktree={worktree} area="unstaged" conflictsOnly disabled={locked} />}<FileGroup worktree={worktree} area="unstaged" disabled={locked} /><FileGroup worktree={worktree} area="staged" disabled={locked} /></>}</div>
+        <CommitComposer key={JSON.stringify([worktree.id, worktree.path, worktree.branch, worktree.detached])} worktree={worktree} busy={busy || refreshing} readOnly={Boolean(push)} onCommit={handleCommit} />
       </section>
     </Panel>
     <ResizeHandle className="resize-handle" aria-label={t("调整变更列表宽度")} />
     <Panel id="diff" minSize="420px">
-      {real && (diff.loading || diff.notice || diff.error) ? <section className="diff-message" aria-label={t("代码差异")} aria-live="polite"><Icon name={diff.loading ? 'loading' : diff.error ? 'warning' : 'file'} className={diff.loading ? 'spin' : ''} /><h2>{diff.loading ? t("正在读取文件差异…") : diff.error ? t("无法读取差异") : t("文件差异说明")}</h2><p>{translateMessage(diff.error ?? diff.notice ?? '')}</p>{diff.error && <Button variant="outline" disabled={busy || refreshing} onClick={() => void refresh().catch(error => toast.error(translateMessage(errorMessage(error))))}>{t("重新读取")}</Button>}</section> : <CodeDiff file={file} area={selection?.area ?? 'unstaged'} worktreeId={worktree.id} fontSize={fontSize} mode={diffMode} onModeChange={setDiffMode} onClose={closeFile} onStageHunk={!real && !busy && file && selection?.area === 'unstaged' ? index => stageChunk(file.id, index) : undefined} />}
+      {real && (diff.loading || diff.notice || diff.error) ? <section className="diff-message" aria-label={t("代码差异")} aria-live="polite"><Icon name={diff.loading ? 'loading' : diff.error ? 'warning' : 'file'} className={diff.loading ? 'spin' : ''} /><h2>{diff.loading ? t("正在读取文件差异…") : diff.error ? t("无法读取差异") : t("文件差异说明")}</h2><p>{translateMessage(diff.error ?? diff.notice ?? '')}</p>{diff.error && <Button variant="outline" disabled={locked} onClick={() => void refresh().catch(error => toast.error(translateMessage(errorMessage(error))))}>{t("重新读取")}</Button>}</section> : <CodeDiff file={file} area={selection?.area ?? 'unstaged'} worktreeId={worktree.id} fontSize={fontSize} mode={diffMode} onModeChange={setDiffMode} onClose={closeFile} onStageHunk={!real && !locked && file && selection?.area === 'unstaged' ? index => stageChunk(file.id, index) : undefined} />}
     </Panel>
   </Group>;
 }
@@ -476,7 +486,7 @@ export default function App() {
   useI18n();
   const names = useDisplayNames(state => state.names);
   const resolvedTheme = useAppearance(state => state.resolvedTheme);
-  const { repositories, activeWorktreeId, view, busy, restoring, refreshing, error, autoRefreshError } = useWorkbench();
+  const { repositories, activeWorktreeId, view, busy, restoring, refreshing, error, autoRefreshError, pushIssues, pushes } = useWorkbench();
   const { sidebarSide, sidebarCollapsed, sidebarWidth, setSidebarSide, setSidebarCollapsed, setSidebarWidth, layoutResetKey } = usePreferences();
   const repositoryPanel = usePanelRef();
   const terminalLayout = useGroupRef();
@@ -497,8 +507,16 @@ export default function App() {
   const repository = repositories.find(item => item.worktrees.some(worktree => worktree.id === activeWorktreeId));
   const repositoryName = repository ? names[repository.id] ?? repository.name : t('本地 Git 工作台');
   const worktree = findWorktree(repositories, activeWorktreeId);
+  const push = repository && pushes[repository.id];
+  const pushIssue = pushIssues[activeWorktreeId];
   const changedCount = worktree ? new Set([...getChanges(worktree, 'unstaged'), ...getChanges(worktree, 'staged')].map(item => item.id)).size : 0;
   const real = worktree?.source === 'native';
+  const worktreeStatus = view === 'history' ? t("历史只读")
+    : push ? t("推送期间只读")
+    : busy ? t("Git 操作进行中…")
+    : refreshing ? t("正在刷新…")
+    : worktree?.checkoutRead?.error ? t("文件状态读取失败")
+    : changedCount ? t("{value1} 个文件有更改", { value1: changedCount }) : t("工作区干净");
   const terminalMaximized = terminal.visible && terminal.maximized;
   const terminalDocked = terminal.visible && !terminal.maximized;
   const showTerminalToggle = native && (terminal.hasSessions || (worktree && isTerminalWorktree(worktree)));
@@ -544,7 +562,7 @@ export default function App() {
     if (!sidebarCollapsed) setSidebarWidth(usePreferences.getInitialState().sidebarWidth);
   }} />;
   const workspacePanel = <Panel key="workspace" id="workspace" minSize="690px"><main ref={workspaceRef} className="workspace" tabIndex={-1}>
-    <ErrorLog key={'error:' + activeWorktreeId} message={[error, worktree?.checkoutRead?.error].filter(Boolean).join('\n') || null} role="alert" fallbackFocusRef={workspaceRef} />
+    <ErrorLog key={'error:' + activeWorktreeId} message={[error, pushIssue?.branch === worktree?.branch ? pushIssue?.message : null, worktree?.checkoutRead?.error].filter(Boolean).join('\n') || null} role="alert" fallbackFocusRef={workspaceRef} />
     <ErrorLog key={'auto-refresh:' + activeWorktreeId} message={autoRefreshError} role="status" fallbackFocusRef={workspaceRef} />
     <Group orientation="vertical" className="workspace-dock" groupRef={terminalLayout} onLayoutChanged={(layout, { isUserInteraction }) => {
       if (isUserInteraction && terminalDocked) dockedTerminalPercent.current = layout['terminal-pane'];
@@ -553,6 +571,7 @@ export default function App() {
         <div className="workspace-content" inert={terminalMaximized}>
           {repository && worktree ? <>
             <WorkbenchToolbar worktree={worktree} onBranchOpen={() => setBranchOpen(true)} onMergeOpen={() => setMergeTarget({ worktreeId: worktree.id })} />
+            {push && push.worktreeId !== worktree.id && <div className="remote-integration" role="status"><Icon name="info" />{t("同仓库正在推送，当前工作树可以查看。推送完成后会刷新。")}</div>}
             <RemoteIntegrationNotice worktree={worktree} onMerge={source => setMergeTarget({ worktreeId: worktree.id, source })} />
             {worktree.operation && <MergeStatusBanner key={`${worktree.id}:${worktree.operation.kind}:${worktree.operation.head}:${worktree.operation.mergeHeads.join(',')}`} worktree={worktree} />}
             {view === 'changes' ? <ChangesView key={activeWorktreeId} worktree={worktree} shortcutsEnabled={!settingsOpen && !repositoryOpen && !branchOpen && !mergeOpen && !terminalMaximized} /> : <HistoryView key={activeWorktreeId} worktree={worktree} />}
@@ -565,7 +584,7 @@ export default function App() {
       </Panel>
     </Group>
     {(worktree || showTerminalToggle) && <footer className="statusbar">
-      {worktree && <><span className="status-branch"><Icon name="git-branch" />{branchLabel(worktree)}</span><span className="status-divider" /><span>{view === 'history' ? t("历史只读") : busy ? t("Git 操作进行中…") : refreshing ? t("正在刷新…") : worktree.checkoutRead?.error ? t("文件状态读取失败") : changedCount ? t("{value1} 个文件有更改", { value1: changedCount }) : t("工作区干净")}</span><span className={`status-demo ${real ? 'status-native' : ''}`}><Icon name={real ? 'repo' : 'beaker'} />{real ? t("本地 Git") : t("演示模式")}</span><RemoteCheckIndicator worktree={worktree} /></>}
+      {worktree && <><span className="status-branch"><Icon name="git-branch" />{branchLabel(worktree)}</span><span className="status-divider" /><span>{worktreeStatus}</span><span className={`status-demo ${real ? 'status-native' : ''}`}><Icon name={real ? 'repo' : 'beaker'} />{real ? t("本地 Git") : t("演示模式")}</span><RemoteCheckIndicator worktree={worktree} /></>}
       <span className="status-spacer" />
       {worktree && <span className="status-path" title={worktree.path}>{worktree.path}</span>}
       {showTerminalToggle && <Button ref={terminalToggle} variant="ghost" size="sm" className="status-terminal-toggle" data-terminal-workspace aria-expanded={terminal.visible} aria-controls="terminal-pane" onClick={() => terminal.toggle(repository, worktree)}><Icon name="terminal" />{t('终端')}</Button>}

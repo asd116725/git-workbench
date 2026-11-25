@@ -6,6 +6,16 @@ Versions use `major.minor.patch`, with a `v` prefix for Git tags. The `0.1.x` se
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-11-25
+
+**English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.18.0/CHANGELOG.zh-CN.md#1180---2026-11-25)
+
+- Push in the background while staging, committing, or switching branches in another repository. The sidebar shows which worktree is pushing, and the completion notice identifies its repository and branch without changing the selected worktree.
+- View cached content in linked worktrees while their repository is pushing. Git writes and shared-state reads resume after the push, when the active worktree is refreshed.
+- Verify the source worktree, branch, and destination when a queued push enters the repository lock.
+
+The macOS Apple Silicon (arm64) installer uses ad-hoc signing and has not been notarized by Apple. See the [installation guide](https://github.com/asd116725/git-workbench/blob/v1.18.0/docs/installation.md).
+
 ## [1.17.0] - 2026-11-24
 
 **English** | [简体中文](https://github.com/asd116725/git-workbench/blob/v1.17.0/CHANGELOG.zh-CN.md#1170---2026-11-24)

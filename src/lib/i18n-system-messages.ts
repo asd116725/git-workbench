@@ -1,5 +1,7 @@
 /** 应用自有提示的完整原文与模板；参数保留仓库数据和 Git 输出原文。 */
 export const systemMessages: Record<string, { en: string; 'zh-TW': string }> = {
+  "当前分支已变化，请刷新后重新推送。": {"en": "The current branch changed. Refresh and try pushing again.", "zh-TW": "目前分支已變更，請重新整理後再推送。"},
+  "工作区状态已变化，请刷新后重试。": {"en": "The worktree state changed. Refresh and try again.", "zh-TW": "工作區狀態已變更，請重新整理後再試。"},
   "无法读取冲突索引。": {"en": "Cannot read the conflict index.", "zh-TW": "無法讀取衝突索引。"},
   "子模块冲突需在外部工具中查看。": {"en": "Inspect submodule conflicts in an external tool.", "zh-TW": "子模組衝突需在外部工具中檢視。"},
   "图片文件无法显示文本冲突。": {"en": "Image files cannot display text conflicts.", "zh-TW": "圖片檔案無法顯示文字衝突。"},

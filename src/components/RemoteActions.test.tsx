@@ -4,10 +4,13 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { RemoteActions, RemoteCheckIndicator, RemoteIntegrationNotice } from './RemoteActions';
 import { setLanguage } from '../lib/i18n';
 import { remoteBlockReason } from '../lib/remote-view';
+import type { useWorkbench } from '../lib/store';
 import type { Worktree } from '../lib/types';
 
 const hooks = vi.hoisted(() => ({ workbench: vi.fn() }));
-vi.mock('../lib/store', () => ({ useWorkbench: hooks.workbench }));
+vi.mock('../lib/store', async importOriginal => ({
+  ...await importOriginal<typeof import('../lib/store')>(), useWorkbench: hooks.workbench,
+}));
 
 const worktree: Worktree = {
   id: 'current', name: 'remote', path: '/test/remote', branch: 'main', source: 'native', hasHead: true,
@@ -19,13 +22,25 @@ const unpublished: Worktree = {
   remote: { ...worktree.remote!, upstream: null, upstreamRemote: null, upstreamBranch: null },
 };
 
+const sibling = { ...worktree, id: 'sibling', path: '/test/sibling' };
+const independent = { ...worktree, id: 'independent', path: '/test/independent' };
+const workspace = [{ id: 'repo', name: 'remote', worktrees: [worktree, sibling] }, { id: 'different', name: 'other', worktrees: [independent] }];
+const pushing = { repo: { worktreeId: worktree.id, branch: worktree.branch } };
+
+function mockWorkbench(overrides: Partial<ReturnType<typeof useWorkbench.getState>> = {}) {
+  hooks.workbench.mockReturnValue({
+    repositories: workspace, activeWorktreeId: worktree.id, pushes: {}, busy: false,
+    refreshing: false, remoteOperation: null, remoteCheck: null, runRemote: vi.fn(), ...overrides,
+  });
+}
+
 function render(target = worktree) { return renderToStaticMarkup(<TooltipProvider><RemoteActions worktree={target} /></TooltipProvider>); }
 
 function renderStatus(target = worktree) {
   return renderToStaticMarkup(<TooltipProvider><RemoteCheckIndicator worktree={target} /><RemoteIntegrationNotice worktree={target} onMerge={vi.fn()} /></TooltipProvider>);
 }
 
-beforeEach(() => { hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteOperation: null, runRemote: vi.fn() }); });
+beforeEach(() => mockWorkbench());
 
 afterEach(() => setLanguage('zh-CN'));
 
@@ -91,7 +106,7 @@ describe('远程工具栏', () => {
   ] as const)('%s 的发布入口和运行态使用对应文案', (language, label, progress) => {
     setLanguage(language);
     expect(render(unpublished)).toContain(`aria-label="${label}"`);
-    hooks.workbench.mockReturnValue({ busy: true, refreshing: false, remoteOperation: 'push', runRemote: vi.fn() });
+    mockWorkbench({ pushes: pushing });
     const html = render(unpublished);
     expect(html).toContain(`aria-label="${progress}"`);
     expect(html.match(/codicon-loading spin/g)).toHaveLength(1);
@@ -106,17 +121,20 @@ describe('远程工具栏', () => {
     expect(html).not.toContain('remote-count');
   });
 
-  it('执行中只有当前图标旋转，所有远程按钮禁用', () => {
-    hooks.workbench.mockReturnValue({ busy: true, refreshing: false, remoteOperation: 'push', runRemote: vi.fn() });
+  it('后台推送只在发起工作树显示进度，同仓库只读，独立仓库可操作', () => {
+    mockWorkbench({ pushes: pushing });
     const html = render();
     expect(html).toContain('aria-label="推送中"');
     expect(html.match(/codicon-loading spin/g)).toHaveLength(1);
     expect(html.match(/disabled=""/g)).toHaveLength(3);
+    expect(render(sibling)).not.toContain('aria-label="推送中"');
+    expect(render(sibling).match(/disabled=""/g)).toHaveLength(3);
+    expect(render(independent)).not.toContain('disabled=""');
   });
 
   it('确认分叉后提示合并并限制快进拉取，仍可向可能不同的推送目标发起预检', () => {
     const target = { ...worktree, remote: { ...worktree.remote!, behind: 9, upstreamRef: 'refs/remotes/cache/custom-main' } };
-    hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteCheck: { worktreeId: target.id, checking: false, error: null } });
+    mockWorkbench({ remoteCheck: { worktreeId: target.id, checking: false, error: null } });
     expect(renderStatus(target)).toContain('本地领先 3 / 远端领先 9');
     expect(renderStatus(target)).toContain('合并上游');
     expect(render(target).match(/disabled=""/g)).toHaveLength(1);
@@ -129,10 +147,10 @@ describe('远程工具栏', () => {
   it('仅落后时引导拉取，过期数字不会禁用推送或触发合并引导', () => {
     const target = { ...worktree, remote: { ...worktree.remote!, ahead: 0, behind: 9 } };
     const check = { worktreeId: target.id, checking: false, error: null };
-    hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteCheck: check });
+    mockWorkbench({ remoteCheck: check });
     expect(renderStatus(target)).toContain('远端领先 9 个提交，请先拉取。');
     expect(render(target)).not.toContain('disabled=""');
-    hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteCheck: { ...check, error: '无网络' } });
+    mockWorkbench({ remoteCheck: { ...check, error: '无网络' } });
     expect(renderStatus(target)).toContain('远程检查失败，计数可能过期');
     expect(renderStatus(target)).not.toContain('请先拉取');
     expect(render(target)).not.toContain('disabled=""');
@@ -140,7 +158,7 @@ describe('远程工具栏', () => {
 
   it('尚未通过后台检查时，已有分叉引用也能打开合并，但数量明确来自上次获取', () => {
     const target = { ...worktree, remote: { ...worktree.remote!, behind: 2, upstreamRef: 'refs/remotes/cache/custom-main' } };
-    hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteCheck: { worktreeId: target.id, checking: false, error: '无网络' } });
+    mockWorkbench({ remoteCheck: { worktreeId: target.id, checking: false, error: '无网络' } });
     const html = renderStatus(target);
     expect(html).toContain('远程检查失败，计数可能过期');
     expect(html).toContain('按最近获取的引用：本地领先 3 / 远端领先 2。');
@@ -150,9 +168,9 @@ describe('远程工具栏', () => {
 
   it('尚未检查和检查中均有状态，不凭上次的零计数声称已同步', () => {
     const target = { ...worktree, remote: { ...worktree.remote!, ahead: 0 } };
-    hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteCheck: { worktreeId: 'old', checking: false, error: '无网络' } });
+    mockWorkbench({ remoteCheck: { worktreeId: 'old', checking: false, error: '无网络' } });
     expect(renderStatus(target)).toContain('尚未检查远程，计数可能过期');
-    hooks.workbench.mockReturnValue({ busy: false, refreshing: false, remoteCheck: { worktreeId: target.id, checking: true, error: null } });
+    mockWorkbench({ remoteCheck: { worktreeId: target.id, checking: true, error: null } });
     expect(renderStatus(target)).toContain('正在检查远程…');
     expect(render(target)).not.toContain('disabled=""');
   });

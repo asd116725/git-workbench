@@ -10,7 +10,7 @@ import { commitBlockReason } from './merge-view';
 import { remoteBlockReason } from './remote-view';
 import { useHistory } from './history-store';
 import { orderedItems, useSidebarOrder } from './sidebar-order';
-import type { NativeRepository, WorktreeRemovalMode, WorktreeRemovalResult } from './native-git';
+import type { GitPushTarget, NativeRepository, WorktreeRemovalMode, WorktreeRemovalResult } from './native-git';
 import type { AiCommitMode, ChangeArea, FileSnapshot, GitDiscardPreview, GitBranch, GitCheckoutResult, GitCreateBranchResult, GitDeleteBranchPreview, GitDeleteBranchResult, GitMergePreview, GitMergeResult, GitOperation, GitRemoteAction, GitRemoteResult, Repository, Worktree } from './types';
 
 /** 文件与比较区域共同标识一个差异视图。 */
@@ -27,6 +27,11 @@ export interface BranchState { items: GitBranch[]; loading: boolean; error: stri
 
 /** 检查结果只属于该工作区；网络失败独立于本地读取错误。 */
 export interface RemoteCheckState { worktreeId: string; checking: boolean; error: string | null }
+
+/** 公共 Git 目录内同时只允许一个推送，状态始终显示在发起的工作树。 */
+interface BackgroundPush { worktreeId: string; branch: string }
+
+interface PushIssue { branch: string; message: string }
 
 const emptyBranches: BranchState = { items: [], loading: false, error: null };
 const emptyDiff: DiffState = { file: null, loading: false, notice: null, error: null };
@@ -149,7 +154,10 @@ interface WorkbenchState {
   view: 'changes' | 'history';
   drafts: Record<string, CommitDraft>;
   mergeDrafts: Record<string, MergeDraft>;
+  /** 前台写操作仍使用界面互斥，后台推送只锁住所在的仓库。 */
   busy: boolean;
+  pushes: Record<string, BackgroundPush>;
+  pushIssues: Record<string, PushIssue>;
   restoring: boolean;
   refreshing: boolean;
   /** 静默读取不锁定界面；调度器仍需等待本次读取完成。 */
@@ -158,7 +166,7 @@ interface WorkbenchState {
   error: string | null;
   diff: DiffState;
   branches: BranchState;
-  remoteOperation: GitRemoteAction | null;
+  remoteOperation: Exclude<GitRemoteAction, 'push'> | null;
   remoteCheck: RemoteCheckState | null;
   /** 原生后台 fetch 返回前，共享引用的仓库组暂缓移除。 */
   backgroundFetchingRepositoryIds: string[];
@@ -214,13 +222,15 @@ function initialState() {
     drafts: worktree ? { [worktree.id]: { message: 'fix(editor): 修复 Markdown 滚动同步\n\n统一预览与源码滚动位置' } } : {},
     mergeDrafts: {} as Record<string, MergeDraft>,
     busy: false,
+    pushes: {} as Record<string, BackgroundPush>,
+    pushIssues: {} as Record<string, PushIssue>,
     restoring: false,
     refreshing: false,
     autoRefreshing: false,
     autoRefreshError: null,
     error: null,
     branches: emptyBranches,
-    remoteOperation: null as GitRemoteAction | null,
+    remoteOperation: null as WorkbenchState['remoteOperation'],
     remoteCheck: null as RemoteCheckState | null,
     backgroundFetchingRepositoryIds: [] as string[],
     diff: { ...emptyDiff, file: worktree?.files.find(file => file.id === selection?.fileId) ?? null },
@@ -229,6 +239,20 @@ function initialState() {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : typeof error === 'string' ? error : 'Git 操作失败，请重试。';
+}
+
+/** 关联工作树共享推送锁，独立仓库不受影响。 */
+export function pushForWorktree(
+  state: Pick<WorkbenchState, 'repositories' | 'activeWorktreeId' | 'pushes'>,
+  worktreeId = state.activeWorktreeId,
+): BackgroundPush | undefined {
+  const repository = state.repositories.find(item => item.worktrees.some(worktree => worktree.id === worktreeId));
+  return repository && state.pushes[repository.id];
+}
+
+/** 判断当前工作区能否发起 Git 写操作，导航只受前台操作限制。 */
+export function isActiveWorktreeBusy(state: WorkbenchState): boolean {
+  return state.busy || Boolean(pushForWorktree(state));
 }
 
 /** 原生模式操作真实仓库；浏览器预览保持独立的示例快照。 */
@@ -319,14 +343,15 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     ++remoteCheckVersion;
     previousRemoteCheck = null;
     const native = worktree?.source === 'native';
+    const waitingForPush = worktree && pushForWorktree({ ...get(), repositories }, worktree.id);
     const selection = worktree && !native ? resolveSelection(worktree) : null;
     set({
       repositories, activeWorktreeId: worktree?.id ?? '', selection, view: worktree ? get().view : 'changes',
-      refreshing: native, autoRefreshing: false, error: null, autoRefreshError: null,
+      refreshing: native && !waitingForPush, autoRefreshing: false, error: null, autoRefreshError: null,
       diff: emptyDiff, branches: emptyBranches, remoteCheck: null,
     });
-    if (native) void refresh({}, fallback);
-    else if (worktree) void loadDiff(worktree, selection);
+    if (native && !waitingForPush) void refresh({}, fallback);
+    else if (worktree && !native) void loadDiff(worktree, selection);
   }
 
   async function loadDiff(worktree: Worktree, selection: Selection | null, preserve = false) {
@@ -380,7 +405,9 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   }
 
   /** Git 公共目录决定仓库身份，打开兄弟目录时仍复用同一分组和草稿。 */
-  function applyNativeRepository(result: NativeRepository, previousSelection: Selection | null, silent = false) {
+  function applyNativeRepository(result: NativeRepository, previousSelection: Selection | null, {
+    silent = false, keepActive = false,
+  } = {}) {
     const state = get();
     const repositoryId = `${nativeRepositoryIdPrefix}${result.commonDir}`;
     const previous = state.repositories.find(repository => repository.id === repositoryId);
@@ -390,18 +417,25 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       if (removed.length) useHistory.getState().forgetWorktrees(removed);
     }
     const worktree = toWorktree(result);
+    const update = {
+      repositories: previous
+        ? state.repositories.map(item => item.id === repositoryId ? repository : item)
+        : [...state.repositories, repository],
+      mergeDrafts: initializeMergeDraft(worktree, state.mergeDrafts),
+    };
+    if (keepActive && state.activeWorktreeId !== worktree.id) {
+      set(update);
+      return;
+    }
     /** 静默刷新尊重用户关闭标签的操作，不自动重新打开首个文件。 */
     const selection = silent && !previousSelection ? null : resolveSelection(worktree, previousSelection);
     const preserveDiff = silent && state.activeWorktreeId === worktree.id
       && previousSelection?.fileId === selection?.fileId && previousSelection?.area === selection?.area;
     set({
-      repositories: previous
-        ? state.repositories.map(item => item.id === repositoryId ? repository : item)
-        : [...state.repositories, repository],
+      ...update,
       activeWorktreeId: worktree.id,
       remoteCheck: state.activeWorktreeId === worktree.id ? state.remoteCheck : null,
       selection,
-      mergeDrafts: initializeMergeDraft(worktree, state.mergeDrafts),
     });
     rememberSession();
     return loadDiff(worktree, selection, preserveDiff);
@@ -427,15 +461,23 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     }
   }
 
-  /** 写操作期间锁定工作区；原生 Git 锁之外再防止界面重复提交。 */
-  function beginMutation({ preserveDiff = false } = {}) {
-    if (get().busy) throw new Error('Git 操作正在进行，请稍候。');
+  /** 只作废当前工作区的读取；后台结果回写其他仓库时不用动这些版本。 */
+  function invalidateActiveReads(preserveDiff: boolean) {
     ++statusVersion;
     if (!preserveDiff) ++diffVersion;
     ++branchVersion;
     ++remoteCheckVersion;
-    set(state => ({ busy: true, refreshing: false, error: null, branches: { ...state.branches, loading: false },
-      remoteCheck: state.remoteCheck?.checking ? previousRemoteCheck : state.remoteCheck }));
+    const state = get();
+    return { refreshing: false, error: null, branches: { ...state.branches, loading: false },
+      remoteCheck: state.remoteCheck?.checking ? previousRemoteCheck : state.remoteCheck };
+  }
+
+  /** 声明目标仓库的前台操作检查该仓库的推送锁；打开新路径仅受前台互斥限制。 */
+  function beginMutation({ preserveDiff = false, repositoryId }: { preserveDiff?: boolean; repositoryId?: string | null } = {}) {
+    const state = get();
+    const push = repositoryId === undefined ? pushForWorktree(state) : repositoryId && state.pushes[repositoryId];
+    if (state.busy || push) throw new Error('Git 操作正在进行，请稍候。');
+    set({ ...invalidateActiveReads(preserveDiff), busy: true });
   }
 
   /** 写操作会使先前状态读取失效；释放写锁时接续尚未完成的 checkout 快照。 */
@@ -456,7 +498,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
         if (!current()) return;
         if (version !== statusVersion) continue;
         ++statusVersion;
-        void applyNativeRepository(result, get().selection, true);
+        void applyNativeRepository(result, get().selection, { silent: true });
         if (get().refreshing) set({ refreshing: false });
         return findWorktree(get().repositories, worktree.id);
       } catch (error) {
@@ -522,6 +564,84 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
           worktrees: repository.worktrees.map(item => item.id === worktree.id ? { ...item, remote: undefined } : item),
         })),
       }));
+    }
+  }
+
+  /** 推送读回只合并发起仓库，即使用户已在别的仓库发起新的操作。 */
+  async function refreshAfterPush(worktree: Worktree, repositoryId: string, completed: boolean): Promise<string[]> {
+    try {
+      const result = await nativeGit.status(worktree.path);
+      if (result.path !== worktree.path || `${nativeRepositoryIdPrefix}${result.commonDir}` !== repositoryId) {
+        throw new Error('工作区状态已变化，请刷新后重试。');
+      }
+      if (get().activeWorktreeId === worktree.id) ++statusVersion;
+      void applyNativeRepository(result, get().selection, { silent: true, keepActive: true });
+    } catch (error) {
+      invalidateBranchSync(worktree);
+      set(state => ({
+        repositories: state.repositories.map(repository => repository.id !== repositoryId ? repository : {
+          ...repository, worktrees: repository.worktrees.map(item => item.id === worktree.id ? { ...item, remote: undefined } : item),
+        }),
+      }));
+      return [`${completed ? '操作已完成，但刷新失败' : '远程操作失败，且无法刷新仓库状态'}：${errorMessage(error)}`];
+    }
+    const updated = findWorktree(get().repositories, worktree.id)!;
+    const visible = get().activeWorktreeId === worktree.id;
+    const branchRead = visible ? loadBranches(updated) : undefined;
+    const version = branchVersion;
+    const history = useHistory.getState();
+    const refreshHistory = history.sessions[worktree.id]?.initialized || (visible && get().view === 'history');
+    await Promise.all([branchRead, refreshHistory && history.refresh(updated)]);
+    const branchError = branchRead && version === branchVersion && get().activeWorktreeId === worktree.id ? get().branches.error : null;
+    const historyError = refreshHistory && useHistory.getState().sessions[worktree.id]?.error;
+    return [
+      ...(branchError ? [`分支列表刷新失败：${branchError}`] : []),
+      ...(historyError ? [`提交历史刷新失败：${historyError}`] : []),
+    ];
+  }
+
+  async function runPush(worktree: Worktree, remote?: string): Promise<GitRemoteResult> {
+    const state = get();
+    if (isActiveWorktreeBusy(state)) throw new Error('Git 操作正在进行，请稍候。');
+    const repository = state.repositories.find(item => item.worktrees.some(item => item.id === worktree.id))!;
+    const upstream = worktree.remote!;
+    if (upstream.upstreamRemote && remote && remote !== upstream.upstreamRemote) {
+      throw new Error('当前分支的上游已变化，请刷新后重新推送。');
+    }
+    const remoteName = upstream.upstreamRemote ?? remote ?? upstream.defaultRemote;
+    const targetBranch = upstream.upstreamRemote ? upstream.upstreamBranch : worktree.branch;
+    if (!remoteName) throw new Error('请选择用于首次推送的远程仓库。');
+    if (!targetBranch) throw new Error('当前分支没有唯一的远程上游分支，请先调整跟踪配置。');
+
+    const target: GitPushTarget = {
+      commonDir: repository.id.slice(nativeRepositoryIdPrefix.length),
+      branch: worktree.branch, remote: remoteName, targetBranch, setUpstream: !upstream.upstreamRemote,
+    };
+    const task = { worktreeId: worktree.id, branch: target.branch };
+    const pushIssues = { ...state.pushIssues };
+    delete pushIssues[worktree.id];
+    set({ ...invalidateActiveReads(true), pushes: { ...state.pushes, [repository.id]: task }, pushIssues });
+
+    try {
+      let result: GitRemoteResult | undefined;
+      let failure: unknown;
+      try { result = await nativeGit.push(worktree.path, remote, target); }
+      catch (error) { failure = error; }
+      const refreshWarnings = await refreshAfterPush(worktree, repository.id, Boolean(result));
+      const warning = [result?.warning, ...refreshWarnings].filter(Boolean).join('\n') || null;
+      const message = result ? warning : [errorMessage(failure), warning].filter(Boolean).join('\n');
+      if (message) set(state => ({
+        pushIssues: { ...state.pushIssues, [worktree.id]: { branch: task.branch, message } },
+      }));
+      if (!result) throw Object.assign(new Error(errorMessage(failure)), { cause: failure });
+      return { warning };
+    } finally {
+      const state = get();
+      const pushes = { ...state.pushes };
+      delete pushes[repository.id];
+      const refreshSibling = !state.busy && state.activeWorktreeId !== worktree.id && pushForWorktree(state) === task;
+      set({ pushes, ...(refreshSibling && { refreshing: true }) });
+      if (refreshSibling) void refresh();
     }
   }
 
@@ -662,7 +782,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
   /** 移除后的首次读取遇到明确目录错误时，沿原侧栏顺序继续寻找可用工作区。 */
   async function refresh({ silent = false } = {}, fallback?: RemovalFallback) {
     const worktree = findWorktree(get().repositories, get().activeWorktreeId);
-    if (!worktree || get().busy) return;
+    if (!worktree || isActiveWorktreeBusy(get())) return;
     if (silent && (get().refreshing || get().autoRefreshing)) return;
     if (worktree.source !== 'native') { refreshDemoSync(); void loadDiff(worktree, get().selection); return; }
     const checkout = worktree.checkoutRead;
@@ -685,7 +805,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
             return;
           }
         }
-        const diff = applyNativeRepository(result, get().selection, silent && !checkout);
+        const diff = applyNativeRepository(result, get().selection, { silent: silent && !checkout });
         if (checkout) set({ refreshing: false });
         await diff;
       }
@@ -714,7 +834,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     checkRemote: async signal => {
       const state = get();
       const worktree = findWorktree(state.repositories, state.activeWorktreeId);
-      if (signal.aborted || state.busy || state.restoring || state.refreshing || state.autoRefreshing || state.remoteCheck?.checking
+      if (signal.aborted || isActiveWorktreeBusy(state) || state.restoring || state.refreshing || state.autoRefreshing || state.remoteCheck?.checking
         || !worktree || remoteBlockReason(worktree, 'fetch')) return;
       const repository = state.repositories.find(item => item.worktrees.some(item => item.id === worktree.id))!;
       if (state.backgroundFetchingRepositoryIds.includes(repository.id)) return;
@@ -755,13 +875,14 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       const worktree = currentWorktree();
       const blocked = remoteBlockReason(worktree, action);
       if (blocked) throw new Error(blocked);
+      if (action === 'push') return runPush(worktree, remote);
       beginMutation({ preserveDiff: action !== 'pull' });
       set({ remoteOperation: action });
       let result: GitRemoteResult | undefined;
       let failure: unknown;
       try {
         try {
-          result = await (action === 'push' ? nativeGit.push(worktree.path, remote) : nativeGit[action](worktree.path));
+          result = await nativeGit[action](worktree.path);
         } catch (error) { failure = error; }
         /** 失败的 fetch/pull 仍可能已更新引用，因此两种结果都重新读取仓库和分支。 */
         await refreshAfterMutation(worktree, result ? undefined : '远程操作失败，且无法刷新仓库状态');
@@ -792,7 +913,13 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     },
     openRepository: async path => {
       if (!isTauri()) throw new Error('请在桌面应用中打开本地仓库。');
-      beginMutation();
+      const state = get();
+      const registered = state.repositories.flatMap(repository => repository.worktrees).find(worktree => worktree.path === path);
+      if (registered && !state.busy && pushForWorktree(state, registered.id)) {
+        state.selectWorktree(registered.id);
+        return;
+      }
+      beginMutation({ repositoryId: null });
       try {
         const result = await nativeGit.open(path);
         for (const entryPath of [path, result.path, ...result.worktrees.map(item => item.path)]) {
@@ -810,7 +937,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     },
     removeRepository: id => {
       const state = get();
-      if (state.busy || state.restoring || state.backgroundFetchingRepositoryIds.includes(id)) throw new Error('Git 操作正在进行，请稍候。');
+      if (state.busy || state.restoring || state.pushes[id] || state.backgroundFetchingRepositoryIds.includes(id)) throw new Error('Git 操作正在进行，请稍候。');
       const repository = state.repositories.find(item => item.id === id);
       if (!repository) return;
       const active = repository.worktrees.some(item => item.id === state.activeWorktreeId);
@@ -833,7 +960,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     },
     removeWorktree: async (repositoryId, worktreeId, mode) => {
       const state = get();
-      if (state.busy || state.restoring || state.backgroundFetchingRepositoryIds.includes(repositoryId)) throw new Error('Git 操作正在进行，请稍候。');
+      if (state.busy || state.restoring || state.pushes[repositoryId] || state.backgroundFetchingRepositoryIds.includes(repositoryId)) throw new Error('Git 操作正在进行，请稍候。');
       const repository = state.repositories.find(item => item.id === repositoryId);
       const target = repository?.worktrees.find(item => item.id === worktreeId);
       if (!repository || !target || worktreeRemovalMode(target) !== mode) throw new Error('工作树状态已变化，请刷新仓库后重试。');
@@ -844,7 +971,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       const [next, ...fallback] = active ? [...sameRepository, ...worktreesAfterRemoval(state.repositories, repositoryId)] : [];
       const activeWorktreeId = active ? next?.id ?? '' : state.activeWorktreeId;
       const commonDir = repositoryId.slice(nativeRepositoryIdPrefix.length);
-      beginMutation({ preserveDiff: true });
+      beginMutation({ preserveDiff: true, repositoryId });
       let warning: string | null;
       try {
         ({ warning } = await nativeGit.removeWorktree(commonDir, target.path, mode));
@@ -941,7 +1068,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     },
     previewDeleteBranch: async fullName => {
       const worktree = currentWorktree();
-      if (get().busy) throw new Error('Git 操作正在进行，请稍候。');
+      if (isActiveWorktreeBusy(get())) throw new Error('Git 操作正在进行，请稍候。');
       if (worktree.operation) throw new Error('请先完成或中止当前 Git 操作，再管理分支。');
       const version = statusVersion;
       const preview = worktree.source === 'native'
@@ -966,7 +1093,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     },
     previewMerge: async sourceRef => {
       const worktree = nativeWorktree();
-      if (get().busy) throw new Error('Git 操作正在进行，请稍候。');
+      if (isActiveWorktreeBusy(get())) throw new Error('Git 操作正在进行，请稍候。');
       if (worktree.operation) throw new Error('请先完成或中止当前 Git 操作，再合并分支。');
       const version = statusVersion;
       const preview = await nativeGit.mergePreview(worktree.path, sourceRef);
@@ -1012,7 +1139,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
     unstage: fileId => changeStage(fileId, false),
     previewDiscard: async fileIds => {
       const worktree = currentWorktree();
-      if (get().busy) throw new Error('Git 操作正在进行，请稍候。');
+      if (isActiveWorktreeBusy(get())) throw new Error('Git 操作正在进行，请稍候。');
       if (worktree.operation) throw new Error('请先完成或中止当前 Git 操作，再撤销修改。');
       const files = getChanges(worktree, 'unstaged').filter(file => fileIds.includes(file.id) && !file.git?.conflicted);
       if (!files.length || files.length !== new Set(fileIds).size) throw new Error('该文件状态已变化，请刷新后重试。');
@@ -1090,7 +1217,7 @@ export const useWorkbench = create<WorkbenchState>((set, get) => {
       } finally { set({ busy: false }); }
     },
     reset: () => {
-      if (get().busy) return;
+      if (get().busy || Object.keys(get().pushes).length) return;
       ++statusVersion;
       ++diffVersion;
       ++branchVersion;

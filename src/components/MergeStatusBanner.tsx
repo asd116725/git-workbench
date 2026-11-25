@@ -4,14 +4,15 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useWorkbench } from '../lib/store';
+import { isActiveWorktreeBusy, useWorkbench } from '../lib/store';
 import { operationNames } from '../lib/merge-view';
 import type { Worktree } from '../lib/types';
 
 /** 从 Git 的实际操作状态展示恢复入口，中止仅针对尚未完成的合并。 */
 export function MergeStatusBanner({ worktree }: { worktree: Worktree }) {
   useI18n();
-  const { busy, refreshing, abortMerge } = useWorkbench();
+  const { refreshing, abortMerge } = useWorkbench();
+  const busy = useWorkbench(isActiveWorktreeBusy);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const operation = worktree.operation;

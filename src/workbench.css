@@ -117,6 +117,9 @@ button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .worktree-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .worktree-kind { flex-shrink: 0; padding: 0 4px; border: 1px solid var(--widget-border); border-radius: 3px; color: var(--muted-foreground); font-size: 11px; line-height: 15px; }
 .worktree-current { flex-shrink: 0; margin-left: auto; color: var(--blue); font-size: 11px; }
+.push-progress { display: inline-flex; flex-shrink: 0; align-items: center; gap: 3px; color: var(--blue); font-size: 11px; white-space: nowrap; }
+.push-progress > .codicon { font-size: 11px; }
+.repository-group[data-state='open'] .repository-push-progress { display: none; }
 /** 数量较长时先收窄分支行缩进，保留完整计数及至少一个省略号，锁图标仅占标题行。 */
 .worktree-branch { display: grid; position: absolute; right: 8px; bottom: 7px; left: 8px; grid-template-columns: minmax(0, 24px) 14px minmax(1em, 1fr); align-items: center; min-width: 0; color: var(--muted-foreground); font-size: 11px; white-space: nowrap; }
 .worktree-branch::before { content: ''; }

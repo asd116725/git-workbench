@@ -31,6 +31,17 @@ pub struct GitRemoteResult {
     pub warning: Option<String>,
 }
 
+/// 界面确认的推送目标，进入仓库锁后必须重新核对。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitPushTarget {
+    common_dir: String,
+    branch: String,
+    remote: String,
+    target_branch: String,
+    set_upstream: bool,
+}
+
 fn config_values(repo: &Path, key: &str) -> GitResult<Vec<String>> {
     let output = run_git(repo, &["config", "--get-all", key])?;
     if output.status.code() == Some(1) {
@@ -583,8 +594,20 @@ fn check_push_targets(
     result.and(cleanup.map(|_| ()))
 }
 
-fn push(repo: &Path, selected_remote: Option<&str>) -> GitResult<GitRemoteResult> {
+fn push(
+    repo: &Path,
+    selected_remote: Option<&str>,
+    expected: Option<&GitPushTarget>,
+) -> GitResult<GitRemoteResult> {
+    if let Some(expected) = expected
+        && common_directory(repo)? != Path::new(&expected.common_dir)
+    {
+        return Err("工作区状态已变化，请刷新后重试。".into());
+    }
     let branch = ensure_branch_ready(repo)?;
+    if expected.is_some_and(|target| target.branch != branch) {
+        return Err("当前分支已变化，请刷新后重新推送。".into());
+    }
     let state = remote_status(repo)?;
     let (remote, target, set_upstream) = if let Some(remote) = &state.upstream_remote {
         if selected_remote.is_some_and(|selected| selected != remote) {
@@ -609,6 +632,11 @@ fn push(repo: &Path, selected_remote: Option<&str>) -> GitResult<GitRemoteResult
     };
     if !state.remotes.iter().any(|name| name == remote) {
         return Err("推送目标没有对应的远程仓库，请先设置有效的远程上游分支。".into());
+    }
+    if expected.is_some_and(|plan| {
+        plan.remote != remote || plan.target_branch != target || plan.set_upstream != set_upstream
+    }) {
+        return Err("当前分支的上游已变化，请刷新后重新推送。".into());
     }
     let branch_ref = format!("refs/heads/{branch}");
     let target_ref = format!("refs/heads/{target}");
@@ -673,8 +701,20 @@ pub async fn git_pull(repo_path: String) -> GitResult<GitRemoteResult> {
 
 /// 只推送当前分支；首次发布时建立上游跟踪，后续固定使用该目标。
 #[tauri::command]
-pub async fn git_push(repo_path: String, remote: Option<String>) -> GitResult<GitRemoteResult> {
-    blocking(move || with_repository(&repo_path, |repo| push(repo, remote.as_deref()))).await
+pub async fn git_push(
+    repo_path: String,
+    remote: Option<String>,
+    expected: Option<GitPushTarget>,
+) -> GitResult<GitRemoteResult> {
+    blocking(move || {
+        with_repository(&repo_path, |repo| {
+            if expected.is_some() && repo != Path::new(&repo_path) {
+                return Err("工作区状态已变化，请刷新后重试。".into());
+            }
+            push(repo, remote.as_deref(), expected.as_ref())
+        })
+    })
+    .await
 }
 
 #[cfg(test)]

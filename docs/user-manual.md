@@ -155,7 +155,9 @@ Starting with 1.6.2, the download and upload arrows show incoming and outgoing c
 
 When both sides have new commits, a divergence notice offers **Merge upstream**. Confirm the merge and resolve any conflicts before pushing. When only the remote has new commits, pull directly. The number of unfetched commits cannot be known reliably before fetching, so **Fetch** has no commit count.
 
-During manual execution, the buttons show progress and other Git write operations are temporarily disabled. Git errors are displayed on failure; for authentication errors, check your local credentials or SSH configuration first. If an operation succeeds but refreshing the state fails, refresh to confirm the actual state.
+Push runs in the background and the sidebar shows progress on the worktree that started it. You can switch to another repository to stage, commit, or change branches. Linked worktrees in the same repository show available snapshots. Writes and reads of shared repository state wait for the push. The completion notice identifies the source repository and branch. Your current worktree stays selected.
+
+Manual fetch and pull still temporarily disable other Git writes. Git errors are displayed on failure. For authentication errors, check your local credentials or SSH configuration first. If an operation succeeds but refreshing the state fails, refresh to confirm the actual state.
 
 ## 5. File tree and list
 

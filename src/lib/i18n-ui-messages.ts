@@ -1,5 +1,12 @@
 /** 应用界面文案；分支、路径、提交信息与文件内容始终保留原文。 */
 export const uiMessages: Record<string, { en: string; 'zh-TW': string }> = {
+  "推送中": {"en": "Pushing", "zh-TW": "推送中"},
+  "推送期间只读": {"en": "Read-only during push", "zh-TW": "推送期間唯讀"},
+  "推送完成后读取文件状态。": {"en": "File status will load after the push finishes.", "zh-TW": "推送完成後讀取檔案狀態。"},
+  "同仓库正在推送，当前工作树可以查看。推送完成后会刷新。": {
+    "en": "A push is running in this repository. You can view this worktree. It will refresh when the push finishes.",
+    "zh-TW": "同一儲存庫正在推送，目前的工作樹可供檢視。推送完成後會重新整理。"
+  },
   "终端": {"en": "Terminal", "zh-TW": "終端機"},
   "终端主题": {"en": "Terminal theme", "zh-TW": "終端機主題"},
   "经典深色": {"en": "Classic dark", "zh-TW": "經典深色"},

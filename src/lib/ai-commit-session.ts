@@ -1,7 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import { getChanges } from './demo-git';
 import { aiCommitErrorCode, aiCommitSizeLimit, nativeAiCommit, type AiCommitErrorCode, type AiCommitResult, type AiCommitSizeLimit } from './native-ai-commit';
-import { findWorktree, usePreferences, useWorkbench } from './store';
+import { findWorktree, isActiveWorktreeBusy, usePreferences, useWorkbench } from './store';
 import type { Worktree } from './types';
 
 /** 普通本地提交可生成文案；首次提交无需已有 HEAD。 */
@@ -43,7 +43,7 @@ export function createAiCommitSession(owner: Worktree) {
     const state = useWorkbench.getState();
     const worktree = findWorktree(state.repositories, state.activeWorktreeId);
     if (!worktree || worktree.id !== owner.id || worktree.path !== owner.path || worktree.branch !== owner.branch || Boolean(worktree.detached) !== Boolean(owner.detached)) return null;
-    return { worktree, message: state.drafts[owner.id]?.message ?? '', busy: state.busy || state.refreshing };
+    return { worktree, message: state.drafts[owner.id]?.message ?? '', busy: isActiveWorktreeBusy(state) || state.refreshing };
   }
 
   function cancelRequest() {

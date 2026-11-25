@@ -1,6 +1,10 @@
 use super::*;
 use tempfile::TempDir;
 
+fn push(repo: &Path, remote: Option<&str>) -> GitResult<GitRemoteResult> {
+    super::push(repo, remote, None)
+}
+
 struct Fixture {
     _directory: TempDir,
     local: PathBuf,
@@ -52,6 +56,51 @@ fn commit_file(repo: &Path, name: &str, content: &str) {
     fs::write(repo.join(name), content).unwrap();
     git(repo, &["add", "--", name]).unwrap();
     git(repo, &["commit", "-m", content.trim()]).unwrap();
+}
+
+#[test]
+fn planned_push_rejects_a_changed_branch_or_upstream_before_network_writes() {
+    let fixture = Fixture::new();
+    fixture.seed();
+    let repo = &fixture.local;
+    commit_file(repo, "next.txt", "next\n");
+    let before = git_line(&fixture.remote, &["rev-parse", "refs/heads/main"]).unwrap();
+    let expected = GitPushTarget {
+        common_dir: common_directory(repo).unwrap().to_str().unwrap().into(),
+        branch: "main".into(),
+        remote: "origin".into(),
+        target_branch: "main".into(),
+        set_upstream: false,
+    };
+    git(repo, &["switch", "-c", "other"]).unwrap();
+    assert!(
+        super::push(repo, None, Some(&expected))
+            .unwrap_err()
+            .contains("分支已变化")
+    );
+    git(repo, &["switch", "main"]).unwrap();
+    git(
+        repo,
+        &["config", "branch.main.merge", "refs/heads/unexpected"],
+    )
+    .unwrap();
+    assert!(
+        super::push(repo, None, Some(&expected))
+            .unwrap_err()
+            .contains("上游已变化")
+    );
+    assert_eq!(
+        git_line(&fixture.remote, &["rev-parse", "refs/heads/main"]).unwrap(),
+        before
+    );
+    assert_eq!(
+        git_line(
+            &fixture.remote,
+            &["for-each-ref", "--format=%(refname)", "refs/heads"]
+        )
+        .unwrap(),
+        "refs/heads/main"
+    );
 }
 
 #[test]

@@ -54,13 +54,13 @@ Git Workbench 是面向多项目、多分支开发的桌面 Git 客户端。把�
 
 ## 下载与快速上手
 
-**v1.17.0 · macOS Apple Silicon（arm64）**
+**v1.18.0 · macOS Apple Silicon（arm64）**
 
 | 下载内容 | 链接 |
 | --- | --- |
-| macOS 安装包 | [GitWorkbench_1.17.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.17.0/GitWorkbench_1.17.0_macos_arm64.dmg) |
-| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.17.0/SHA256SUMS.txt) |
-| 版本说明 | [v1.17.0 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.17.0) |
+| macOS 安装包 | [GitWorkbench_1.18.0_macos_arm64.dmg](https://github.com/asd116725/git-workbench/releases/download/v1.18.0/GitWorkbench_1.18.0_macos_arm64.dmg) |
+| SHA-256 校验文件 | [SHA256SUMS.txt](https://github.com/asd116725/git-workbench/releases/download/v1.18.0/SHA256SUMS.txt) |
+| 版本说明 | [v1.18.0 更新内容](https://github.com/asd116725/git-workbench/releases/tag/v1.18.0) |
 
 1. **安装应用**：使用同一 Release 的校验文件核对 DMG，将「代码管理」拖入 Applications。[安装说明 →](docs/zh-CN/installation.md)
 2. **打开项目**：确认 `git --version` 可用，点击「打开仓库」，选择已有本地仓库，关联 worktree 会一并列出。
@@ -82,7 +82,7 @@ Diff 范围、冲突处理、刷新行为和常见问题详见[操作手册](doc
 
 使用 **Tauri 2 + Rust**、**React + TypeScript** 和 **Monaco Editor + Shiki** 构建。
 
-需要 Node.js **22.14+（同一主版本 22）**、pnpm **11.17.0**、Rust **1.99.0** 及 Git。macOS 还需通过 `xcode-select --install` 安装 Xcode Command Line Tools。
+需要 Node.js **22.14+（同一主版本 22）**、pnpm **11.18.0**、Rust **1.99.0** 及 Git。macOS 还需通过 `xcode-select --install` 安装 Xcode Command Line Tools。
 
 ```sh
 git clone https://github.com/asd116725/git-workbench.git

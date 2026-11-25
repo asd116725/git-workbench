@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useDisplayNames } from '../lib/display-names';
 import { mergeStartBlockReason } from '../lib/merge-view';
 import { remoteBlockReason, remoteCheckFor, remoteIntegration } from '../lib/remote-view';
-import { useWorkbench } from '../lib/store';
+import { isActiveWorktreeBusy, pushForWorktree, useWorkbench } from '../lib/store';
 import type { GitRemoteAction, Worktree } from '../lib/types';
 import type { MergeSource } from './MergeBranchDialog';
 
@@ -40,41 +41,47 @@ function actionDescription(worktree: Worktree, action: GitRemoteAction, needsPub
   ].join(' · ');
 }
 
-/** 远程操作复用工作区互斥锁；只有首次推送目标不明确时才要求选择远程仓库。 */
+/** 获取和拉取沿用前台互斥；推送状态归发起工作树，首次发布确认后立即关闭弹窗。 */
 export function RemoteActions({ worktree }: { worktree: Worktree }) {
   useI18n();
-  const { busy, refreshing, remoteOperation, remoteCheck, runRemote } = useWorkbench();
+  const state = useWorkbench();
+  const { busy, refreshing, remoteOperation, remoteCheck, runRemote } = state;
+  const push = pushForWorktree(state, worktree.id);
   const [choosingRemote, setChoosingRemote] = useState(false);
   const [selectedRemote, setSelectedRemote] = useState('');
-  const [dialogError, setDialogError] = useState<string | null>(null);
   const remote = worktree.remote;
   const check = remoteCheckFor(worktree, remoteCheck);
   const integration = remoteIntegration(worktree, check);
   /** 残缺的上游配置仍由推送流程报错，不能当作首次发布。 */
   const needsPublish = Boolean(remote && !remote.upstream && !remote.upstreamRemote);
   const pushBlocked = remoteBlockReason(worktree, 'push');
-  const locked = busy || refreshing;
+  const locked = busy || refreshing || Boolean(push);
 
   async function execute(action: GitRemoteAction, target?: string) {
-    setDialogError(null);
     const sourceLabel = actions.find(item => item.action === action)!.label;
     const publishing = action === 'push' && needsPublish;
+    let context: string | undefined;
+    if (action === 'push') {
+      const repository = state.repositories.find(item => item.worktrees.some(tree => tree.id === worktree.id));
+      const name = (repository && (useDisplayNames.getState().names[repository.id] ?? repository.name)) ?? worktree.name;
+      context = `${name} / ${worktree.branch}`;
+      setChoosingRemote(false);
+    }
     try {
       const result = await runRemote(action, target);
-      setChoosingRemote(false);
-      if (result.warning) toast.warning(publishing ? t("分支已推送，请查看仓库状态中的警告") : t("{value1}已完成，请查看仓库状态中的警告", { value1: t(sourceLabel) }));
-      else toast.success(publishing ? t("分支发布成功") : t("{value1}完成", { value1: t(sourceLabel) }));
+      if (result.warning) toast.warning(publishing ? t("分支已推送，请查看仓库状态中的警告") : t("{value1}已完成，请查看仓库状态中的警告", { value1: t(sourceLabel) }), { description: context });
+      else toast.success(publishing ? t("分支发布成功") : t("{value1}完成", { value1: t(sourceLabel) }), { description: context });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setDialogError(message);
-      toast.error(publishing ? t("分支发布失败") : t("{value1}失败", { value1: t(sourceLabel) }), { description: translateMessage(message).slice(0, 120) });
+      toast.error(publishing ? t("分支发布失败") : t("{value1}失败", { value1: t(sourceLabel) }), {
+        description: [context, translateMessage(message).slice(0, 120)].filter(Boolean).join(' · '),
+      });
     }
   }
 
   function start(action: GitRemoteAction) {
     if (action === 'push' && needsPublish && !remote?.defaultRemote) {
       setSelectedRemote(remote?.remotes[0] ?? '');
-      setDialogError(null);
       setChoosingRemote(true);
     } else void execute(action);
   }
@@ -84,7 +91,7 @@ export function RemoteActions({ worktree }: { worktree: Worktree }) {
       const publishing = action === 'push' && needsPublish;
       const label = publishing ? t("发布分支") : t(sourceLabel);
       const progressLabel = publishing ? t("发布中…") : t("{value1}中", { value1: label });
-      const running = remoteOperation === action;
+      const running = action === 'push' ? push?.worktreeId === worktree.id : remoteOperation === action;
       /** 推送目标可能不同于拉取上游，由原生命令核验实际目标。 */
       const blocked = remoteBlockReason(worktree, action) ?? (action === 'pull' && integration?.fresh && integration.ahead > 0
         ? '当前分支与远端已分叉，请先合并。' : null);
@@ -114,9 +121,9 @@ export function RemoteActions({ worktree }: { worktree: Worktree }) {
             <Field><FieldLabel htmlFor="push-remote">{t("远程仓库")}</FieldLabel><select id="push-remote" value={selectedRemote} onChange={event => setSelectedRemote(event.target.value)} disabled={locked} aria-describedby="push-remote-description">
               {remote?.remotes.map(name => <option key={name} value={name}>{name}</option>)}
             </select><FieldDescription id="push-remote-description">{t("发布到 {destination}，并建立上游跟踪。", { destination: `${selectedRemote}/${worktree.branch}` })}</FieldDescription></Field>
-            {(dialogError || pushBlocked) && <p className="remote-dialog-error" role="alert">{translateMessage(dialogError ?? pushBlocked ?? '')}</p>}
+            {pushBlocked && <p className="remote-dialog-error" role="alert">{translateMessage(pushBlocked)}</p>}
           </div>
-          <div className="branch-form-actions"><Button type="button" variant="outline" disabled={busy} onClick={() => setChoosingRemote(false)}>{t("取消")}</Button><Button type="submit" disabled={locked || Boolean(pushBlocked) || !remote?.remotes.includes(selectedRemote)}>{remoteOperation === 'push' ? t("发布中…") : t("发布分支")}</Button></div>
+          <div className="branch-form-actions"><Button type="button" variant="outline" disabled={busy} onClick={() => setChoosingRemote(false)}>{t("取消")}</Button><Button type="submit" disabled={locked || Boolean(pushBlocked) || !remote?.remotes.includes(selectedRemote)}>{t("发布分支")}</Button></div>
         </form>
       </DialogContent>
     </Dialog>
@@ -141,7 +148,9 @@ export function RemoteCheckIndicator({ worktree }: { worktree: Worktree }) {
 /** 已确认落后时建议拉取，分叉时复用合并预览供用户确认。 */
 export function RemoteIntegrationNotice({ worktree, onMerge }: { worktree: Worktree; onMerge: (source: MergeSource) => void }) {
   useI18n();
-  const { busy, refreshing, remoteCheck } = useWorkbench();
+  const state = useWorkbench();
+  const { refreshing, remoteCheck } = state;
+  const busy = isActiveWorktreeBusy(state);
   const integration = remoteIntegration(worktree, remoteCheck);
   if (!integration) return null;
   const { ahead, behind, source, fresh } = integration;

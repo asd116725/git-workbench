@@ -23,8 +23,9 @@ function currentWorktree() {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>(done => { resolve = done; });
-  return { promise, resolve };
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 }
 
 async function reply(command: string) {
@@ -53,7 +54,10 @@ describe('远程操作与状态刷新', () => {
     mockedInvoke.mockClear();
     repository = { ...repository, remote: { ...repository.remote, ahead: 0 } };
     await expect(useWorkbench.getState().runRemote(action)).resolves.toEqual({ warning: null });
-    expect(mockedInvoke).toHaveBeenCalledWith(`git_${action}`, action === 'push' ? { repoPath: repository.path, remote: null } : { repoPath: repository.path });
+    expect(mockedInvoke).toHaveBeenCalledWith(`git_${action}`, action === 'push' ? {
+      repoPath: repository.path, remote: null,
+      expected: { commonDir: repository.commonDir, branch: 'main', remote: 'origin', targetBranch: 'main', setUpstream: false },
+    } : { repoPath: repository.path });
     expect(mockedInvoke).toHaveBeenCalledWith('git_status', { repoPath: repository.path });
     expect(mockedInvoke).toHaveBeenCalledWith('git_branches', { repoPath: repository.path });
     expect(mockedInvoke).toHaveBeenCalledWith('git_history_ref', { repoPath: repository.path, reference: null });
@@ -67,11 +71,114 @@ describe('远程操作与状态刷新', () => {
     await useWorkbench.getState().openRepository(repository.path);
     repository = { ...repository, remote: { ...repository.remote, upstream: 'team/main', upstreamRemote: 'team', upstreamBranch: 'main', defaultRemote: 'team', ahead: 0, behind: 0 } };
     await useWorkbench.getState().runRemote('push', 'team');
-    expect(mockedInvoke).toHaveBeenCalledWith('git_push', { repoPath: repository.path, remote: 'team' });
+    expect(mockedInvoke).toHaveBeenCalledWith('git_push', {
+      repoPath: repository.path, remote: 'team',
+      expected: { commonDir: repository.commonDir, branch: 'main', remote: 'team', targetBranch: 'main', setUpstream: true },
+    });
     expect(currentWorktree().remote?.upstream).toBe('team/main');
   });
 
-  it('操作期间拒绝重复执行和切换工作区，晚到旧刷新不能覆盖新计数', async () => {
+  it.each([false, true])('另一个仓库可提交，推送结果只回写原仓库（失败：%s）', async failed => {
+    const otherPath = '/test/other';
+    const otherMetadata = { ...metadata, path: otherPath, name: 'other', branch: 'topic' };
+    let other: NativeRepository = {
+      ...initial, ...otherMetadata, commonDir: `${otherPath}/.git`, repositoryName: 'other',
+      worktrees: [otherMetadata], files: [{ path: 'other.ts', statusIndex: 'M', statusWorktree: ' ', originalPath: null, conflicted: false }],
+    };
+    const push = deferred<GitRemoteResult>();
+    const commit = deferred<{ commitId: string }>();
+    mockedInvoke.mockImplementation((command, args) => {
+      if (command === 'git_open' || command === 'git_status') {
+        const target = args as { path?: string; repoPath?: string };
+        return Promise.resolve((target.path ?? target.repoPath) === otherPath ? other : repository);
+      }
+      if (command === 'git_push') return push.promise;
+      if (command === 'git_commit') return commit.promise;
+      return reply(command);
+    });
+    const state = useWorkbench.getState();
+    await state.openRepository(otherPath);
+    const otherId = currentWorktree().id;
+    await state.openRepository(metadata.path);
+    const sourceId = currentWorktree().id;
+    const pendingPush = state.runRemote('push');
+    let pendingCommit: Promise<string> | undefined;
+    try {
+      state.selectWorktree(otherId);
+      expect(currentWorktree().id).toBe(otherId);
+      await vi.waitFor(() => expect(useWorkbench.getState().refreshing).toBe(false));
+
+      state.setDraft({ message: '另一个仓库的提交' });
+      pendingCommit = state.commit();
+      expect(mockedInvoke).toHaveBeenCalledWith('git_commit', { repoPath: otherPath, summary: '另一个仓库的提交', description: '' });
+      if (failed) {
+        push.reject('连接失败');
+        await expect(pendingPush).rejects.toThrow('连接失败');
+      } else {
+        repository = { ...repository, remote: { ...repository.remote, ahead: 0 } };
+        push.resolve({ warning: null });
+        await pendingPush;
+      }
+
+      const afterPush = useWorkbench.getState();
+      expect(afterPush).toMatchObject({ activeWorktreeId: otherId, busy: true, error: null, drafts: { [otherId]: { message: '另一个仓库的提交' } } });
+      expect(afterPush.pushIssues[sourceId]?.message).toBe(failed ? '连接失败' : undefined);
+      expect(afterPush.pushIssues[otherId]).toBeUndefined();
+      expect(findWorktree(afterPush.repositories, sourceId)?.remote?.ahead).toBe(failed ? 3 : 0);
+      expect(currentWorktree().files[0]?.id).toBe('other.ts');
+      other = { ...other, files: [] };
+      commit.resolve({ commitId: 'other-commit' });
+      await expect(pendingCommit).resolves.toBe('other-commit');
+      expect(currentWorktree().id).toBe(otherId);
+    } finally {
+      push.resolve({ warning: null });
+      commit.resolve({ commitId: 'other-commit' });
+      await Promise.allSettled([pendingPush, pendingCommit]);
+    }
+  });
+
+  it('同仓库关联工作树可查看已读状态，推送结束后原地刷新', async () => {
+    const linkedPath = '/test/linked';
+    const linkedMetadata = { ...metadata, path: linkedPath, name: 'linked', branch: 'linked', isMain: false };
+    repository = { ...repository, worktrees: [metadata, linkedMetadata] };
+    let linked: NativeRepository = {
+      ...repository, ...linkedMetadata,
+      files: [{ path: 'linked.ts', statusIndex: ' ', statusWorktree: 'M', originalPath: null, conflicted: false }],
+    };
+    const push = deferred<GitRemoteResult>();
+    mockedInvoke.mockImplementation((command, args) => {
+      if (command === 'git_open' || command === 'git_status') {
+        const target = args as { path?: string; repoPath?: string };
+        return Promise.resolve((target.path ?? target.repoPath) === linkedPath ? linked : repository);
+      }
+      if (command === 'git_push') return push.promise;
+      return reply(command);
+    });
+    const state = useWorkbench.getState();
+    await state.openRepository(linkedPath);
+    const linkedId = currentWorktree().id;
+    await state.openRepository(metadata.path);
+    const pending = state.runRemote('push');
+    try {
+      mockedInvoke.mockClear();
+      state.selectWorktree(linkedId);
+      expect(currentWorktree()).toMatchObject({ id: linkedId, files: [{ id: 'linked.ts' }] });
+      expect(mockedInvoke).not.toHaveBeenCalledWith('git_status', { repoPath: linkedPath });
+      await expect(state.stage('linked.ts')).rejects.toThrow('Git 操作正在进行');
+      expect(mockedInvoke).not.toHaveBeenCalledWith('git_stage', expect.anything());
+
+      linked = { ...linked, files: [] };
+      push.resolve({ warning: null });
+      await pending;
+      await vi.waitFor(() => expect(currentWorktree()).toMatchObject({ id: linkedId, files: [] }));
+      expect(mockedInvoke).toHaveBeenCalledWith('git_status', { repoPath: linkedPath });
+    } finally {
+      push.resolve({ warning: null });
+      await pending;
+    }
+  });
+
+  it('推送中拒绝重复推送，晚到的旧刷新不能覆盖新计数', async () => {
     await useWorkbench.getState().openRepository(repository.path);
     const oldStatus = deferred<NativeRepository>();
     const pending = deferred<GitRemoteResult>();
@@ -83,9 +190,9 @@ describe('远程操作与状态刷新', () => {
     });
     const refreshing = useWorkbench.getState().refresh({ silent: true });
     const pushing = useWorkbench.getState().runRemote('push');
-    expect(useWorkbench.getState()).toMatchObject({ busy: true, remoteOperation: 'push' });
-    useWorkbench.getState().selectWorktree('different');
-    expect(currentWorktree().path).toBe(metadata.path);
+    expect(useWorkbench.getState()).toMatchObject({ busy: false, pushes: {
+      [`native-repository:${repository.commonDir}`]: { worktreeId: currentWorktree().id, branch: 'main' },
+    } });
     await expect(useWorkbench.getState().runRemote('push')).rejects.toThrow('Git 操作正在进行');
     repository = { ...repository, remote: { ...repository.remote, ahead: 0 } };
     pending.resolve({ warning: null });

@@ -22,7 +22,7 @@ export function RemoveRepositoryDialog({ target, onClose, onRestoreFocus }: {
   onRestoreFocus: () => void;
 }) {
   useI18n();
-  const disabled = useWorkbench(state => state.busy || state.restoring || state.backgroundFetchingRepositoryIds.includes(target.id));
+  const disabled = useWorkbench(state => state.busy || state.restoring || Boolean(state.pushes[target.id]) || state.backgroundFetchingRepositoryIds.includes(target.id));
   const [error, setError] = useState<string | null>(null);
   const cancel = useRef<HTMLButtonElement>(null);
 

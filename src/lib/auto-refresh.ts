@@ -5,7 +5,7 @@ import { useHistory } from './history-store';
 import { nativeGit } from './native-git';
 import { createRefreshScheduler, type RefreshScheduler } from './refresh-scheduler';
 import { createRemoteRefreshScheduler } from './remote-refresh-scheduler';
-import { findWorktree, useWorkbench } from './store';
+import { findWorktree, isActiveWorktreeBusy, useWorkbench } from './store';
 
 interface RepositoryChanged { repoPath: string; error?: string }
 
@@ -42,8 +42,8 @@ export function startAutoRefresh(): () => void {
 
   function updateState() {
     function isIdle() {
-      const { busy, restoring, refreshing, autoRefreshing } = useWorkbench.getState();
-      return !busy && !restoring && !refreshing && !autoRefreshing;
+      const state = useWorkbench.getState();
+      return !isActiveWorktreeBusy(state) && !state.restoring && !state.refreshing && !state.autoRefreshing;
     }
     scheduler?.setState({ focused, idle: isIdle() });
     remoteScheduler.setState(remoteRepositoryId, ready && focused && hasRemotes && isIdle());

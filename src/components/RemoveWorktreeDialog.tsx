@@ -26,7 +26,7 @@ export function RemoveWorktreeDialog({ target, onClose, onRestoreFocus }: {
 }) {
   useI18n();
   const { repositoryId, worktree, name, mode } = target;
-  const disabled = useWorkbench(state => state.busy || state.restoring || state.backgroundFetchingRepositoryIds.includes(repositoryId));
+  const disabled = useWorkbench(state => state.busy || state.restoring || Boolean(state.pushes[repositoryId]) || state.backgroundFetchingRepositoryIds.includes(repositoryId));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cancel = useRef<HTMLButtonElement>(null);

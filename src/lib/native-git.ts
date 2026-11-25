@@ -38,6 +38,15 @@ export type WorktreeRemovalMode = 'delete' | 'cleanMissing';
 /** Git 已移除登记时，warning 保留可能的目录清理错误。 */
 export interface WorktreeRemovalResult { warning: string | null }
 
+/** 推送开始时固定工作树所属仓库、源分支和远程分支，并交给原生层再次核对。 */
+export interface GitPushTarget {
+  commonDir: string;
+  branch: string;
+  remote: string;
+  targetBranch: string;
+  setUpstream: boolean;
+}
+
 /** 菜单只显示最新列表允许的操作，最终以原生校验为准。 */
 export function worktreeRemovalMode(worktree: Worktree): WorktreeRemovalMode | undefined {
   if (worktree.source !== 'native' || worktree.isMain !== false || worktree.bare || worktree.locked != null) return;
@@ -119,7 +128,8 @@ export const nativeGit = {
   /** 后台获取使用较短时限，手动获取保持既有调用参数。 */
   fetch: (repoPath: string, background = false) => invoke<GitRemoteResult>('git_fetch', background ? { repoPath, background } : { repoPath }),
   pull: (repoPath: string) => invoke<GitRemoteResult>('git_pull', { repoPath }),
-  push: (repoPath: string, remote?: string) => invoke<GitRemoteResult>('git_push', { repoPath, remote: remote ?? null }),
+  push: (repoPath: string, remote: string | undefined, expected: GitPushTarget) =>
+    invoke<GitRemoteResult>('git_push', { repoPath, remote: remote ?? null, expected }),
   branches: (repoPath: string) => invoke<GitBranch[]>('git_branches', { repoPath }),
   /** 默认仅切换本地分支，显式更新才允许获取上游并快进。 */
   checkout: (repoPath: string, fullName: string, syncUpstream = false) =>
